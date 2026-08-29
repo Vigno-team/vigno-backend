@@ -1,0 +1,15 @@
+line-length = 100
+target-version = "py311"
+
+exclude = [
+    "*/migrations/*",
+    ".venv",
+    "notebooks",
+]
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[lint.isort]
+known-first-party = ["apps", "vigno"]
