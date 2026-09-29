@@ -65,3 +65,26 @@ class MedicionHoraria(models.Model):
             f"{self.estacion.nombre} | {self.timestamp} | "
             f"{self.variable} ({self.frecuencia}): {self.valor}"
         )
+class ConfiguracionCalidad(models.Model):
+    clave = models.CharField(max_length=50, unique=True, default="umbral_completitud_pct")
+    umbral_pct = models.FloatField(default=80.0)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def obtener_umbral(cls) -> float:
+        obj, _ = cls.objects.get_or_create(
+            clave="umbral_completitud_pct", defaults={"umbral_pct": 80.0}
+        )
+        return obj.umbral_pct
+
+class SerieDiaria(models.Model):
+    estacion = models.CharField(max_length=100, db_index=True)
+    fecha = models.DateField(db_index=True)
+    tmax = models.FloatField(null=True, blank=True)
+    tmin = models.FloatField(null=True, blank=True)
+    tmedia = models.FloatField(null=True, blank=True)
+    amplitud_termica = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("estacion", "fecha")
+        ordering = ["estacion", "fecha"]
