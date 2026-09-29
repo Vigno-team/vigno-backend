@@ -1,0 +1,34 @@
+{
+  "San Clemente": {
+    "sheet_name": "mensual",
+    "skip_rows": 4,
+    "zona_horaria": "America/Santiago",
+    "columnas": {
+      "timestamp": "FECHA",
+      "temperatura_media": "Media diaria",
+      "temperatura_maxima": "Máxima",
+      "temperatura_minima": "Mínima",
+      "humedad_media": "Media (%)",
+      "precipitacion": "PP",
+      "radiacion_maxima": "RAD MAX",
+      "viento_maximo": "VIENTO"
+    },
+    "columnas_rechazadas": ["Abejas", "Hr Abejas"]
+  },
+  "El Arenal": {
+    "sheet_name": "mensual",
+    "skip_rows": 4,
+    "zona_horaria": "America/Santiago",
+    "columnas": {
+      "timestamp": "FECHA",
+      "temperatura_media": "Media",
+      "temperatura_maxima": "Máxima",
+      "temperatura_minima": "Mínima",
+      "humedad_media": "MediaHF",
+      "precipitacion": "PP imas",
+      "radiacion_maxima": "RAD MAX",
+      "viento_maximo": "vmax viento"
+    },
+    "columnas_rechazadas": ["Abejas", "Hr Abejas"]
+  }
+}
