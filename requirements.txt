@@ -15,3 +15,8 @@ drf-spectacular==0.27.2
 
 # --- Servidor de produccion ---
 gunicorn==22.0.0
+
+# --- Procesamiento de datos (Ingesta) ---
+pandas==2.2.3
+openpyxl==3.1.5
+pytz
