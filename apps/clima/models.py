@@ -77,13 +77,21 @@ class ConfiguracionCalidad(models.Model):
         )
         return obj.umbral_pct
 
-class SerieDiaria(models.Model):
+class ResumenDiario(models.Model):
     estacion = models.CharField(max_length=100, db_index=True)
     fecha = models.DateField(db_index=True)
     tmax = models.FloatField(null=True, blank=True)
     tmin = models.FloatField(null=True, blank=True)
     tmedia = models.FloatField(null=True, blank=True)
     amplitud_termica = models.FloatField(null=True, blank=True)
+
+    origen = models.CharField(
+        max_length=1, 
+        choices=[("D", "Diario"), ("H", "Horario")], 
+        default="D"
+    )
+    horas_validas = models.PositiveSmallIntegerField(null=True, blank=True)
+    horas_esperadas = models.PositiveSmallIntegerField(null=True, blank=True)
 
     class Meta:
         unique_together = ("estacion", "fecha")
