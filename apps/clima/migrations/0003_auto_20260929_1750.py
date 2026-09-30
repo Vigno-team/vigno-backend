@@ -10,19 +10,21 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(
-            """
+                migrations.RunSQL(
+            sql="""
             CREATE EXTENSION IF NOT EXISTS timescaledb;
-            
-            -- Borrar la llave primaria original 
+
+            -- Borrar la llave primaria original
             ALTER TABLE medicion_horaria DROP CONSTRAINT IF EXISTS medicion_horaria_pkey CASCADE;
             ALTER TABLE medicion_horaria DROP CONSTRAINT IF EXISTS clima_medicioncanonica_pkey CASCADE;
-            
+
             -- Crear una llave compuesta
             ALTER TABLE medicion_horaria ADD PRIMARY KEY (id, timestamp);
-            
+
             -- Crear la Hypertable
             SELECT create_hypertable('medicion_horaria', 'timestamp');
-            """
+            """,
+
+            reverse_sql=migrations.RunSQL.noop,
         )
     ]
