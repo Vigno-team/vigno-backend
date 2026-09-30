@@ -3,32 +3,66 @@
     "sheet_name": "mensual",
     "skip_rows": 4,
     "zona_horaria": "America/Santiago",
-    "columnas": {
-      "timestamp": "FECHA",
-      "temperatura_media": "Media diaria",
-      "temperatura_maxima": "Máxima",
-      "temperatura_minima": "Mínima",
-      "humedad_media": "Media (%)",
-      "precipitacion": "PP",
-      "radiacion_maxima": "RAD MAX",
-      "viento_maximo": "VIENTO"
-    },
-    "columnas_rechazadas": ["Abejas", "Hr Abejas"]
+    "formatos": {
+      "A_2020_2022": {
+        "frecuencia": "D",
+        "columnas": {
+          "timestamp": "FECHA",
+          "temperatura_media": "TEMPERATURA|Media",
+          "temperatura_maxima": "TEMPERATURA|Máxima",
+          "temperatura_minima": "TEMPERATURA|Mínima",
+          "humedad_media": "HUMEDAD RELATIVA|mediaHR",
+          "radiacion_maxima": "RAD MAX|maxradiación",
+          "viento_maximo": "VEL. MAX. VIENTO|vmax viento",
+          "precipitacion": "PP"
+        }
+      },
+      "B_2023_2026": {
+        "frecuencia": "D",
+        "columnas": {
+          "timestamp": "FECHA",
+          "temperatura_media": "TEMPERATURA|Media diaria",
+          "temperatura_maxima": "TEMPERATURA|Máxima",
+          "temperatura_minima": "TEMPERATURA|Mínima",
+          "humedad_media": "HUMEDAD RELATIVA|H.R. Media (%)",
+          "radiacion_maxima": "RAD MAX|(W/m2)",
+          "viento_maximo": "VEL. MAX. VIENTO|(m/s)",
+          "precipitacion": "PP|(mm)"
+        }
+      }
+    }
   },
   "El Arenal": {
     "sheet_name": "mensual",
     "skip_rows": 4,
     "zona_horaria": "America/Santiago",
-    "columnas": {
-      "timestamp": "FECHA",
-      "temperatura_media": "Media",
-      "temperatura_maxima": "Máxima",
-      "temperatura_minima": "Mínima",
-      "humedad_media": "MediaHF",
-      "precipitacion": "PP imas",
-      "radiacion_maxima": "RAD MAX",
-      "viento_maximo": "vmax viento"
-    },
-    "columnas_rechazadas": ["Abejas", "Hr Abejas"]
+    "formatos": {
+      "A_2020_2022": {
+        "frecuencia": "D",
+        "columnas": {
+          "timestamp": "FECHA",
+          "temperatura_media": "TEMPERATURA|Media",
+          "temperatura_maxima": "TEMPERATURA|Máxima",
+          "temperatura_minima": "TEMPERATURA|Mínima",
+          "humedad_media": "HUMEDAD RELATIVA|mediaHR",
+          "radiacion_maxima": "RAD MAX|maxradiación",
+          "viento_maximo": "VEL. MAX. VIENTO|vmax viento",
+          "precipitacion": "PP"
+        }
+      },
+      "B_2023_2026": {
+        "frecuencia": "D",
+        "columnas": {
+          "timestamp": "FECHA",
+          "temperatura_media": "TEMPERATURA|Media diaria",
+          "temperatura_maxima": "TEMPERATURA|Máxima",
+          "temperatura_minima": "TEMPERATURA|Mínima",
+          "humedad_media": "HUMEDAD RELATIVA|H.R. Media (%)",
+          "radiacion_maxima": "RAD MAX|(W/m2)",
+          "viento_maximo": "VEL. MAX. VIENTO|(m/s)",
+          "precipitacion": "PP|(mm)"
+        }
+      }
+    }
   }
 }

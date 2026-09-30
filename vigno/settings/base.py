@@ -36,6 +36,7 @@ LOCAL_APPS = [
     "apps.muestras",
     "apps.clima",
     "apps.cosecha",
+    "apps.ingesta",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
