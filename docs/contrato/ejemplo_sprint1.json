@@ -1,54 +1,114 @@
 {
-  "_nota": "DATOS FICTICIOS. Salida esperada al cierre del Sprint 1 (D1.1 consolidación + D1.2 resúmenes diarios y completitud). Contrato v0.1. Sin índices, clasificación ni comparación: eso llega en los Sprints 2 y 3.",
-
+  "_nota": "DATOS FICTICIOS con la estructura y las estaciones reales. Salida esperada del Sprint 1 (D1.1 consolidación + D1.2 resúmenes diarios y completitud). Contrato v0.3.",
   "consolidacion": {
-    "fecha_ejecucion": "2026-09-27T18:40:00-03:00",
+    "fecha_ejecucion": "2026-09-30T01:10:00-03:00",
     "resolucion_origen": "diaria",
     "archivos": [
       {
-        "archivo": "cauquenes_2019_2025.xlsx",
+        "archivo": "El Arenal 2023.xlsx",
         "estacion_id": "cp-cauquenes-01",
-        "filas_leidas": 2038,
-        "filas_aceptadas": 1987,
-        "filas_rechazadas": 51,
+        "temporada_archivo": 2023,
+        "formato": "B",
+        "filas_leidas": 510,
+        "filas_aceptadas": 484,
+        "filas_rechazadas": 26,
         "motivos_rechazo": [
-          { "motivo": "fecha ilegible", "filas": 4 },
-          { "motivo": "fila duplicada", "filas": 47 }
+          {
+            "motivo": "Fecha inválida",
+            "filas": 25
+          },
+          {
+            "motivo": "Fecha repetida en el archivo",
+            "filas": 1
+          }
         ]
       },
       {
-        "archivo": "villavicencio_2021_2025.xlsx",
-        "estacion_id": "cp-villavicencio-01",
-        "filas_leidas": 1308,
-        "filas_aceptadas": 1296,
-        "filas_rechazadas": 12,
+        "archivo": "El Arenal 2024.xlsx",
+        "estacion_id": "cp-cauquenes-01",
+        "temporada_archivo": 2024,
+        "formato": "B",
+        "filas_leidas": 510,
+        "filas_aceptadas": 482,
+        "filas_rechazadas": 28,
         "motivos_rechazo": [
-          { "motivo": "fecha ilegible", "filas": 12 }
+          {
+            "motivo": "Fecha inválida",
+            "filas": 26
+          },
+          {
+            "motivo": "Fecha repetida en el archivo",
+            "filas": 2
+          }
+        ]
+      },
+      {
+        "archivo": "San Clemente 2022.xlsx",
+        "estacion_id": "cp-san-clemente-01",
+        "temporada_archivo": 2022,
+        "formato": "A",
+        "filas_leidas": 510,
+        "filas_aceptadas": 485,
+        "filas_rechazadas": 25,
+        "motivos_rechazo": [
+          {
+            "motivo": "Fecha inválida",
+            "filas": 25
+          }
+        ]
+      },
+      {
+        "archivo": "San Clemente 2026.xlsx",
+        "estacion_id": "cp-san-clemente-01",
+        "temporada_archivo": 2026,
+        "formato": "B",
+        "filas_leidas": 383,
+        "filas_aceptadas": 229,
+        "filas_rechazadas": 154,
+        "motivos_rechazo": [
+          {
+            "motivo": "Fecha inválida",
+            "filas": 18
+          },
+          {
+            "motivo": "Fecha futura o sin datos posteriores",
+            "filas": 136
+          }
         ]
       }
     ],
     "columnas_descartadas": [
-      { "columna": "visitas_abejas", "motivo": "fuera de alcance (polinización)" },
-      { "columna": "polinizacion_pct", "motivo": "fuera de alcance (polinización)" }
+      {
+        "columna": "Hr Abejas",
+        "motivo": "fuera de alcance (polinización)"
+      },
+      {
+        "columna": "VEL. MAX. VIENTO|Abejas",
+        "motivo": "fuera de alcance (polinización)"
+      }
     ],
     "valores_nulos": {
-      "total": 214,
-      "motivo": "falla de estación — pérdida asumida, no se imputa"
+      "total": 1480,
+      "motivo": "dato en blanco en el Excel de origen; no se imputa"
     }
   },
-
   "estaciones": [
     {
       "id": "cp-cauquenes-01",
-      "nombre": "Casas Patronales Cauquenes",
+      "nombre": "El Arenal",
       "subzona": "cauquenes",
-      "propietario": "Casas Patronales",
-      "variables": ["tmax", "tmin", "tmedia", "precipitacion"],
-      "fecha_inicio": "2019-09-01",
-      "fecha_fin": "2025-03-31",
-      "temporadas_disponibles": 5,
+      "propietario": "Agropacal",
+      "variables": [
+        "tmax",
+        "tmin",
+        "tmedia",
+        "precipitacion"
+      ],
+      "fecha_inicio": "2021-08-01",
+      "fecha_fin": "2026-07-31",
+      "temporadas_disponibles": 6,
       "calidad_dato": {
-        "completitud_pct": 93.8,
+        "completitud_pct": 97.1,
         "confiable": true,
         "umbral_completitud_pct": 80,
         "resolucion_origen": "diaria",
@@ -56,90 +116,257 @@
       }
     },
     {
-      "id": "cp-villavicencio-01",
-      "nombre": "Villavicencio El Arenal",
-      "subzona": "villavicencio",
-      "propietario": "Casas Patronales",
-      "variables": ["tmax", "tmin", "tmedia", "precipitacion"],
-      "fecha_inicio": "2021-09-01",
-      "fecha_fin": "2025-03-31",
-      "temporadas_disponibles": 3,
+      "id": "cp-san-clemente-01",
+      "nombre": "San Clemente",
+      "subzona": "san-clemente",
+      "propietario": null,
+      "variables": [
+        "tmax",
+        "tmin",
+        "tmedia",
+        "precipitacion"
+      ],
+      "fecha_inicio": "2020-01-01",
+      "fecha_fin": "2026-08-17",
+      "temporadas_disponibles": 8,
       "calidad_dato": {
-        "completitud_pct": 71.5,
-        "confiable": false,
+        "completitud_pct": 99.4,
+        "confiable": true,
         "umbral_completitud_pct": 80,
         "resolucion_origen": "diaria",
         "version_calculo": null
       }
     }
   ],
-
-  "temporadas": ["2020-2021", "2021-2022", "2022-2023", "2023-2024", "2024-2025"],
-
+  "temporadas": [
+    "2019-2020",
+    "2020-2021",
+    "2021-2022",
+    "2022-2023",
+    "2023-2024",
+    "2024-2025",
+    "2025-2026",
+    "2026-2027"
+  ],
   "completitud_por_temporada": [
     {
-      "estacion_id": "cp-cauquenes-01",
+      "estacion_id": "cp-san-clemente-01",
+      "temporada": "2019-2020",
+      "variables": {
+        "tmax": 49.5,
+        "tmin": 49.5,
+        "tmedia": 49.5,
+        "precipitacion": 49.5
+      },
+      "confiable": false
+    },
+    {
+      "estacion_id": "cp-san-clemente-01",
       "temporada": "2020-2021",
-      "variables": { "tmax": 89.2, "tmin": 89.2, "tmedia": 88.7, "precipitacion": 85.0 },
+      "variables": {
+        "tmax": 98.9,
+        "tmin": 98.9,
+        "tmedia": 98.9,
+        "precipitacion": 98.4
+      },
       "confiable": true
+    },
+    {
+      "estacion_id": "cp-san-clemente-01",
+      "temporada": "2021-2022",
+      "variables": {
+        "tmax": 100.0,
+        "tmin": 100.0,
+        "tmedia": 100.0,
+        "precipitacion": 100.0
+      },
+      "confiable": true
+    },
+    {
+      "estacion_id": "cp-san-clemente-01",
+      "temporada": "2022-2023",
+      "variables": {
+        "tmax": 97.3,
+        "tmin": 97.3,
+        "tmedia": 97.3,
+        "precipitacion": 96.4
+      },
+      "confiable": true
+    },
+    {
+      "estacion_id": "cp-san-clemente-01",
+      "temporada": "2023-2024",
+      "variables": {
+        "tmax": 100.0,
+        "tmin": 100.0,
+        "tmedia": 100.0,
+        "precipitacion": 100.0
+      },
+      "confiable": true
+    },
+    {
+      "estacion_id": "cp-san-clemente-01",
+      "temporada": "2024-2025",
+      "variables": {
+        "tmax": 99.7,
+        "tmin": 99.7,
+        "tmedia": 99.7,
+        "precipitacion": 99.7
+      },
+      "confiable": true
+    },
+    {
+      "estacion_id": "cp-san-clemente-01",
+      "temporada": "2025-2026",
+      "variables": {
+        "tmax": 100.0,
+        "tmin": 100.0,
+        "tmedia": 100.0,
+        "precipitacion": 100.0
+      },
+      "confiable": true
+    },
+    {
+      "estacion_id": "cp-san-clemente-01",
+      "temporada": "2026-2027",
+      "variables": {
+        "tmax": 51.8,
+        "tmin": 51.8,
+        "tmedia": 51.8,
+        "precipitacion": 51.8
+      },
+      "confiable": false
     },
     {
       "estacion_id": "cp-cauquenes-01",
       "temporada": "2021-2022",
-      "variables": { "tmax": 95.3, "tmin": 95.3, "tmedia": 95.3, "precipitacion": 94.8 },
+      "variables": {
+        "tmax": 91.2,
+        "tmin": 91.2,
+        "tmedia": 91.2,
+        "precipitacion": 90.7
+      },
       "confiable": true
     },
     {
       "estacion_id": "cp-cauquenes-01",
       "temporada": "2022-2023",
-      "variables": { "tmax": 62.4, "tmin": 62.4, "tmedia": 62.0, "precipitacion": 58.9 },
-      "confiable": false
-    },
-    {
-      "estacion_id": "cp-cauquenes-01",
-      "temporada": "2023-2024",
-      "variables": { "tmax": 96.2, "tmin": 96.2, "tmedia": 96.2, "precipitacion": 95.7 },
+      "variables": {
+        "tmax": 99.4,
+        "tmin": 99.4,
+        "tmedia": 99.4,
+        "precipitacion": 99.4
+      },
       "confiable": true
     },
     {
       "estacion_id": "cp-cauquenes-01",
-      "temporada": "2024-2025",
-      "variables": { "tmax": 90.3, "tmin": 90.3, "tmedia": 90.3, "precipitacion": 0.0 },
-      "confiable": true,
+      "temporada": "2023-2024",
+      "variables": {
+        "tmax": 78.6,
+        "tmin": 78.6,
+        "tmedia": 78.6,
+        "precipitacion": 0.0
+      },
+      "confiable": false,
       "observacion": "sin datos de precipitación en la temporada"
     },
     {
-      "estacion_id": "cp-villavicencio-01",
-      "temporada": "2022-2023",
-      "variables": { "tmax": 68.5, "tmin": 68.5, "tmedia": 68.1, "precipitacion": 66.0 },
-      "confiable": false
-    },
-    {
-      "estacion_id": "cp-villavicencio-01",
-      "temporada": "2023-2024",
-      "variables": { "tmax": 74.0, "tmin": 74.0, "tmedia": 73.8, "precipitacion": 70.2 },
-      "confiable": false
-    },
-    {
-      "estacion_id": "cp-villavicencio-01",
+      "estacion_id": "cp-cauquenes-01",
       "temporada": "2024-2025",
-      "variables": { "tmax": 81.9, "tmin": 81.9, "tmedia": 81.9, "precipitacion": 80.4 },
+      "variables": {
+        "tmax": 99.2,
+        "tmin": 99.2,
+        "tmedia": 99.2,
+        "precipitacion": 98.9
+      },
       "confiable": true
+    },
+    {
+      "estacion_id": "cp-cauquenes-01",
+      "temporada": "2025-2026",
+      "variables": {
+        "tmax": 100.0,
+        "tmin": 100.0,
+        "tmedia": 100.0,
+        "precipitacion": 100.0
+      },
+      "confiable": true
+    },
+    {
+      "estacion_id": "cp-cauquenes-01",
+      "temporada": "2026-2027",
+      "variables": {
+        "tmax": 33.5,
+        "tmin": 33.5,
+        "tmedia": 33.5,
+        "precipitacion": 33.5
+      },
+      "confiable": false
     }
   ],
-
   "resumen_diario": {
-    "estacion_id": "cp-cauquenes-01",
-    "desde": "2024-01-25",
-    "hasta": "2024-01-31",
+    "estacion_id": "cp-san-clemente-01",
+    "desde": "2025-01-25",
+    "hasta": "2025-01-31",
     "dias": [
-      { "fecha": "2024-01-25", "tmax": 33.9, "tmin": 12.1, "tmedia": 22.4, "amplitud": 21.8, "precipitacion": 0.0 },
-      { "fecha": "2024-01-26", "tmax": 36.8, "tmin": 13.5, "tmedia": 24.6, "amplitud": 23.3, "precipitacion": 0.0 },
-      { "fecha": "2024-01-27", "tmax": 38.4, "tmin": 15.2, "tmedia": 26.3, "amplitud": 23.2, "precipitacion": 0.0 },
-      { "fecha": "2024-01-28", "tmax": 37.9, "tmin": 14.8, "tmedia": 25.9, "amplitud": 23.1, "precipitacion": 0.0 },
-      { "fecha": "2024-01-29", "tmax": null, "tmin": null, "tmedia": null, "amplitud": null, "precipitacion": null, "motivo_nulo": "falla de estación" },
-      { "fecha": "2024-01-30", "tmax": 35.7, "tmin": 13.9, "tmedia": 24.1, "amplitud": 21.8, "precipitacion": 0.0 },
-      { "fecha": "2024-01-31", "tmax": 35.3, "tmin": 12.6, "tmedia": 23.5, "amplitud": 22.7, "precipitacion": 0.0 }
+      {
+        "fecha": "2025-01-25",
+        "tmax": 32.1,
+        "tmin": 11.4,
+        "tmedia": 21.6,
+        "amplitud": 20.7,
+        "precipitacion": 0.0
+      },
+      {
+        "fecha": "2025-01-26",
+        "tmax": 35.8,
+        "tmin": 13.2,
+        "tmedia": 24.1,
+        "amplitud": 22.6,
+        "precipitacion": 0.0
+      },
+      {
+        "fecha": "2025-01-27",
+        "tmax": 37.4,
+        "tmin": 15.0,
+        "tmedia": 25.9,
+        "amplitud": 22.4,
+        "precipitacion": 0.0
+      },
+      {
+        "fecha": "2025-01-28",
+        "tmax": 36.2,
+        "tmin": 14.1,
+        "tmedia": 25.2,
+        "amplitud": 22.1,
+        "precipitacion": 0.0
+      },
+      {
+        "fecha": "2025-01-29",
+        "tmax": null,
+        "tmin": null,
+        "tmedia": null,
+        "amplitud": null,
+        "precipitacion": null,
+        "motivo_nulo": "Dato en blanco en origen"
+      },
+      {
+        "fecha": "2025-01-30",
+        "tmax": 33.0,
+        "tmin": 12.8,
+        "tmedia": 22.7,
+        "amplitud": 20.2,
+        "precipitacion": 1.4
+      },
+      {
+        "fecha": "2025-01-31",
+        "tmax": 30.6,
+        "tmin": 12.1,
+        "tmedia": 21.0,
+        "amplitud": 18.5,
+        "precipitacion": 0.2
+      }
     ]
   }
 }
