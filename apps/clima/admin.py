@@ -2,13 +2,14 @@
 
 from django.contrib import admin
 
-from .models import Estacion, MedicionHoraria
+from .models import ConfiguracionCalidad, Estacion, MedicionHoraria
 
 
 # Visualizar tablas tablas estandarizadas en Admin
 @admin.register(Estacion)
 class EstacionAdmin(admin.ModelAdmin):
-    list_display = ("nombre",)
+    list_display = ("nombre", "codigo", "subzona", "propietario")
+    search_fields = ("nombre", "codigo")
 
 
 @admin.register(MedicionHoraria)
@@ -16,3 +17,8 @@ class MedicionHorariaAdmin(admin.ModelAdmin):
     list_display = ("estacion", "timestamp", "variable", "valor", "motivo_nulo")
     list_filter = ("estacion", "variable")
     search_fields = ("variable",)
+
+
+@admin.register(ConfiguracionCalidad)
+class ConfiguracionCalidadAdmin(admin.ModelAdmin):
+    list_display = ("clave", "umbral_pct", "horas_minimas_dia", "actualizado_en")

@@ -32,13 +32,11 @@ class Command(BaseCommand):
             qs.values("estacion_id", "timestamp", "frecuencia", "variable", "valor", "motivo_nulo")
         )
 
-        ancho = df.pivot_table(
-            index=["estacion_id", "timestamp", "frecuencia"],
-            columns="variable",
-            values="valor",
-            aggfunc="first",
-            dropna=False,
-        ).reset_index()
+        claves = ["estacion_id", "timestamp", "frecuencia"]
+        valores = df.set_index(claves + ["variable"])["valor"].unstack("variable")
+        motivos = df.groupby(claves)["motivo_nulo"].first()
+        ancho = valores.join(motivos).reset_index()
+        ancho.columns.name = None
 
         registros = derivar_resumenes_diarios(ancho)
         self.stdout.write(self.style.SUCCESS(f"Generados {len(registros)} resúmenes diarios."))

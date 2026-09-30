@@ -84,10 +84,7 @@ class ConfiguracionCalidad(models.Model):
 
     @classmethod
     def obtener_umbral(cls) -> float:
-        obj, _ = cls.objects.get_or_create(
-            clave="umbral_completitud_pct", defaults={"umbral_pct": 80.0}
-        )
-        return obj.umbral_pct
+        return cls.obtener_config().umbral_pct
 
 
 class ResumenDiario(models.Model):
