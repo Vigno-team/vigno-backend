@@ -1,62 +1,99 @@
 from datetime import date
+
 import pandas as pd
 import pytest
-from apps.clima.models import ConfiguracionCalidad, ResumenDiario
-from apps.clima.services import derivar_resumenes_diarios, consultar_completitud_periodo
 
-@pytest.mark.django_db
-def test_procesar_frecuencia_diaria():
-    """Aqui se verifica que los datos que ya vienen agregados por día se guarden directo."""
-    df = pd.DataFrame({
-        "estacion": ["San Clemente"],
-        "timestamp": ["2026-03-01"],
-        "temperatura_maxima": [30.5],
-        "temperatura_minima": [10.0],
-        "temperatura_media": [20.2],
-        "frecuencia": ["D"]
-    })
-    
-    resultados = derivar_resumenes_diarios(df)
-    
-    assert len(resultados) == 1
-    assert resultados[0].amplitud_termica == 20.5
-    assert resultados[0].origen == "D"
-    assert resultados[0].horas_validas is None
+from apps.clima.models import ConfiguracionCalidad, Estacion, ResumenDiario
+from apps.clima.services import derivar_resumenes_diarios, horas_del_dia
+from apps.clima.temporadas import temporada_de
+
+pytestmark = pytest.mark.django_db
 
 
-@pytest.mark.django_db
-def test_procesar_frecuencia_horaria():
-    """Aqui se verifica que los datos horarios se agrupen y calculen matemáticamente."""
-    df = pd.DataFrame({
-        "estacion": ["El Arenal", "El Arenal"],
-        "timestamp": ["2026-03-02 10:00:00", "2026-03-02 11:00:00"],
-        "temperatura_media": [15.0, 25.0],
-        "frecuencia": ["H", "H"]
-    })
-    
-    resultados = derivar_resumenes_diarios(df)
-    
-    assert len(resultados) == 1
-    assert resultados[0].tmax == 25.0
-    assert resultados[0].tmin == 15.0
-    assert resultados[0].tmedia == 20.0
-    assert resultados[0].amplitud_termica == 10.0
-    assert resultados[0].origen == "H"
-    assert resultados[0].horas_validas == 2
+def test_temporada_de():
+    assert temporada_de(date(2024, 1, 27)) == "2023-2024"
+    assert temporada_de(date(2024, 7, 1)) == "2024-2025"
 
 
-@pytest.mark.django_db
-def test_completitud_periodo_bajo_umbral():
-    """Aqui se verifica que un periodo con pocos dias validos se marque como no confiable."""
-    ConfiguracionCalidad.objects.create(clave="umbral_completitud_pct", umbral_pct=80.0)
-    
-    # Se inserta 1 dato diario y 1 dato horario ya calculado en un rango de 10 días
-    ResumenDiario.objects.create(estacion="El Arenal", fecha=date(2026, 3, 1), tmedia=20.0, origen="D")
-    ResumenDiario.objects.create(estacion="El Arenal", fecha=date(2026, 3, 2), tmedia=22.0, origen="H", horas_validas=24)
-    
-    resultado = consultar_completitud_periodo("El Arenal", date(2026, 3, 1), date(2026, 3, 10))
-    
-    assert resultado["dias_esperados"] == 10
-    assert resultado["dias_validos"] == 2
-    assert resultado["completitud_pct"] == 20.0
-    assert resultado["es_confiable"] is False
+def test_horas_del_dia():
+    assert horas_del_dia("2025-09-07") == 23  # Cambio a verano
+    assert horas_del_dia("2025-04-05") == 25  # Cambio a invierno
+    assert horas_del_dia("2025-07-10") == 24  # Dia normal
+
+
+def test_horario_manda_sobre_diario():
+    estacion = Estacion.objects.create(nombre="Test", codigo="test-01")
+    ResumenDiario.objects.create(
+        estacion=estacion, fecha=date(2025, 1, 1), temporada="2024-2025", origen="H", tmax=30.0
+    )
+
+    # Intentar procesar un dato diario para el mismo día
+    df = pd.DataFrame(
+        [
+            {
+                "estacion_id": estacion.id,
+                "timestamp": "2025-01-01T12:00:00Z",
+                "frecuencia": "D",
+                "temperatura_maxima": 25.0,
+                "temperatura_minima": 10.0,
+                "temperatura_media": 15.0,
+                "precipitacion": 0.0,
+                "motivo_nulo": None,
+            }
+        ]
+    )
+    derivar_resumenes_diarios(df)
+
+    # Verificar que el registro original 'H' no se sobreescribió
+    res = ResumenDiario.objects.get(fecha=date(2025, 1, 1))
+    assert res.origen == "H"
+    assert res.tmax == 30.0
+
+
+def test_horas_nocturnas_utc_caen_en_dia_correcto():
+    estacion = Estacion.objects.create(nombre="Test UTC", codigo="test-02")
+    df = pd.DataFrame(
+        [
+            {
+                "estacion_id": estacion.id,
+                "timestamp": "2025-07-11T02:00:00Z",  # 22:00 del 10 de julio en Chile
+                "frecuencia": "D",
+                "temperatura_maxima": 10.0,
+            }
+        ]
+    )
+    derivar_resumenes_diarios(df)
+    res = ResumenDiario.objects.first()
+    assert res.fecha == date(2025, 7, 10)  # Cayó en el 10 de julio
+
+
+def test_dia_incompleto_no_es_confiable():
+    estacion = Estacion.objects.create(nombre="Test Confiable", codigo="test-03")
+    ConfiguracionCalidad.obtener_config()  # Crea el config default de 20 hrs
+
+    # Simular solo 2 horas de datos para un día
+    df = pd.DataFrame(
+        [
+            {
+                "estacion_id": estacion.id,
+                "timestamp": "2025-01-01T12:00:00Z",
+                "frecuencia": "H",
+                "temperatura_media": 15,
+                "temperatura_maxima": 20,
+                "temperatura_minima": 10,
+            },
+            {
+                "estacion_id": estacion.id,
+                "timestamp": "2025-01-01T13:00:00Z",
+                "frecuencia": "H",
+                "temperatura_media": 16,
+                "temperatura_maxima": 21,
+                "temperatura_minima": 11,
+            },
+        ]
+    )
+    derivar_resumenes_diarios(df)
+
+    res = ResumenDiario.objects.first()
+    assert res.horas_validas == 2
+    assert res.confiable is False
