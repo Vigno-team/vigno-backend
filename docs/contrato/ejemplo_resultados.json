@@ -1,0 +1,272 @@
+{
+  "_nota": "DATOS FICTICIOS con la estructura y las estaciones reales. Bloques de los Sprints 2 y 3. Contrato v0.3. Los parámetros de los índices están por confirmar con el enólogo.",
+  "ficha_temporada": {
+    "temporada": "2024-2025",
+    "estacion_id": "cp-san-clemente-01",
+    "subzona": "san-clemente",
+    "periodo": {
+      "inicio": "2024-10-01",
+      "fin": "2025-04-30"
+    },
+    "indices": {
+      "winkler": {
+        "valor": 1612,
+        "region": "II",
+        "calidad_dato": {
+          "completitud_pct": 99.7,
+          "confiable": true,
+          "umbral_completitud_pct": 80,
+          "resolucion_origen": "diaria",
+          "version_calculo": "winkler-v1_base10_0110-3004"
+        }
+      },
+      "huglin": {
+        "valor": 2245,
+        "clasificacion": "templado calido",
+        "calidad_dato": {
+          "completitud_pct": 99.7,
+          "confiable": true,
+          "umbral_completitud_pct": 80,
+          "resolucion_origen": "diaria",
+          "version_calculo": "huglin-v1_k1.02_0110-3103"
+        }
+      }
+    },
+    "lluvia_invernal": {
+      "acumulado_mm": 412.5,
+      "promedio_historico_mm": 468.0,
+      "diferencia_pct": -11.9
+    },
+    "calor": {
+      "dias_sobre_umbral": 4,
+      "umbral_c": 35,
+      "rachas_con_incidencia": 0,
+      "racha_maxima_dias": 3
+    },
+    "clasificacion": {
+      "termica": "normal",
+      "hidrica": "normal",
+      "criterio": "Winkler dentro de ±5 % del promedio histórico; lluvia invernal dentro de ±20 % del promedio"
+    },
+    "dias_criticos": [
+      {
+        "fecha": "2025-01-27",
+        "tmax": 37.4
+      },
+      {
+        "fecha": "2025-01-28",
+        "tmax": 36.2
+      },
+      {
+        "fecha": "2025-01-26",
+        "tmax": 35.8
+      },
+      {
+        "fecha": "2025-02-10",
+        "tmax": 35.1
+      },
+      {
+        "fecha": "2025-02-11",
+        "tmax": 34.9
+      },
+      {
+        "fecha": "2024-12-19",
+        "tmax": 34.6
+      },
+      {
+        "fecha": "2025-01-05",
+        "tmax": 34.4
+      },
+      {
+        "fecha": "2025-02-03",
+        "tmax": 34.2
+      },
+      {
+        "fecha": "2025-03-01",
+        "tmax": 33.9
+      },
+      {
+        "fecha": "2025-01-14",
+        "tmax": 33.7
+      }
+    ]
+  },
+  "rachas": {
+    "temporada": "2024-2025",
+    "estacion_id": "cp-cauquenes-01",
+    "umbral_c": 35,
+    "minimo_dias_incidencia": 5,
+    "rachas": [
+      {
+        "inicio": "2025-01-24",
+        "fin": "2025-01-29",
+        "dias": 6,
+        "tmax_maxima": 37.9,
+        "con_incidencia": true
+      },
+      {
+        "inicio": "2025-02-09",
+        "fin": "2025-02-10",
+        "dias": 2,
+        "tmax_maxima": 35.6,
+        "con_incidencia": false
+      }
+    ]
+  },
+  "comparacion": {
+    "estacion_id": "cp-san-clemente-01",
+    "promedio_historico": {
+      "winkler": 1580,
+      "huglin": 2210,
+      "lluvia_invernal_mm": 468.0,
+      "dias_sobre_35": 3.7
+    },
+    "temporadas": [
+      {
+        "temporada": "2020-2021",
+        "winkler": 1498,
+        "huglin": 2120,
+        "lluvia_invernal_mm": 512.3,
+        "dias_sobre_35": 1,
+        "clasificacion": {
+          "termica": "fria",
+          "hidrica": "normal"
+        },
+        "diferencia_vs_promedio": {
+          "winkler": -5.2,
+          "huglin": -4.1,
+          "lluvia_invernal_mm": 9.5,
+          "dias_sobre_35": -73.0
+        },
+        "calidad_dato": {
+          "completitud_pct": 99.5,
+          "confiable": true,
+          "umbral_completitud_pct": 80,
+          "resolucion_origen": "diaria",
+          "version_calculo": "winkler-v1_base10_0110-3004"
+        }
+      },
+      {
+        "temporada": "2021-2022",
+        "winkler": 1655,
+        "huglin": 2290,
+        "lluvia_invernal_mm": 301.8,
+        "dias_sobre_35": 4,
+        "clasificacion": {
+          "termica": "calida",
+          "hidrica": "seca"
+        },
+        "diferencia_vs_promedio": {
+          "winkler": 4.7,
+          "huglin": 3.6,
+          "lluvia_invernal_mm": -35.5,
+          "dias_sobre_35": 8.1
+        },
+        "calidad_dato": {
+          "completitud_pct": 99.5,
+          "confiable": true,
+          "umbral_completitud_pct": 80,
+          "resolucion_origen": "diaria",
+          "version_calculo": "winkler-v1_base10_0110-3004"
+        }
+      },
+      {
+        "temporada": "2022-2023",
+        "winkler": 1590,
+        "huglin": 2215,
+        "lluvia_invernal_mm": 610.4,
+        "dias_sobre_35": 3,
+        "clasificacion": {
+          "termica": "normal",
+          "hidrica": "lluviosa"
+        },
+        "diferencia_vs_promedio": {
+          "winkler": 0.6,
+          "huglin": 0.2,
+          "lluvia_invernal_mm": 30.4,
+          "dias_sobre_35": -18.9
+        },
+        "calidad_dato": {
+          "completitud_pct": 99.5,
+          "confiable": true,
+          "umbral_completitud_pct": 80,
+          "resolucion_origen": "diaria",
+          "version_calculo": "winkler-v1_base10_0110-3004"
+        }
+      },
+      {
+        "temporada": "2023-2024",
+        "winkler": 1602,
+        "huglin": 2230,
+        "lluvia_invernal_mm": 455.0,
+        "dias_sobre_35": 4,
+        "clasificacion": {
+          "termica": "normal",
+          "hidrica": "normal"
+        },
+        "diferencia_vs_promedio": {
+          "winkler": 1.4,
+          "huglin": 0.9,
+          "lluvia_invernal_mm": -2.8,
+          "dias_sobre_35": 8.1
+        },
+        "calidad_dato": {
+          "completitud_pct": 99.5,
+          "confiable": true,
+          "umbral_completitud_pct": 80,
+          "resolucion_origen": "diaria",
+          "version_calculo": "winkler-v1_base10_0110-3004"
+        }
+      },
+      {
+        "temporada": "2024-2025",
+        "winkler": 1612,
+        "huglin": 2245,
+        "lluvia_invernal_mm": 412.5,
+        "dias_sobre_35": 4,
+        "clasificacion": {
+          "termica": "normal",
+          "hidrica": "normal"
+        },
+        "diferencia_vs_promedio": {
+          "winkler": 2.0,
+          "huglin": 1.6,
+          "lluvia_invernal_mm": -11.9,
+          "dias_sobre_35": 8.1
+        },
+        "calidad_dato": {
+          "completitud_pct": 99.5,
+          "confiable": true,
+          "umbral_completitud_pct": 80,
+          "resolucion_origen": "diaria",
+          "version_calculo": "winkler-v1_base10_0110-3004"
+        }
+      },
+      {
+        "temporada": "2025-2026",
+        "winkler": 1523,
+        "huglin": 2160,
+        "lluvia_invernal_mm": 516.9,
+        "dias_sobre_35": 6,
+        "clasificacion": {
+          "termica": "normal",
+          "hidrica": "normal"
+        },
+        "diferencia_vs_promedio": {
+          "winkler": -3.6,
+          "huglin": -2.3,
+          "lluvia_invernal_mm": 10.4,
+          "dias_sobre_35": 62.2
+        },
+        "calidad_dato": {
+          "completitud_pct": 99.5,
+          "confiable": true,
+          "umbral_completitud_pct": 80,
+          "resolucion_origen": "diaria",
+          "version_calculo": "winkler-v1_base10_0110-3004"
+        }
+      }
+    ],
+    "advertencia": "Solo 6 temporadas confiables: las diferencias entre años son orientativas."
+  }
+}
