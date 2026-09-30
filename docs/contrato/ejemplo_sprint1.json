@@ -1,0 +1,145 @@
+{
+  "_nota": "DATOS FICTICIOS. Salida esperada al cierre del Sprint 1 (D1.1 consolidación + D1.2 resúmenes diarios y completitud). Contrato v0.1. Sin índices, clasificación ni comparación: eso llega en los Sprints 2 y 3.",
+
+  "consolidacion": {
+    "fecha_ejecucion": "2026-09-27T18:40:00-03:00",
+    "resolucion_origen": "diaria",
+    "archivos": [
+      {
+        "archivo": "cauquenes_2019_2025.xlsx",
+        "estacion_id": "cp-cauquenes-01",
+        "filas_leidas": 2038,
+        "filas_aceptadas": 1987,
+        "filas_rechazadas": 51,
+        "motivos_rechazo": [
+          { "motivo": "fecha ilegible", "filas": 4 },
+          { "motivo": "fila duplicada", "filas": 47 }
+        ]
+      },
+      {
+        "archivo": "villavicencio_2021_2025.xlsx",
+        "estacion_id": "cp-villavicencio-01",
+        "filas_leidas": 1308,
+        "filas_aceptadas": 1296,
+        "filas_rechazadas": 12,
+        "motivos_rechazo": [
+          { "motivo": "fecha ilegible", "filas": 12 }
+        ]
+      }
+    ],
+    "columnas_descartadas": [
+      { "columna": "visitas_abejas", "motivo": "fuera de alcance (polinización)" },
+      { "columna": "polinizacion_pct", "motivo": "fuera de alcance (polinización)" }
+    ],
+    "valores_nulos": {
+      "total": 214,
+      "motivo": "falla de estación — pérdida asumida, no se imputa"
+    }
+  },
+
+  "estaciones": [
+    {
+      "id": "cp-cauquenes-01",
+      "nombre": "Casas Patronales Cauquenes",
+      "subzona": "cauquenes",
+      "propietario": "Casas Patronales",
+      "variables": ["tmax", "tmin", "tmedia", "precipitacion"],
+      "fecha_inicio": "2019-09-01",
+      "fecha_fin": "2025-03-31",
+      "temporadas_disponibles": 5,
+      "calidad_dato": {
+        "completitud_pct": 93.8,
+        "confiable": true,
+        "umbral_completitud_pct": 80,
+        "resolucion_origen": "diaria",
+        "version_calculo": null
+      }
+    },
+    {
+      "id": "cp-villavicencio-01",
+      "nombre": "Villavicencio El Arenal",
+      "subzona": "villavicencio",
+      "propietario": "Casas Patronales",
+      "variables": ["tmax", "tmin", "tmedia", "precipitacion"],
+      "fecha_inicio": "2021-09-01",
+      "fecha_fin": "2025-03-31",
+      "temporadas_disponibles": 3,
+      "calidad_dato": {
+        "completitud_pct": 71.5,
+        "confiable": false,
+        "umbral_completitud_pct": 80,
+        "resolucion_origen": "diaria",
+        "version_calculo": null
+      }
+    }
+  ],
+
+  "temporadas": ["2020-2021", "2021-2022", "2022-2023", "2023-2024", "2024-2025"],
+
+  "completitud_por_temporada": [
+    {
+      "estacion_id": "cp-cauquenes-01",
+      "temporada": "2020-2021",
+      "variables": { "tmax": 89.2, "tmin": 89.2, "tmedia": 88.7, "precipitacion": 85.0 },
+      "confiable": true
+    },
+    {
+      "estacion_id": "cp-cauquenes-01",
+      "temporada": "2021-2022",
+      "variables": { "tmax": 95.3, "tmin": 95.3, "tmedia": 95.3, "precipitacion": 94.8 },
+      "confiable": true
+    },
+    {
+      "estacion_id": "cp-cauquenes-01",
+      "temporada": "2022-2023",
+      "variables": { "tmax": 62.4, "tmin": 62.4, "tmedia": 62.0, "precipitacion": 58.9 },
+      "confiable": false
+    },
+    {
+      "estacion_id": "cp-cauquenes-01",
+      "temporada": "2023-2024",
+      "variables": { "tmax": 96.2, "tmin": 96.2, "tmedia": 96.2, "precipitacion": 95.7 },
+      "confiable": true
+    },
+    {
+      "estacion_id": "cp-cauquenes-01",
+      "temporada": "2024-2025",
+      "variables": { "tmax": 90.3, "tmin": 90.3, "tmedia": 90.3, "precipitacion": 0.0 },
+      "confiable": true,
+      "observacion": "sin datos de precipitación en la temporada"
+    },
+    {
+      "estacion_id": "cp-villavicencio-01",
+      "temporada": "2022-2023",
+      "variables": { "tmax": 68.5, "tmin": 68.5, "tmedia": 68.1, "precipitacion": 66.0 },
+      "confiable": false
+    },
+    {
+      "estacion_id": "cp-villavicencio-01",
+      "temporada": "2023-2024",
+      "variables": { "tmax": 74.0, "tmin": 74.0, "tmedia": 73.8, "precipitacion": 70.2 },
+      "confiable": false
+    },
+    {
+      "estacion_id": "cp-villavicencio-01",
+      "temporada": "2024-2025",
+      "variables": { "tmax": 81.9, "tmin": 81.9, "tmedia": 81.9, "precipitacion": 80.4 },
+      "confiable": true
+    }
+  ],
+
+  "resumen_diario": {
+    "estacion_id": "cp-cauquenes-01",
+    "desde": "2024-01-25",
+    "hasta": "2024-01-31",
+    "dias": [
+      { "fecha": "2024-01-25", "tmax": 33.9, "tmin": 12.1, "tmedia": 22.4, "amplitud": 21.8, "precipitacion": 0.0 },
+      { "fecha": "2024-01-26", "tmax": 36.8, "tmin": 13.5, "tmedia": 24.6, "amplitud": 23.3, "precipitacion": 0.0 },
+      { "fecha": "2024-01-27", "tmax": 38.4, "tmin": 15.2, "tmedia": 26.3, "amplitud": 23.2, "precipitacion": 0.0 },
+      { "fecha": "2024-01-28", "tmax": 37.9, "tmin": 14.8, "tmedia": 25.9, "amplitud": 23.1, "precipitacion": 0.0 },
+      { "fecha": "2024-01-29", "tmax": null, "tmin": null, "tmedia": null, "amplitud": null, "precipitacion": null, "motivo_nulo": "falla de estación" },
+      { "fecha": "2024-01-30", "tmax": 35.7, "tmin": 13.9, "tmedia": 24.1, "amplitud": 21.8, "precipitacion": 0.0 },
+      { "fecha": "2024-01-31", "tmax": 35.3, "tmin": 12.6, "tmedia": 23.5, "amplitud": 22.7, "precipitacion": 0.0 }
+    ]
+  }
+}
