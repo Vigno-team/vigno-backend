@@ -1,50 +1,78 @@
-from datetime import UTC, datetime
+from datetime import date
 
 import pytest
 
-from apps.clima.indices import calcular_indice_huglin, calcular_indice_winkler
-from apps.clima.models import Estacion, IndiceClimatico, MedicionHoraria
+from apps.clima.indices import (
+    calcular_indice_huglin,
+    calcular_indice_winkler,
+    clasificar_winkler,
+    k_huglin,
+)
+from apps.clima.models import ConfiguracionCalidad, Estacion, IndiceClimatico, ResumenDiario
 
 
 @pytest.fixture
 def estacion_prueba():
-    est = Estacion.objects.create(nombre="Test Station")
-    # Dia 1: max=30, min=10 -> media=20
-    dt1 = datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
-    MedicionHoraria.objects.create(estacion=est, timestamp=dt1, variable="temperatura_maxima", valor=30.0, frecuencia="D")
-    MedicionHoraria.objects.create(estacion=est, timestamp=dt1, variable="temperatura_minima", valor=10.0, frecuencia="D")
-    
-    # Dia 2: max=15, min=5 -> media=10
-    dt2 = datetime(2024, 1, 2, 12, 0, tzinfo=UTC)
-    MedicionHoraria.objects.create(estacion=est, timestamp=dt2, variable="temperatura_maxima", valor=15.0, frecuencia="D")
-    MedicionHoraria.objects.create(estacion=est, timestamp=dt2, variable="temperatura_minima", valor=5.0, frecuencia="D")
-    return est
+    return Estacion.objects.create(nombre="Test Station", latitud=35.5)
+
 
 @pytest.mark.django_db
-def test_calcular_indice_winkler(estacion_prueba):
-    # Winkler = (20 - 10) + max((10 - 10), 0) = 10
-    resultado = calcular_indice_winkler("Test Station", "2024-01-01", "2024-01-02", temporada="2023-2024")
-    assert resultado == 10.0
-    
-    # Validar registro en base de datos con parametros
-    indice_bd = IndiceClimatico.objects.get(estacion=estacion_prueba, indice="Winkler", temporada="2023-2024")
-    assert indice_bd.valor == 10.0
-    assert indice_bd.parametros["temp_base"] == 10.0
+def test_winkler_completo_con_resumen_diario(estacion_prueba):
+    ConfiguracionCalidad.objects.create(clave="umbral_completitud_pct", umbral_pct=80.0)
+    # Rango de 2024-2025 para Winkler es de 1 oct a 30 abr (212 dias)
+    # Insertaremos 200 dias de datos validos para que sea confiable
+    ini = date(2024, 10, 1)
+    # Simular datos para 2 días específicos
+    ResumenDiario.objects.create(
+        estacion=estacion_prueba, fecha=ini, temporada="2024-2025", tmedia=20.0, tmax=25.0
+    )
+    ResumenDiario.objects.create(
+        estacion=estacion_prueba,
+        fecha=date(2024, 10, 2),
+        temporada="2024-2025",
+        tmedia=10.0,
+        tmax=15.0,
+    )
+
+    calcular_indice_winkler(estacion_prueba, "2024-2025")
+
+    indice = IndiceClimatico.objects.get(
+        estacion=estacion_prueba, indice="Winkler", temporada="2024-2025"
+    )
+    assert indice.valor == 10.0  # (20 - 10) + max((10 - 10), 0)
+    assert indice.dias_con_dato == 2
+    assert indice.dias_esperados == 212
+    assert indice.confiable is False  # 2/212 = 0.9% < 80%
+    assert indice.clasificacion == "Región I"
+
 
 @pytest.mark.django_db
-def test_calcular_indice_huglin_con_k(estacion_prueba):
-    # Huglin dia 1: max(0, ((20-10) + (30-10))/2 ) = max(0, (10+20)/2) = 15
-    # Huglin dia 2: max(0, ((10-10) + (15-10))/2 ) = max(0, (0+5)/2) = 2.5
-    # Total = 17.5. Con k=1.0 -> 17.5
-    resultado = calcular_indice_huglin("Test Station", "2024-01-01", "2024-01-02", temporada="2023-2024", k=1.0)
-    assert resultado == 17.5
-    
-    # Validar registro en base de datos con parametros (verificar actualizacion de parametros)
-    indice_bd = IndiceClimatico.objects.get(estacion=estacion_prueba, indice="Huglin", temporada="2023-2024")
-    assert indice_bd.parametros["k"] == 1.0
+def test_huglin_con_k_y_tmedia(estacion_prueba):
+    ConfiguracionCalidad.objects.create(clave="umbral_completitud_pct", umbral_pct=80.0)
+    ini = date(2024, 10, 1)
+    # Huglin usa ((Tmedia - 10) + (Tmax - 10))/2 * K
+    # Dia 1: Tmedia=20, Tmax=30 -> ((10) + (20))/2 = 15
+    ResumenDiario.objects.create(
+        estacion=estacion_prueba, fecha=ini, temporada="2024-2025", tmedia=20.0, tmax=30.0
+    )
+
+    calcular_indice_huglin(estacion_prueba, "2024-2025")
+
+    indice = IndiceClimatico.objects.get(
+        estacion=estacion_prueba, indice="Huglin", temporada="2024-2025"
+    )
+    assert indice.valor == 15.0
+    assert indice.parametros["k"] == 1.00  # latitud 35.5 -> k=1.00
+
 
 @pytest.mark.django_db
-def test_winkler_sin_datos_retorna_cero():
-    Estacion.objects.create(nombre="Vacia")
-    resultado = calcular_indice_winkler("Vacia", "2024-01-01", "2024-01-03")
-    assert resultado == 0.0
+def test_k_huglin_por_latitud():
+    assert k_huglin(35.0) == 1.00
+    assert k_huglin(41.0) == 1.02
+    assert k_huglin(-47.0) == 1.05
+
+
+def test_clasificar_winkler():
+    assert clasificar_winkler(1389) == "Región I"
+    assert clasificar_winkler(1390) == "Región II"
+    assert clasificar_winkler(2223) == "Región V"

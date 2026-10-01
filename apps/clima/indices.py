@@ -1,113 +1,165 @@
-from apps.clima.models import Estacion, IndiceClimatico, MedicionHoraria
+from datetime import date
+
+from apps.clima.models import ConfiguracionCalidad, Estacion, IndiceClimatico, ResumenDiario
 
 
-def obtener_datos_estacion_agrupados(nombre_estacion: str, fecha_inicio, fecha_fin):
-    """
-    Obtiene las mediciones de la base de datos y las agrupa por dia usando 
-    un diccionario de Python muy simple.
-    """
-    # Traemos solo los registros necesarios de la base de datos
-    mediciones = MedicionHoraria.objects.filter(
-        estacion__nombre=nombre_estacion,
-        timestamp__date__range=[fecha_inicio, fecha_fin],
-        variable__in=["temperatura_maxima", "temperatura_minima"]
-    )
-    
-    # Agrupamos los datos por fecha: {fecha: {"temperatura_maxima": 30, "temperatura_minima": 10}}
-    datos_por_dia = {}
-    for medicion in mediciones:
-        fecha = medicion.timestamp.date()
-        if fecha not in datos_por_dia:
-            datos_por_dia[fecha] = {}
-        
-        datos_por_dia[fecha][medicion.variable] = medicion.valor
-        
-    return datos_por_dia
+def k_huglin(latitud: float) -> float:
+    if latitud is None:
+        return 1.00
+    lat = abs(latitud)
+    if lat <= 40:
+        return 1.00
+    if lat <= 42:
+        return 1.02
+    if lat <= 44:
+        return 1.03
+    if lat <= 46:
+        return 1.04
+    if lat <= 48:
+        return 1.05
+    return 1.06
 
 
-def calcular_indice_winkler(nombre_estacion: str, fecha_inicio, fecha_fin, temporada: str = None, temp_base: float = 10.0) -> float:
+def clasificar_winkler(valor: float) -> str:
+    if valor <= 1389:
+        return "Región I"
+    if valor <= 1667:
+        return "Región II"
+    if valor <= 1944:
+        return "Región III"
+    if valor <= 2222:
+        return "Región IV"
+    return "Región V"
+
+
+def clasificar_huglin(valor: float) -> str:
+    if valor <= 1500:
+        return "Muy frío"
+    if valor <= 1800:
+        return "Frío"
+    if valor <= 2100:
+        return "Templado"
+    if valor <= 2400:
+        return "Templado cálido"
+    if valor <= 3000:
+        return "Cálido"
+    return "Muy cálido"
+
+
+def rango_temporada(temporada: str, tipo: str) -> tuple[date, date]:
     """
-    Calcula el Indice de Winkler usando matematicas basicas (sin librerias complejas).
+    Recibe "2024-2025" y devuelve el rango para Winkler o Huglin en hemisferio sur.
     """
-    datos_por_dia = obtener_datos_estacion_agrupados(nombre_estacion, fecha_inicio, fecha_fin)
-    
+    partes = temporada.split("-")
+    anio_inicio = int(partes[0])
+    anio_fin = int(partes[1])
+
+    ini = date(anio_inicio, 10, 1)
+    if tipo == "Winkler":
+        fin = date(anio_fin, 4, 30)
+    else:
+        fin = date(anio_fin, 3, 31)
+    return ini, fin
+
+
+def calcular_indice_winkler(estacion: Estacion, temporada: str) -> None:
+    ini, fin = rango_temporada(temporada, "Winkler")
+    dias = ResumenDiario.objects.filter(estacion=estacion, fecha__range=[ini, fin])
+
     total_winkler = 0.0
-    
-    # Recorremos dia por dia
-    for _fecha, variables in datos_por_dia.items():
-        # Nos aseguramos de tener ambas temperaturas para ese dia
-        if "temperatura_maxima" in variables and "temperatura_minima" in variables:
-            t_max = variables["temperatura_maxima"]
-            t_min = variables["temperatura_minima"]
-            
-            # Calculo de la media
-            t_media = (t_max + t_min) / 2.0
-            
-            # Grados dia activos (solo suma si la temperatura media supera la base)
-            grados_activos = t_media - temp_base
-            if grados_activos > 0:
-                total_winkler += grados_activos
-                
-    # Si se nos paso una temporada, guardamos el resultado
-    if temporada:
-        estacion = Estacion.objects.get(nombre=nombre_estacion)
-        IndiceClimatico.objects.update_or_create(
-            estacion=estacion,
-            temporada=temporada,
-            indice="Winkler",
-            defaults={
-                "valor": total_winkler,
-                "parametros": {
-                    "fecha_inicio": str(fecha_inicio),
-                    "fecha_fin": str(fecha_fin),
-                    "temp_base": temp_base
-                }
-            }
-        )
-        
-    return total_winkler
+    dias_con_dato = 0
+    dias_esperados = (fin - ini).days + 1
+
+    for d in dias:
+        # Usa tmedia si existe, si no lo aproxima
+        if d.tmedia is not None:
+            dias_con_dato += 1
+            if d.tmedia > 10.0:
+                total_winkler += d.tmedia - 10.0
+        elif d.tmax is not None and d.tmin is not None:
+            dias_con_dato += 1
+            tmedia_calc = (d.tmax + d.tmin) / 2.0
+            if tmedia_calc > 10.0:
+                total_winkler += tmedia_calc - 10.0
+
+    umbral = ConfiguracionCalidad.obtener_umbral()
+    completitud = (dias_con_dato / dias_esperados * 100.0) if dias_esperados > 0 else 0
+    confiable = completitud >= umbral
+
+    clasificacion = clasificar_winkler(total_winkler)
+
+    IndiceClimatico.objects.update_or_create(
+        estacion=estacion,
+        temporada=temporada,
+        indice="Winkler",
+        defaults={
+            "valor": total_winkler,
+            "parametros": {
+                "fecha_inicio": str(ini),
+                "fecha_fin": str(fin),
+                "temp_base": 10.0,
+                "completitud_pct": completitud,
+            },
+            "confiable": confiable,
+            "dias_con_dato": dias_con_dato,
+            "dias_esperados": dias_esperados,
+            "clasificacion": clasificacion,
+            "version_calculo": "winkler-v1_base10_1001-0430",
+        },
+    )
 
 
-def calcular_indice_huglin(nombre_estacion: str, fecha_inicio, fecha_fin, temporada: str = None, k: float = 1.0, temp_base: float = 10.0) -> float:
-    """
-    Calcula el Indice de Huglin usando matematicas basicas (sin librerias complejas).
-    """
-    datos_por_dia = obtener_datos_estacion_agrupados(nombre_estacion, fecha_inicio, fecha_fin)
-    
+def calcular_indice_huglin(estacion: Estacion, temporada: str) -> None:
+    ini, fin = rango_temporada(temporada, "Huglin")
+    dias = ResumenDiario.objects.filter(estacion=estacion, fecha__range=[ini, fin])
+
     total_huglin = 0.0
-    
-    # Recorremos dia por dia
-    for _fecha, variables in datos_por_dia.items():
-        if "temperatura_maxima" in variables and "temperatura_minima" in variables:
-            t_max = variables["temperatura_maxima"]
-            t_min = variables["temperatura_minima"]
-            
-            t_media = (t_max + t_min) / 2.0
-            
-            # Formula de Huglin: suma de [(T_media - 10) + (T_max - 10)] / 2
-            # Solo sumamos si el resultado del dia es positivo
-            calculo_diario = ((t_media - temp_base) + (t_max - temp_base)) / 2.0
-            
+    dias_con_dato = 0
+    dias_esperados = (fin - ini).days + 1
+    k = k_huglin(estacion.latitud)
+
+    for d in dias:
+        if d.tmax is not None:
+            if d.tmedia is not None:
+                tmedia_calc = d.tmedia
+            elif d.tmin is not None:
+                tmedia_calc = (d.tmax + d.tmin) / 2.0
+            else:
+                continue
+
+            dias_con_dato += 1
+            calculo_diario = ((tmedia_calc - 10.0) + (d.tmax - 10.0)) / 2.0
             if calculo_diario > 0:
-                # Se multiplica por K que depende de la latitud
-                total_huglin += (calculo_diario * k)
-                
-    # Guardamos el historial
-    if temporada:
-        estacion = Estacion.objects.get(nombre=nombre_estacion)
-        IndiceClimatico.objects.update_or_create(
-            estacion=estacion,
-            temporada=temporada,
-            indice="Huglin",
-            defaults={
-                "valor": total_huglin,
-                "parametros": {
-                    "fecha_inicio": str(fecha_inicio),
-                    "fecha_fin": str(fecha_fin),
-                    "k": k,
-                    "temp_base": temp_base
-                }
-            }
-        )
-        
-    return total_huglin
+                total_huglin += calculo_diario * k
+
+    umbral = ConfiguracionCalidad.obtener_umbral()
+    completitud = (dias_con_dato / dias_esperados * 100.0) if dias_esperados > 0 else 0
+    confiable = completitud >= umbral
+
+    clasificacion = clasificar_huglin(total_huglin)
+
+    IndiceClimatico.objects.update_or_create(
+        estacion=estacion,
+        temporada=temporada,
+        indice="Huglin",
+        defaults={
+            "valor": total_huglin,
+            "parametros": {
+                "fecha_inicio": str(ini),
+                "fecha_fin": str(fin),
+                "k": k,
+                "temp_base": 10.0,
+                "completitud_pct": completitud,
+            },
+            "confiable": confiable,
+            "dias_con_dato": dias_con_dato,
+            "dias_esperados": dias_esperados,
+            "clasificacion": clasificacion,
+            "version_calculo": "huglin-v1_base10_1001-0331",
+        },
+    )
+
+
+def calcular_indices_temporada(estacion: Estacion, temporada: str):
+    calcular_indice_winkler(estacion, temporada)
+    calcular_indice_huglin(estacion, temporada)
