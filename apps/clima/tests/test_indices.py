@@ -1,18 +1,21 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 import pytest
-from apps.clima.models import Estacion, MedicionHoraria, IndiceClimatico
-from apps.clima.indices import calcular_indice_winkler, calcular_indice_huglin
+
+from apps.clima.indices import calcular_indice_huglin, calcular_indice_winkler
+from apps.clima.models import Estacion, IndiceClimatico, MedicionHoraria
+
 
 @pytest.fixture
 def estacion_prueba():
     est = Estacion.objects.create(nombre="Test Station")
     # Dia 1: max=30, min=10 -> media=20
-    dt1 = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+    dt1 = datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
     MedicionHoraria.objects.create(estacion=est, timestamp=dt1, variable="temperatura_maxima", valor=30.0, frecuencia="D")
     MedicionHoraria.objects.create(estacion=est, timestamp=dt1, variable="temperatura_minima", valor=10.0, frecuencia="D")
     
     # Dia 2: max=15, min=5 -> media=10
-    dt2 = datetime(2024, 1, 2, 12, 0, tzinfo=timezone.utc)
+    dt2 = datetime(2024, 1, 2, 12, 0, tzinfo=UTC)
     MedicionHoraria.objects.create(estacion=est, timestamp=dt2, variable="temperatura_maxima", valor=15.0, frecuencia="D")
     MedicionHoraria.objects.create(estacion=est, timestamp=dt2, variable="temperatura_minima", valor=5.0, frecuencia="D")
     return est

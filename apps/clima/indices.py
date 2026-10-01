@@ -1,4 +1,5 @@
-from apps.clima.models import MedicionHoraria, IndiceClimatico, Estacion
+from apps.clima.models import Estacion, IndiceClimatico, MedicionHoraria
+
 
 def obtener_datos_estacion_agrupados(nombre_estacion: str, fecha_inicio, fecha_fin):
     """
@@ -33,7 +34,7 @@ def calcular_indice_winkler(nombre_estacion: str, fecha_inicio, fecha_fin, tempo
     total_winkler = 0.0
     
     # Recorremos dia por dia
-    for fecha, variables in datos_por_dia.items():
+    for _fecha, variables in datos_por_dia.items():
         # Nos aseguramos de tener ambas temperaturas para ese dia
         if "temperatura_maxima" in variables and "temperatura_minima" in variables:
             t_max = variables["temperatura_maxima"]
@@ -76,7 +77,7 @@ def calcular_indice_huglin(nombre_estacion: str, fecha_inicio, fecha_fin, tempor
     total_huglin = 0.0
     
     # Recorremos dia por dia
-    for fecha, variables in datos_por_dia.items():
+    for _fecha, variables in datos_por_dia.items():
         if "temperatura_maxima" in variables and "temperatura_minima" in variables:
             t_max = variables["temperatura_maxima"]
             t_min = variables["temperatura_minima"]
