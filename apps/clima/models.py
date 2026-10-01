@@ -110,3 +110,13 @@ class ResumenDiario(models.Model):
     class Meta:
         unique_together = ("estacion", "fecha")
         ordering = ["estacion", "fecha"]
+class IndiceClimatico(models.Model):
+    estacion = models.ForeignKey(Estacion, on_delete=models.CASCADE)
+    temporada = models.CharField(max_length=20)
+    indice = models.CharField(max_length=50)
+    valor = models.FloatField()
+    parametros = models.JSONField(default=dict)
+    calculado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('estacion', 'temporada', 'indice')
