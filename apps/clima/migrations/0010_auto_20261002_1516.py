@@ -2,10 +2,15 @@
 
 from django.db import migrations
 
+LATITUDES = {
+    "San Clemente": -35.52,
+    "El Arenal": -35.52,
+}
+
 def cargar_latitud_estaciones(apps, schema_editor):
-    Estacion = apps.get_model('clima', 'Estacion')
-    # Actualizar todas las estaciones actuales con la latitud por defecto del proyecto (-35.52)
-    Estacion.objects.all().update(latitud=-35.52)
+    Estacion = apps.get_model("clima", "Estacion")
+    for nombre, latitud in LATITUDES.items():
+        Estacion.objects.filter(nombre=nombre).update(latitud=latitud)
 
 class Migration(migrations.Migration):
 
@@ -14,5 +19,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(cargar_latitud_estaciones),
+        migrations.RunPython(cargar_latitud_estaciones, migrations.RunPython.noop),
     ]

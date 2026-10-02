@@ -24,9 +24,6 @@ class ConfiguracionCalidadAdmin(admin.ModelAdmin):
     list_display = ("clave", "umbral_pct", "horas_minimas_dia", "actualizado_en")
 
 
-
-
-
 @admin.register(ResumenDiario)
 class ResumenDiarioAdmin(admin.ModelAdmin):
     list_display = ("estacion", "fecha", "temporada", "tmedia", "tmax", "tmin", "confiable")

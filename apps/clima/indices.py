@@ -141,7 +141,7 @@ def calcular_indice_huglin(estacion: Estacion, temporada: str) -> None:
 
     umbral = ConfiguracionCalidad.obtener_umbral()
     completitud = (dias_con_dato / dias_esperados * 100.0) if dias_esperados > 0 else 0
-    confiable = completitud >= umbral
+    confiable = completitud >= umbral and estacion.latitud is not None
 
     total_huglin = round(total_huglin, 1)
     clasificacion = clasificar_huglin(total_huglin) if confiable else "Sin datos suficientes"
@@ -156,6 +156,7 @@ def calcular_indice_huglin(estacion: Estacion, temporada: str) -> None:
                 "fecha_inicio": str(ini),
                 "fecha_fin": str(fin),
                 "k": k,
+                "latitud": estacion.latitud,
                 "temp_base": 10.0,
                 "completitud_pct": completitud,
             },
