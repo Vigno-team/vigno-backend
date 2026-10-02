@@ -43,7 +43,7 @@ def test_winkler_completo_con_resumen_diario(estacion_prueba):
     assert indice.dias_con_dato == 2
     assert indice.dias_esperados == 212
     assert indice.confiable is False  # 2/212 = 0.9% < 80%
-    assert indice.clasificacion == "Región I"
+    assert indice.clasificacion == "Sin datos suficientes"
 
 
 @pytest.mark.django_db
@@ -76,3 +76,21 @@ def test_clasificar_winkler():
     assert clasificar_winkler(1389) == "Región I"
     assert clasificar_winkler(1390) == "Región II"
     assert clasificar_winkler(2223) == "Región V"
+
+
+@pytest.mark.django_db
+def test_huglin_sin_latitud_no_es_confiable():
+    est = Estacion.objects.create(nombre="Sin Latitud", latitud=None)
+    ConfiguracionCalidad.objects.create(
+        clave="umbral_completitud_pct", umbral_pct=0.0
+    )  # 0% to ensure completeness doesn't fail
+    ini = date(2024, 10, 1)
+    ResumenDiario.objects.create(
+        estacion=est, fecha=ini, temporada="2024-2025", tmedia=20.0, tmax=30.0
+    )
+
+    calcular_indice_huglin(est, "2024-2025")
+
+    indice = IndiceClimatico.objects.get(estacion=est, indice="Huglin", temporada="2024-2025")
+    assert indice.confiable is False
+    assert indice.parametros["latitud"] is None

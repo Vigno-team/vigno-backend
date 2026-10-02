@@ -114,7 +114,7 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     "TITLE": "VIGNO API",
     "DESCRIPTION": (
-        "API del sistema de prediccion de fecha optima de cosecha " "para Casas Patronales."
+        "API del sistema de prediccion de fecha optima de cosecha para Casas Patronales."
     ),
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
