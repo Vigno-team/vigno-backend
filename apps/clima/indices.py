@@ -89,7 +89,8 @@ def calcular_indice_winkler(estacion: Estacion, temporada: str) -> None:
     completitud = (dias_con_dato / dias_esperados * 100.0) if dias_esperados > 0 else 0
     confiable = completitud >= umbral
 
-    clasificacion = clasificar_winkler(total_winkler)
+    total_winkler = round(total_winkler, 1)
+    clasificacion = clasificar_winkler(total_winkler) if confiable else "Sin datos suficientes"
 
     IndiceClimatico.objects.update_or_create(
         estacion=estacion,
@@ -142,7 +143,8 @@ def calcular_indice_huglin(estacion: Estacion, temporada: str) -> None:
     completitud = (dias_con_dato / dias_esperados * 100.0) if dias_esperados > 0 else 0
     confiable = completitud >= umbral
 
-    clasificacion = clasificar_huglin(total_huglin)
+    total_huglin = round(total_huglin, 1)
+    clasificacion = clasificar_huglin(total_huglin) if confiable else "Sin datos suficientes"
 
     IndiceClimatico.objects.update_or_create(
         estacion=estacion,

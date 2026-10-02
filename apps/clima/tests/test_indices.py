@@ -43,7 +43,7 @@ def test_winkler_completo_con_resumen_diario(estacion_prueba):
     assert indice.dias_con_dato == 2
     assert indice.dias_esperados == 212
     assert indice.confiable is False  # 2/212 = 0.9% < 80%
-    assert indice.clasificacion == "Región I"
+    assert indice.clasificacion == "Sin datos suficientes"
 
 
 @pytest.mark.django_db
