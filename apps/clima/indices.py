@@ -82,6 +82,9 @@ def calcular_indice_winkler(estacion: Estacion, temporada: str) -> None:
             if tmedia_calc > 10.0:
                 total_winkler += tmedia_calc - 10.0
 
+    if dias_con_dato == 0:
+        return
+
     umbral = ConfiguracionCalidad.obtener_umbral()
     completitud = (dias_con_dato / dias_esperados * 100.0) if dias_esperados > 0 else 0
     confiable = completitud >= umbral
@@ -131,6 +134,9 @@ def calcular_indice_huglin(estacion: Estacion, temporada: str) -> None:
             calculo_diario = ((tmedia_calc - 10.0) + (d.tmax - 10.0)) / 2.0
             if calculo_diario > 0:
                 total_huglin += calculo_diario * k
+
+    if dias_con_dato == 0:
+        return
 
     umbral = ConfiguracionCalidad.obtener_umbral()
     completitud = (dias_con_dato / dias_esperados * 100.0) if dias_esperados > 0 else 0

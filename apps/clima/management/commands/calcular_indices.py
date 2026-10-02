@@ -21,10 +21,8 @@ class Command(BaseCommand):
             estaciones = Estacion.objects.all()
 
         for estacion in estaciones:
-            temporadas = (
-                ResumenDiario.objects.filter(estacion=estacion)
-                .values_list("temporada", flat=True)
-                .distinct()
+            temporadas = set(
+                ResumenDiario.objects.filter(estacion=estacion).values_list("temporada", flat=True)
             )
 
             for temporada in temporadas:
