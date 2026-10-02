@@ -7,6 +7,7 @@ class Estacion(models.Model):
     codigo = models.CharField(max_length=50, unique=True, null=True, blank=True)
     subzona = models.CharField(max_length=50, null=True, blank=True)
     propietario = models.CharField(max_length=100, null=True, blank=True)
+    latitud = models.FloatField(null=True, blank=True)
 
     class Meta:
         verbose_name_plural = "Estaciones"
@@ -110,3 +111,20 @@ class ResumenDiario(models.Model):
     class Meta:
         unique_together = ("estacion", "fecha")
         ordering = ["estacion", "fecha"]
+
+
+class IndiceClimatico(models.Model):
+    estacion = models.ForeignKey(Estacion, on_delete=models.CASCADE)
+    temporada = models.CharField(max_length=20)
+    indice = models.CharField(max_length=50)
+    valor = models.FloatField()
+    parametros = models.JSONField(default=dict)
+    confiable = models.BooleanField(default=True)
+    dias_con_dato = models.IntegerField(default=0)
+    dias_esperados = models.IntegerField(default=0)
+    clasificacion = models.CharField(max_length=50, null=True, blank=True)
+    version_calculo = models.CharField(max_length=50, null=True, blank=True)
+    calculado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("estacion", "temporada", "indice")
