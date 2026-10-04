@@ -1,5 +1,6 @@
 from datetime import date
 
+from apps.clima.dias_criticos import calcular_dias_sobre_umbral
 from apps.clima.models import ConfiguracionCalidad, Estacion, IndiceClimatico, ResumenDiario
 
 
@@ -172,3 +173,4 @@ def calcular_indice_huglin(estacion: Estacion, temporada: str) -> None:
 def calcular_indices_temporada(estacion: Estacion, temporada: str):
     calcular_indice_winkler(estacion, temporada)
     calcular_indice_huglin(estacion, temporada)
+    calcular_dias_sobre_umbral(estacion, temporada)
