@@ -59,8 +59,10 @@ def eventos_lluvia(
     estacion_codigo: str, desde, hasta, separacion_horas: int = SEPARACION_HORAS_EVENTO
 ) -> dict:
     estacion = Estacion.objects.get(codigo=estacion_codigo)
-    inicio_rango = pd.Timestamp(desde, tz=TZ)
-    fin_rango = pd.Timestamp(hasta, tz=TZ) + pd.DateOffset(days=1)  # incluye el día "hasta"
+    inicio_rango = pd.Timestamp(desde).tz_localize(TZ, nonexistent="shift_forward")
+    fin_rango = (pd.Timestamp(hasta) + pd.Timedelta(days=1)).tz_localize(
+        TZ, nonexistent="shift_forward"
+    )  # incluye el día "hasta"
 
     data = {
         "estacion_id": estacion_codigo,
@@ -104,12 +106,15 @@ def eventos_lluvia(
     for _, g in lluvia.groupby("evento"):
         primera, ultima = g["timestamp"].iloc[0], g["timestamp"].iloc[-1]
         duracion = (ultima - primera) / pd.Timedelta(hours=1) + 1  # incluye la última hora
+        en_evento = serie[(serie["timestamp"] >= primera) & (serie["timestamp"] <= ultima)]
+        horas_sin_dato = int(round(duracion)) - int(en_evento["valor"].notna().sum())
         data["eventos"].append(
             {
                 "inicio": primera.isoformat(),
                 "fin": ultima.isoformat(),
                 "duracion_horas": round(duracion, 1),
                 "horas_con_lluvia": len(g),
+                "horas_sin_dato": horas_sin_dato,
                 "total_mm": round(g["valor"].sum(), 1),
                 "intensidad_max_mm_h": round(g["valor"].max(), 1),
                 "dias": [
@@ -157,7 +162,7 @@ def comparar_lluvia_invernal(estacion_codigo: str, temporadas: list[str] | None 
         if temporadas and item["temporada"] not in temporadas:
             continue
         diferencia = pct = None
-        if promedio is not None and item["acumulado_mm"] is not None:
+        if promedio is not None and item["acumulado_mm"] is not None and item["confiable"]:
             diferencia = round(item["acumulado_mm"] - promedio, 1)
             pct = round(diferencia / promedio * 100, 1) if promedio else None
         resultado["temporadas"].append(

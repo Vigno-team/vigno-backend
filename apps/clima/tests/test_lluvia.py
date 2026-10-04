@@ -245,3 +245,62 @@ def test_comparacion_sin_suficientes_inviernos_confiables(estacion):
     assert res["promedio_historico_mm"] is None
     assert "al menos 2" in res["observacion"]
     assert res["temporadas"][0]["diferencia_mm"] is None
+
+
+# cambio de hora
+
+
+def test_eventos_no_falla_en_el_cambio_de_hora(estacion):
+    # El domingo 7 de septiembre de 2025 no existe la medianoche en Chile
+    cargar_horas(estacion, (2025, 9, 8, 10, 3.0))
+
+    res = eventos_lluvia("lluvia-01", "2025-09-07", "2025-09-10")
+    assert [e["total_mm"] for e in res["eventos"]] == [3.0]
+
+    res = eventos_lluvia("lluvia-01", "2025-09-01", "2025-09-06")  # termina el sábado anterior
+    assert res["eventos"] == []
+
+
+def test_eventos_no_falla_en_el_cambio_de_hora_de_abril(estacion):
+    cargar_horas(estacion, (2025, 4, 6, 10, 1.0))
+
+    res = eventos_lluvia("lluvia-01", "2025-04-05", "2025-04-06")
+
+    assert [e["total_mm"] for e in res["eventos"]] == [1.0]
+
+
+def test_invierno_no_confiable_no_recibe_diferencia(estacion):
+    cargar_invierno(estacion, 2022, 3.0)
+    cargar_invierno(estacion, 2023, 3.0)
+    cargar_dias(estacion, date(2024, 5, 1), date(2024, 5, 20), 3.0)  # 20 de 123 días
+
+    parcial = comparar_lluvia_invernal("lluvia-01")["temporadas"][-1]
+
+    assert parcial["confiable"] is False
+    assert parcial["diferencia_mm"] is None
+    assert parcial["diferencia_pct"] is None
+
+
+def test_evento_informa_horas_sin_dato(estacion):
+    cargar_horas(estacion, (2024, 6, 10, 10, 2.0), (2024, 6, 10, 14, 1.0))
+    for hora in (11, 12, 13):
+        MedicionHoraria.objects.create(
+            estacion=estacion,
+            timestamp=datetime(2024, 6, 10, hora, tzinfo=SANTIAGO),
+            variable="precipitacion",
+            frecuencia="H",
+            valor=None,
+            motivo_nulo="Dato en blanco en origen",
+        )
+
+    evento = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-10")["eventos"][0]
+
+    assert evento["horas_sin_dato"] == 3
+
+
+def test_evento_sin_huecos_tiene_cero_horas_sin_dato(estacion):
+    cargar_horas(estacion, (2024, 6, 10, 10, 2.0), (2024, 6, 10, 11, 1.0))
+
+    evento = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-10")["eventos"][0]
+
+    assert evento["horas_sin_dato"] == 0
