@@ -205,11 +205,63 @@ Parámetros de Winkler, Huglin y del período de acumulación: por confirmar con
 
 ## 6. Estado de implementación en el backend
 
+### E1C-17 — API de resultados (Sprint 3)
+
+La implementación de E1C-46 y E1C-47 publica los siguientes endpoints de solo lectura,
+sin barra final, usando datos del backend:
+
+- `GET /api/v1/estaciones`
+- `GET /api/v1/temporadas`
+- `GET /api/v1/temporadas/{temporada}?estacion={codigo}`
+- `GET /api/v1/rachas/{temporada}?estacion={codigo}`
+
+El cuerpo es directamente la lista u objeto del contrato; no se envuelve en las claves
+`ficha_temporada` o `rachas` del archivo de ejemplo. OpenAPI está en `/api/schema/`
+y la documentación interactiva en `/api/docs/`.
+
+La clasificación térmica/hídrica sigue en `null` hasta integrar E1C-18. La comparación
+entre años y la publicación de consolidación, completitud y resumen diario no forman
+parte de este cambio. Sus funciones internas existentes siguen disponibles.
+
+Precisiones de calidad para esta entrega:
+
+- Winkler y Huglin se leen de `IndiceClimatico`; un GET no ejecuta sus cálculos.
+  Si no existe un índice calculado, `valor`, su clasificación y la completitud del
+  índice son `null`, `confiable` es `false` y se añade `motivo_nulo`.
+- `calidad_dato` también se publica en `lluvia_invernal`, `calor` y el detalle de
+  `rachas`, de acuerdo con la regla general de incluirlo en las métricas.
+- `resolucion_origen` puede ser `null` si no hay registros de origen que permitan
+  determinarla; no se supone que sean diarios. `version_calculo` es `null` cuando
+  no hay un índice calculado. Para los índices existentes se conserva la versión
+  guardada por el motor, sin reemplazarla por la del JSON ficticio.
+- La completitud de los índices usa los días válidos/esperados guardados por el motor,
+  en la ventana de cada índice. La de calor y rachas usa días con Tmáx sobre los días
+  esperados de la temporada (hasta hoy, en hora de Chile, si está en curso).
+  Son porcentajes basados en resúmenes diarios: `resolucion_origen` informa si estos
+  provienen de datos diarios, horarios o mixtos; no afirma una cobertura horaria.
+- Se informa el umbral de completitud actualmente configurado. Un índice es confiable
+  solo si el motor lo dejó confiable y además alcanza ese umbral. Bajar el umbral no
+  cambia automáticamente un resultado antes no confiable; debe recalcularse el índice.
+- Los valores observados iguales a cero se conservan. Sin temperatura, los conteos
+  de calor son `null`; sin lluvia, `acumulado_mm` es `null`. En ambos casos se entrega
+  `motivo_nulo`. Las listas de días críticos y rachas pueden estar vacías.
+- Las rachas incluyen `interrumpida_por_dato_faltante`, para conservar la información
+  que ya produce el motor y evitar interpretar una secuencia incompleta como cerrada.
+- Una consulta mal formada devuelve HTTP 400; estación desconocida o temporada sin
+  registros devuelve HTTP 404. Una temporada con filas pero variables faltantes devuelve
+  HTTP 200 con nulos y metadatos. POST, PUT, PATCH y DELETE no están habilitados.
+
+Estas precisiones y campos adicionales deben comunicarse al equipo de frontend antes
+del merge, según el proceso del README. Los archivos de ejemplo existentes siguen
+siendo ficticios y no se usan como fuente de respuestas.
+
+Estado anterior y diferencias pendientes:
+
 Para que el frontend sepa qué ya responde con datos reales (fuera de la API, que llega en D4.2):
 
 | Bloque | Estado | Diferencias conocidas con este contrato |
 |---|---|---|
-| `estaciones` | Implementado | El catálogo de El Arenal tiene hoy `cp-villavicencio-01` / `villavicencio`; se corrige a lo de la §2. `fecha_inicio` hoy toma el primer día cargado, aunque esté vacío |
+| `estaciones` | Publicado en la API | El catálogo de El Arenal puede conservar `cp-villavicencio-01` / `villavicencio`; su corrección sigue pendiente. Leer el código de `/estaciones`. `fecha_inicio` y `fecha_fin` ahora toman los extremos con datos |
 | `temporadas` | Implementado | — |
 | `completitud_por_temporada` | Implementado | — |
 | `resumen_diario` | Implementado | Los días que el Excel no trae se omiten en vez de venir con `null` y motivo |

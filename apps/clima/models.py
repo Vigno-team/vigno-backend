@@ -85,7 +85,13 @@ class ConfiguracionCalidad(models.Model):
 
     @classmethod
     def obtener_umbral(cls) -> float:
-        return cls.obtener_config().umbral_pct
+        # Consultar resultados no debe crear configuración mediante un GET.
+        umbral = (
+            cls.objects.filter(clave="umbral_completitud_pct")
+            .values_list("umbral_pct", flat=True)
+            .first()
+        )
+        return umbral if umbral is not None else cls._meta.get_field("umbral_pct").get_default()
 
 
 class ResumenDiario(models.Model):
