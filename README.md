@@ -173,3 +173,14 @@ El esquema OpenAPI se genera solo desde el código y se publica en
 
 Cualquier cambio que modifique la forma de una respuesta necesita aviso al PO
 del otro equipo antes de mergearse.
+
+### Resultados por temporada E1C-17
+
+La API de resultados publica `GET /api/v1/estaciones`, `GET /api/v1/temporadas`,
+`GET /api/v1/temporadas/{temporada}?estacion={codigo}` y
+`GET /api/v1/rachas/{temporada}?estacion={codigo}`.
+La ficha usa índices reales guardados, metadatos de calidad y nulos explícitos.
+La clasificación de temporada depende de E1C-18.
+
+Ver [la guía de E1C-17](docs/E1C-17_RESULTADOS.md) para ejecutar el pipeline,
+probar los endpoints y revisar las dependencias de integración.

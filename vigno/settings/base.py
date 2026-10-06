@@ -96,6 +96,10 @@ TIME_ZONE = "America/Santiago"
 USE_I18N = True
 USE_TZ = True
 
+# Parámetros compartidos por la ficha de temporada y el detalle de rachas.
+UMBRAL_CALOR_C = config("UMBRAL_CALOR_C", default=35.0, cast=float)
+MINIMO_DIAS_INCIDENCIA = config("MINIMO_DIAS_INCIDENCIA", default=5, cast=int)
+
 # --- Archivos estaticos ---
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"

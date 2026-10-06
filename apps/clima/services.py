@@ -246,7 +246,7 @@ def estaciones() -> list[dict]:
     resultado = []
     for est in Estacion.objects.order_by("nombre"):
         qs = ResumenDiario.objects.filter(estacion=est)
-        agg = qs.aggregate(
+        agg = qs.filter(HAY_DATO).aggregate(
             inicio=Min("fecha"),
             fin=Max("fecha"),
             n_completos=Count("id", filter=Q(tmax__isnull=False, tmin__isnull=False)),
