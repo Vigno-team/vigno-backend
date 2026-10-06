@@ -49,6 +49,13 @@ docker compose exec backend python manage.py createsuperuser
 
 ## Comandos frecuentes
 
+### E1C-20: correlación con cosecha y calidad
+
+El comando `analizar_correlaciones` compara los índices calculados con un
+histórico D1.3 y exporta dos rankings con muestra, significación y advertencias.
+Requiere datos reales y una escala de calidad acordada; no modifica la base.
+Consultar [contrato de entrada, ejecución y límites](docs/E1C-20_CORRELACIONES.md).
+
 ```bash
 docker compose up                                  # levantar
 docker compose down                                # apagar
