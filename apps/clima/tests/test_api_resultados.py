@@ -283,3 +283,23 @@ def test_openapi_incluye_consultas_y_metadatos():
         "resolucion_origen",
         "version_calculo",
     }
+
+
+def test_ficha_clasifica_la_temporada_con_criterio_explicito(client, estacion):
+    for anio in (2021, 2022, 2023):
+        cargar_dias(estacion, date(anio, 10, 1), 212, tmedia=20)
+    cargar_dias(estacion, date(2024, 10, 1), 212, tmedia=22)
+    for anio, mm in ((2021, 2), (2022, 2), (2023, 2), (2024, 3)):
+        cargar_dias(estacion, date(anio, 5, 1), 123, precipitacion=mm)
+
+    clasificacion = consultar(client, estacion).json()["clasificacion"]
+
+    assert clasificacion["termica"] == "calida"
+    assert clasificacion["hidrica"] == "lluviosa"
+    assert "Winkler" in clasificacion["criterio"] and "mayo-agosto" in clasificacion["criterio"]
+
+
+def test_ficha_no_clasifica_si_falta_un_eje(client, estacion):
+    for anio in (2021, 2022, 2023, 2024):
+        cargar_dias(estacion, date(anio, 10, 1), 212, tmedia=20)  # sin datos de lluvia
+    assert consultar(client, estacion).json()["clasificacion"] is None

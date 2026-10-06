@@ -8,6 +8,7 @@ from django.db.models import Count
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
+from apps.clima.clasificacion import clasificar_temporada
 from apps.clima.dias_criticos import obtener_dias_criticos
 from apps.clima.indices import rango_temporada
 from apps.clima.lluvia import comparar_lluvia_invernal, lluvia_invernal
@@ -127,6 +128,14 @@ def resultados_rachas(estacion, temporada):
     }
 
 
+def _clasificacion(estacion, temporada):
+    """Cálida/fría y lluviosa/seca. None si algún eje no se puede clasificar."""
+    c = clasificar_temporada(estacion.codigo, temporada)
+    if c["termica"] is None or c["hidrica"] is None:
+        return None
+    return {"termica": c["termica"], "hidrica": c["hidrica"], "criterio": c["criterio"]}
+
+
 def ficha_temporada(estacion, temporada):
     comprobar_temporada(estacion, temporada)
     umbral = ConfiguracionCalidad.obtener_umbral()
@@ -185,6 +194,6 @@ def ficha_temporada(estacion, temporada):
         "lluvia_invernal": bloque_lluvia,
         "calor": calor,
         # La clasificación térmica/hídrica pertenece a E1C-18; no se inventa aquí.
-        "clasificacion": None,
+        "clasificacion": _clasificacion(estacion, temporada),
         "dias_criticos": obtener_dias_criticos(estacion, temporada, limite=10),
     }

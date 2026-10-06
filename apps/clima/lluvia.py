@@ -162,7 +162,12 @@ def comparar_lluvia_invernal(estacion_codigo: str, temporadas: list[str] | None 
         if temporadas and item["temporada"] not in temporadas:
             continue
         diferencia = pct = None
-        if promedio is not None and item["acumulado_mm"] is not None and item["confiable"]:
+        if (
+            promedio is not None
+            and item["acumulado_mm"] is not None
+            and item["confiable"]
+            and not item["en_curso"]
+        ):
             diferencia = round(item["acumulado_mm"] - promedio, 1)
             pct = round(diferencia / promedio * 100, 1) if promedio else None
         resultado["temporadas"].append(
