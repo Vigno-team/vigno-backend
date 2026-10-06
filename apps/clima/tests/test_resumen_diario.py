@@ -238,9 +238,10 @@ def test_temporadas_y_estaciones():
 
     data = next(e for e in estaciones() if e["id"] == "est")
     assert data["variables"] == ["tmax", "tmin"]
-    assert data["fecha_inicio"] == "2019-01-01"
+    # El contrato usa el primer día con dato, no una fila vacía anterior.
+    assert data["fecha_inicio"] == "2022-01-01"
     assert data["temporadas_disponibles"] == 1
-    assert data["calidad_dato"]["confiable"] is False
+    assert data["calidad_dato"]["confiable"] is True
 
 
 EJEMPLO = json.loads(
