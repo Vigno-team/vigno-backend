@@ -76,20 +76,17 @@ docker compose exec backend ruff check .           # linter
 vigno/                  configuración del proyecto Django
   settings/             base.py, development.py, production.py
 apps/
-  core/                 health check y utilidades transversales
-  cuartel/              sectores de la viña
-  muestras/             análisis de laboratorio (Brix, pH, acidez)
-  clima/                serie climática diaria
-  cosecha/              eventos de cosecha y predicciones
-  ingesta/              carga, limpieza y validación de datos
-  ml/                   features, modelos y predicción
+  clima/                serie climática, índices, resultados, API y health check
+  ingesta/              registro de cada carga de Excel
+  ml/                   correlaciones con cosecha (módulo Python, no es app Django)
 notebooks/              exploración y spikes de ciencia de datos
 data/synthetic/         generador de datos falsos para desarrollo
 tests/                  tests transversales
 ```
 
-Cada app de dominio queda registrada desde el primer PR aunque sus modelos se
-definan después, para que las migraciones y el admin ya tengan dónde apoyarse.
+Solo se registran apps que tienen código en uso. Las apps vacías de la
+estructura inicial (`core`, `cuartel`, `muestras`, `cosecha`) se eliminaron; el
+health check que vivía en `core` ahora está en `clima`, con la misma URL.
 
 ---
 

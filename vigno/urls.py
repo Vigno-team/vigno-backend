@@ -7,9 +7,11 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from apps.clima.views import HealthCheckView
+
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/", include("apps.core.urls")),
+    path("api/health/", HealthCheckView.as_view(), name="health-check"),
     path("api/v1/", include("apps.clima.urls")),
     # Contrato de la API: el equipo de frontend genera su cliente desde aqui.
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
