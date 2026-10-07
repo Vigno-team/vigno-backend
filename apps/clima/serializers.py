@@ -66,9 +66,12 @@ class CalorSerializer(serializers.Serializer):
 
 
 class ClasificacionTemporadaSerializer(serializers.Serializer):
-    termica = serializers.ChoiceField(choices=("calida", "normal", "fria"))
-    hidrica = serializers.ChoiceField(choices=("lluviosa", "normal", "seca"))
+    termica = serializers.ChoiceField(choices=("calida", "normal", "fria"), allow_null=True)
+    hidrica = serializers.ChoiceField(choices=("lluviosa", "normal", "seca"), allow_null=True)
     criterio = serializers.CharField()
+    en_curso = serializers.BooleanField()
+    parcial_hasta = serializers.DateField(allow_null=True)
+    motivo_nulo = serializers.CharField(required=False)
 
 
 class DiaCriticoSerializer(serializers.Serializer):

@@ -45,6 +45,7 @@ def _eje(estacion, metrica, temporada, hoy, umbral, umbral_pct, etiquetas) -> di
     candidatas = temporadas_con_datos(estacion)
     fechas, modo = cortes(metrica, [temporada], hoy)
     detalle["modo"] = modo
+    detalle["hasta"] = fechas[temporada].isoformat()
 
     propia = valor_metrica(estacion, metrica, temporada, fechas[temporada], umbral)
     detalle["valor"] = propia["valor"]
@@ -109,9 +110,19 @@ def clasificar_temporada(estacion_codigo: str, temporada: str, hoy: date | None 
         UMBRAL_HIDRICA_PCT,
         ETIQUETAS_HIDRICA,
     )
+    parciales = [eje["hasta"] for eje in (termica, hidrica) if eje["modo"] == "al_mismo_dia"]
+    parcial_hasta = max(parciales) if parciales else None
+    aviso_en_curso = (
+        f" Temporada en curso: se compara con el acumulado hasta el mismo día del "
+        f"calendario ({parcial_hasta}) en las demás temporadas."
+        if parcial_hasta
+        else ""
+    )
     return {
         "estacion_id": estacion_codigo,
         "temporada": temporada,
+        "en_curso": parcial_hasta is not None,
+        "parcial_hasta": parcial_hasta,
         "termica": termica["etiqueta"],
         "hidrica": hidrica["etiqueta"],
         "criterio": (
@@ -121,6 +132,7 @@ def clasificar_temporada(estacion_codigo: str, temporada: str, hoy: date | None 
             f"Hídrica: lluvia invernal (mayo-agosto) frente al promedio de la estación, "
             f"lluviosa si la diferencia es >= +{UMBRAL_HIDRICA_PCT:g} % y seca si es "
             f"<= -{UMBRAL_HIDRICA_PCT:g} %. En otro caso, normal."
+            f"{aviso_en_curso}"
         ),
         "detalle": {"termica": termica, "hidrica": hidrica},
     }

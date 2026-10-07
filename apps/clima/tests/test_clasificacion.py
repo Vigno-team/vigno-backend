@@ -210,3 +210,21 @@ def test_el_criterio_publica_los_numeros(estacion):
 def test_estacion_inexistente_falla():
     with pytest.raises(Estacion.DoesNotExist):
         clasificar_temporada("no-existe", "2025-2026", hoy=HOY)
+
+
+def test_temporada_en_curso_queda_marcada_como_parcial(estacion):
+    veranos(estacion, {2023: 18, 2024: 18, 2025: 18})
+    cargar(estacion, date(2026, 10, 1), 6, tmedia=20)
+
+    c = clasificar_temporada("prueba-01", "2026-2027", hoy=HOY)
+
+    assert c["en_curso"] is True
+    assert c["parcial_hasta"] == HOY.isoformat()
+    assert "Temporada en curso" in c["criterio"]
+
+
+def test_temporada_terminada_no_queda_marcada_como_parcial(estacion):
+    veranos(estacion, {2022: 18, 2023: 18, 2024: 19})
+    c = clasificar_temporada("prueba-01", "2024-2025", hoy=HOY)
+    assert c["en_curso"] is False and c["parcial_hasta"] is None
+    assert "Temporada en curso" not in c["criterio"]

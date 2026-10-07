@@ -129,11 +129,25 @@ def resultados_rachas(estacion, temporada):
 
 
 def _clasificacion(estacion, temporada):
-    """Cálida/fría y lluviosa/seca. None si algún eje no se puede clasificar."""
+    """Cálida/fría y lluviosa/seca. None solo si no se puede clasificar ningún eje."""
     c = clasificar_temporada(estacion.codigo, temporada)
-    if c["termica"] is None or c["hidrica"] is None:
+    if c["termica"] is None and c["hidrica"] is None:
         return None
-    return {"termica": c["termica"], "hidrica": c["hidrica"], "criterio": c["criterio"]}
+    bloque = {
+        "termica": c["termica"],
+        "hidrica": c["hidrica"],
+        "criterio": c["criterio"],
+        "en_curso": c["en_curso"],
+        "parcial_hasta": c["parcial_hasta"],
+    }
+    faltan = [
+        f"{eje}: {c['detalle'][eje].get('observacion', 'sin datos suficientes')}"
+        for eje in ("termica", "hidrica")
+        if c[eje] is None
+    ]
+    if faltan:
+        bloque["motivo_nulo"] = "; ".join(faltan)
+    return bloque
 
 
 def ficha_temporada(estacion, temporada):

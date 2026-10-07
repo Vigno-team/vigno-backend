@@ -299,7 +299,19 @@ def test_ficha_clasifica_la_temporada_con_criterio_explicito(client, estacion):
     assert "Winkler" in clasificacion["criterio"] and "mayo-agosto" in clasificacion["criterio"]
 
 
-def test_ficha_no_clasifica_si_falta_un_eje(client, estacion):
-    for anio in (2021, 2022, 2023, 2024):
-        cargar_dias(estacion, date(anio, 10, 1), 212, tmedia=20)  # sin datos de lluvia
+def test_ficha_clasifica_el_eje_disponible_si_falta_el_otro(client, estacion):
+    for anio in (2021, 2022, 2023):
+        cargar_dias(estacion, date(anio, 10, 1), 212, tmedia=20)
+    cargar_dias(estacion, date(2024, 10, 1), 212, tmedia=22)  # sin datos de lluvia
+
+    clasificacion = consultar(client, estacion).json()["clasificacion"]
+
+    assert clasificacion["termica"] == "calida"
+    assert clasificacion["hidrica"] is None
+    assert clasificacion["motivo_nulo"].startswith("hidrica:")
+    assert clasificacion["en_curso"] is False
+
+
+def test_ficha_sin_ningun_eje_no_clasifica(client, estacion):
+    cargar_dias(estacion, date(2024, 10, 1), 212, tmedia=20)  # una sola temporada, sin lluvia
     assert consultar(client, estacion).json()["clasificacion"] is None
