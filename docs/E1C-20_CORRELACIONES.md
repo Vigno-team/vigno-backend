@@ -6,7 +6,7 @@ advertencias); RF-ANA-01/02/03 y RF-PRD-08. Es un análisis exploratorio opciona
 ## Dependencia pendiente: D1.3
 
 Esta versión no dispone de modelos ni de un histórico de cosecha/calidad en
-la base de datos. Se entrega un motor probado y un comando de
+`apps/cosecha` o `apps/muestras`. Se entrega un motor probado y un comando de
 exportación. Para obtener resultados reales hay que recibir el histórico D1.3,
 acordar la escala de calidad y seleccionar la estación representativa con el
 enólogo. No se inventan resultados cuando faltan datos.
