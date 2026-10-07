@@ -304,3 +304,26 @@ def test_evento_sin_huecos_tiene_cero_horas_sin_dato(estacion):
     evento = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-10")["eventos"][0]
 
     assert evento["horas_sin_dato"] == 0
+
+
+def test_invierno_en_curso_no_se_compara_con_el_total_de_los_terminados(estacion, monkeypatch):
+    from types import SimpleNamespace
+
+    class _Ahora:
+        def date(self):
+            return date(2025, 7, 15)
+
+    monkeypatch.setattr(
+        "apps.clima.lluvia.pd",
+        SimpleNamespace(Timestamp=SimpleNamespace(now=lambda tz=None: _Ahora())),
+    )
+    for anio in (2022, 2023, 2024):
+        cargar_invierno(estacion, anio, 3.0)  # 369 mm cada uno
+    cargar_dias(estacion, date(2025, 5, 1), date(2025, 7, 15), 3.0)  # 76 días: 228 mm hasta hoy
+
+    res = comparar_lluvia_invernal("lluvia-01")
+    actual = next(t for t in res["temporadas"] if t["temporada"] == "2025-2026")
+
+    assert actual["en_curso"] is True and actual["confiable"] is True
+    assert res["temporadas_en_promedio"] == 3
+    assert actual["diferencia_mm"] is None and actual["diferencia_pct"] is None

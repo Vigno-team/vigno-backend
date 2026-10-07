@@ -63,6 +63,32 @@ def rango_temporada(temporada: str, tipo: str) -> tuple[date, date]:
     return ini, fin
 
 
+def aporte_winkler(d: ResumenDiario) -> float | None:
+    """Grados-día Winkler de un día; None si el día no tiene datos para calcularlo."""
+    # Usa tmedia si existe, si no lo aproxima
+    if d.tmedia is not None:
+        tmedia = d.tmedia
+    elif d.tmax is not None and d.tmin is not None:
+        tmedia = (d.tmax + d.tmin) / 2.0
+    else:
+        return None
+    return tmedia - 10.0 if tmedia > 10.0 else 0.0
+
+
+def aporte_huglin(d: ResumenDiario, k: float) -> float | None:
+    """Aporte diario al índice de Huglin; None si el día no tiene datos para calcularlo."""
+    if d.tmax is None:
+        return None
+    if d.tmedia is not None:
+        tmedia = d.tmedia
+    elif d.tmin is not None:
+        tmedia = (d.tmax + d.tmin) / 2.0
+    else:
+        return None
+    calculo_diario = ((tmedia - 10.0) + (d.tmax - 10.0)) / 2.0
+    return calculo_diario * k if calculo_diario > 0 else 0.0
+
+
 def calcular_indice_winkler(estacion: Estacion, temporada: str) -> None:
     ini, fin = rango_temporada(temporada, "Winkler")
     dias = ResumenDiario.objects.filter(estacion=estacion, fecha__range=[ini, fin])
@@ -72,16 +98,10 @@ def calcular_indice_winkler(estacion: Estacion, temporada: str) -> None:
     dias_esperados = (fin - ini).days + 1
 
     for d in dias:
-        # Usa tmedia si existe, si no lo aproxima
-        if d.tmedia is not None:
+        aporte = aporte_winkler(d)
+        if aporte is not None:
             dias_con_dato += 1
-            if d.tmedia > 10.0:
-                total_winkler += d.tmedia - 10.0
-        elif d.tmax is not None and d.tmin is not None:
-            dias_con_dato += 1
-            tmedia_calc = (d.tmax + d.tmin) / 2.0
-            if tmedia_calc > 10.0:
-                total_winkler += tmedia_calc - 10.0
+            total_winkler += aporte
 
     if dias_con_dato == 0:
         return
@@ -124,18 +144,10 @@ def calcular_indice_huglin(estacion: Estacion, temporada: str) -> None:
     k = k_huglin(estacion.latitud)
 
     for d in dias:
-        if d.tmax is not None:
-            if d.tmedia is not None:
-                tmedia_calc = d.tmedia
-            elif d.tmin is not None:
-                tmedia_calc = (d.tmax + d.tmin) / 2.0
-            else:
-                continue
-
+        aporte = aporte_huglin(d, k)
+        if aporte is not None:
             dias_con_dato += 1
-            calculo_diario = ((tmedia_calc - 10.0) + (d.tmax - 10.0)) / 2.0
-            if calculo_diario > 0:
-                total_huglin += calculo_diario * k
+            total_huglin += aporte
 
     if dias_con_dato == 0:
         return
