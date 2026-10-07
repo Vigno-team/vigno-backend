@@ -46,6 +46,8 @@ Hoy hay una estación por subzona. Si se agregan zonas, llegan como estaciones n
 
 Mientras la API no esté desplegada (D4.2), cada endpoint corresponde a una clave del archivo de ejemplo (`consolidacion`, `estaciones`, `temporadas`, `completitud_por_temporada`, `resumen_diario`, `ficha_temporada`, `rachas`, `comparacion`).
 
+El archivo con datos reales lo genera `python manage.py exportar_json` (E1C-48). Ahí `resumen_diario` trae un elemento por estación, y `ficha_temporada` y `rachas` uno por estación y temporada. Además incluye `generado` (fecha del archivo) y `temporada_en_curso`. Por ahora no incluye `consolidacion` ni `comparacion`.
+
 ### Objeto `calidad_dato` (común)
 
 ```json

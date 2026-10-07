@@ -191,3 +191,15 @@ La clasificación de temporada depende de E1C-18.
 
 Ver [la guía de E1C-17](docs/E1C-17_RESULTADOS.md) para ejecutar el pipeline,
 probar los endpoints y revisar las dependencias de integración.
+
+### JSON para el frontend E1C-48
+
+Mientras el frontend trabaje sin la API, se le entrega un JSON con los mismos bloques
+que devuelven los endpoints. Se genera después de `generar_resumenes` y `calcular_indices`:
+
+```bash
+docker compose exec backend python manage.py exportar_json
+```
+
+Queda en `data/cliente/vigno-datos-reales.json`. Tiene datos del cliente: se comparte
+por el Drive, no por el repo.
