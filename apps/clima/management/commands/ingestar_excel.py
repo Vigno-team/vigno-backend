@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import pandas as pd
 import pytz
@@ -23,14 +23,14 @@ MOTIVO_FECHA_FUTURA = "Fecha futura o sin datos posteriores"
 class LimpiezaResult:
     df_limpio: pd.DataFrame
     crudo: pd.DataFrame
-    rechazos: List[Dict[str, Any]]
-    columnas_abejas: List[str]
+    rechazos: list[dict[str, Any]]
+    columnas_abejas: list[str]
     filas_leidas: int
 
 
 @dataclass
 class ClasificacionResult:
-    a_guardar: List[MedicionHoraria]
+    a_guardar: list[MedicionHoraria]
     insertados: int
     actualizados: int
     sin_cambio: int
@@ -113,7 +113,7 @@ class Command(BaseCommand):
 
     def _detectar_formato(
         self, df: pd.DataFrame, config: dict, nombre_estacion: str
-    ) -> Tuple[str, dict, str]:
+    ) -> tuple[str, dict, str]:
         for nombre_fmt, info_fmt in config["formatos"].items():
             columnas_requeridas = list(info_fmt["columnas"].values())
             if all(col in df.columns for col in columnas_requeridas):
