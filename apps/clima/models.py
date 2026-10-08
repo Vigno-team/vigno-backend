@@ -17,6 +17,17 @@ class Estacion(models.Model):
 
 
 class MedicionHoraria(models.Model):
+    """
+    Representa una medición climática canónica.
+    
+    Notas de diseño:
+    - `temporada`: Representa el año del archivo de origen (ej. 2024), y NO la 
+      temporada agronómica (2024-2025) usada en otras partes del sistema. Solo se 
+      utiliza para decidir qué dato prevalece en caso de recargas (el más nuevo gana).
+    - `frecuencia`: Aunque la clase se llama MedicionHoraria, también guarda datos 
+      diarios (frecuencia="D"). En este caso, la hora se fuerza a las 12:00 para 
+      evadir inconsistencias con el cambio de hora chileno.
+    """
     FRECUENCIA_CHOICES = [
         ("D", "Diaria"),
         ("H", "Horaria"),
