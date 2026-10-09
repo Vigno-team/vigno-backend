@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
-import pytz
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
@@ -156,7 +156,7 @@ class Command(BaseCommand):
         df = df[~invalidas].copy()
 
         # 2. Zona horaria
-        tz = pytz.timezone(tz_name)
+        tz = ZoneInfo(tz_name)
         if frecuencia == "D":
             df[col_fecha] = (df[col_fecha].dt.normalize() + pd.Timedelta(hours=12)).dt.tz_localize(
                 tz
