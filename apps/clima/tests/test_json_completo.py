@@ -12,8 +12,7 @@ import pytest
 from django.conf import settings
 from django.core.management import call_command
 
-from apps.clima.dias_criticos import ventana_verano
-from apps.clima.indices import clasificar_huglin, clasificar_winkler, rango_temporada
+from apps.clima.indices import clasificar_huglin, clasificar_winkler
 from apps.clima.models import Estacion, IndiceClimatico, MedicionHoraria, ResumenDiario
 from apps.clima.temporadas import temporada_de
 
@@ -24,6 +23,20 @@ REFERENCIA = Path(__file__).parent / "referencia" / "json_completo.json"
 VARIABLE_ENTORNO = "REGENERAR_REFERENCIA"
 TZ = ZoneInfo("America/Santiago")
 MAX_DIFERENCIAS = 25
+
+# Ventanas escritas a mano.
+# Código que vigila si un refactor corre una ventana, estos tests lo detectan.
+VENTANAS = {
+    "Winkler": ((10, 1), (4, 30)),  # 1 oct - 30 abr
+    "Huglin": ((10, 1), (3, 31)),  # 1 oct - 31 mar
+    "Verano": ((10, 1), (4, 30)),  # completitud de los días sobre 35 °C
+}
+
+
+def _ventana(temporada: str, nombre: str) -> tuple[date, date]:
+    inicio = int(temporada[:4])
+    (mes_ini, dia_ini), (mes_fin, dia_fin) = VENTANAS[nombre]
+    return date(inicio, mes_ini, dia_ini), date(inicio + 1, mes_fin, dia_fin)
 
 
 def _importar(nombre: str):
@@ -48,8 +61,7 @@ def estaciones(settings):
     # Los umbrales se fijan aquí para que la referencia no dependa del .env de cada máquina.
     settings.UMBRAL_CALOR_C = 35.0
     settings.MINIMO_DIAS_INCIDENCIA = 5
-    # Las migraciones dejan cargadas las estaciones reales (sin mediciones): se sacan para que la
-    # referencia dependa solo de los datos sintéticos.
+    # Las migraciones dejan cargadas las estaciones reales (sin mediciones): se sacan para que la referencia dependa solo de los datos sintéticos.
     Estacion.objects.all().delete()
     return {
         e["codigo"]: Estacion.objects.create(
@@ -105,9 +117,9 @@ def json_exportado(tmp_path, mediciones):
 
 def _serializar(datos: dict) -> str:
     texto = json.dumps(datos, ensure_ascii=False, indent=2, allow_nan=False)
-    # Un objeto por línea para los días, rachas y días críticos: el diff en git queda legible y
-    # el archivo, corto. Los objetos sin llaves anidadas no tienen saltos de línea dentro de
-    # sus textos, así que esto no altera ningún valor.
+    """ Un objeto por línea para los días, rachas y días críticos: el diff en git queda legible y el archivo  
+    corto. Los objetos sin llaves anidadas no tienen saltos de línea dentro de sus textos, 
+    así que esto no altera ningún valor. """
     texto = re.sub(
         r'\{\s*("(?:fecha|inicio)":[^{}\[\]]*?)\s*\}',
         lambda m: "{ " + re.sub(r"\n\s*", " ", m.group(1)) + " }",
@@ -133,10 +145,10 @@ def test_json_completo_coincide_con_la_referencia(json_exportado):
         )
 
     esperado = json.loads(REFERENCIA.read_text(encoding="utf-8"))
-    if json_exportado == esperado:
-        return
-
+    # Se decide solo con diferencias(): `==` de Python toma True == 1 como iguales.
     lista = list(islice(comparador.diferencias(esperado, json_exportado), MAX_DIFERENCIAS + 1))
+    if not lista:
+        return
     detalle = "\n".join(f"  {linea}" for linea in lista[:MAX_DIFERENCIAS])
     if len(lista) > MAX_DIFERENCIAS:
         detalle += f"\n  ... y más (se muestran las primeras {MAX_DIFERENCIAS})"
@@ -164,20 +176,17 @@ def test_la_referencia_incluye_los_casos_borde():
     assert any(not r["con_incidencia"] for r in rachas), "falta una racha sin incidencia"
     assert any(r["interrumpida_por_dato_faltante"] for r in rachas), "falta una racha interrumpida"
     assert any("motivo_nulo" in d for d in dias), "falta un día sin dato con su motivo"
-    assert any(not f["indices"]["winkler"]["calidad_dato"]["confiable"] for f in fichas), (
-        "falta un Winkler no confiable"
-    )
-    assert any(not f["indices"]["huglin"]["calidad_dato"]["confiable"] for f in fichas), (
-        "falta un Huglin no confiable"
-    )
-    assert any(f["clasificacion"] is None for f in fichas), "falta una ficha sin clasificación"
-    assert any(f["clasificacion"] and "motivo_nulo" in f["clasificacion"] for f in fichas), (
-        "falta una clasificación con un solo eje"
-    )
-    assert any(f["clasificacion"] and f["clasificacion"]["termica"] for f in fichas)
-    assert any("motivo_nulo" in f["lluvia_invernal"] for f in fichas), (
-        "falta una lluvia invernal sin datos"
-    )
+    winkler = [f["indices"]["winkler"]["calidad_dato"]["confiable"] for f in fichas]
+    huglin = [f["indices"]["huglin"]["calidad_dato"]["confiable"] for f in fichas]
+    clasificaciones = [f["clasificacion"] for f in fichas]
+    assert not all(winkler), "falta un Winkler no confiable"
+    assert not all(huglin), "falta un Huglin no confiable"
+    assert None in clasificaciones, "falta una ficha sin clasificación"
+    con_clasificacion = [c for c in clasificaciones if c]
+    assert any("motivo_nulo" in c for c in con_clasificacion), "falta una clasificación parcial"
+    assert any(c["termica"] for c in con_clasificacion), "falta una clasificación térmica"
+    lluvias = [f["lluvia_invernal"] for f in fichas]
+    assert any("motivo_nulo" in x for x in lluvias), "falta una lluvia invernal sin datos"
 
 
 # generar_resumenes y calcular_indices
@@ -204,7 +213,7 @@ def _esperado_de_los_datos_crudos() -> dict:
         filas = [r for r in generador.generar() if r["estacion"] == est["codigo"]]
         for temporada in sorted({temporada_de(r["fecha"]) for r in filas}):
             for indice, tipo in (("Winkler", "Winkler"), ("Huglin", "Huglin")):
-                ini, fin = rango_temporada(temporada, tipo)
+                ini, fin = _ventana(temporada, tipo)
                 aportes = []
                 for r in filas:
                     if not ini <= r["fecha"] <= fin or r["temperatura_media"] is None:
@@ -226,7 +235,9 @@ def _esperado_de_los_datos_crudos() -> dict:
                         esperados,
                         confiable,
                     )
-            ini, fin = ventana_verano(temporada)
+            """ Comportamiento ACTUAL, no la regla: cuenta los días >= 35 °C de julio a junio, pero
+            mide la completitud de octubre a abril y usa 35 fijo (no UMBRAL_CALOR_C)."""
+            ini, fin = _ventana(temporada, "Verano")
             con_dato = [
                 r for r in filas if ini <= r["fecha"] <= fin and r["temperatura_maxima"] is not None
             ]
@@ -261,7 +272,14 @@ def test_calcular_indices_coincide_con_el_calculo_independiente(mediciones):
     correr("generar_resumenes")
     correr("calcular_indices")
 
-    assert _indices_en_la_bd() == _esperado_de_los_datos_crudos()
+    bd = _indices_en_la_bd()
+    esperado = _esperado_de_los_datos_crudos()
+    assert bd.keys() == esperado.keys()
+    for clave, (valor, *resto) in esperado.items():
+        assert bd[clave][1:] == tuple(resto), clave
+        """ Huglin suma aportes múltiplos de 0,05: el total puede caer justo en un x5 y el
+        redondeo a 0,1 depende de cómo se sume."""
+        assert bd[clave][0] == pytest.approx(valor, abs=0.1 + 1e-6), clave
 
 
 def test_calcular_indices_clasifica_solo_los_indices_confiables(mediciones):

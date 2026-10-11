@@ -22,7 +22,7 @@ futuras: terminan en junio de 2025, así que todas las temporadas están cerrada
 | Estación | Código | Período | Qué tiene de particular |
 |---|---|---|---|
 | Sintética Norte | `sint-norte-01` | 2021-07-01 a 2025-06-30 (4 temporadas) | Latitud -35,52. Días sin dato al azar (2 %). Rachas sobre 35 °C: 7 días (2022), 3 (2023, sin incidencia), 6 y 5 cortadas por un día sin dato (2024) y 6 (2025). |
-| Sintética Sur | `sint-sur-01` | 2022-05-01 a 2025-06-30 | **Sin latitud** (el Huglin nunca es confiable). Hueco de 55 días en el verano 2023-2024 (Winkler no confiable, 74,5 %). La temporada 2021-2022 solo tiene mayo-junio (sin índices ni clasificación). 20 días de junio de 2024 sin precipitación. |
+| Sintética Sur | `sint-sur-01` | 2022-05-01 a 2025-06-30 | **Sin latitud** (el Huglin nunca es confiable). Hueco de 55 días en el verano 2023-2024 (Winkler no confiable, 74,2 %). La temporada 2021-2022 solo tiene mayo-junio (sin índices ni clasificación). 20 días de junio de 2024 sin precipitación. |
 
 Los casos borde están escritos a mano en `ESTACIONES` (no dependen de la suerte de la semilla). Lo
 demás (temperaturas, lluvia) sale de una curva estacional con ruido y un valor distinto por
