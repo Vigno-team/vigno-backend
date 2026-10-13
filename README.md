@@ -44,7 +44,9 @@ Para crear un usuario del admin:
 ```bash
 docker compose exec backend python manage.py createsuperuser
 ```
+
 ---
+
 ### Si ya tenías una base creada antes de este cambio
 
 La base del proyecto cambió a PostgreSQL normal. Las bases creadas antes no sirven
@@ -59,7 +61,15 @@ docker compose exec backend python manage.py calcular_indices
 ```
 
 Si hay una base desplegada, también hay que recrearla y volver a cargar los datos.
+
+**Mientras `main` siga con TimescaleDB** (hasta que `refactor` se mergee a `main`, después del 15),
+las dos ramas usan la misma base de Docker (volumen `postgres_data`). Una base creada estando en
+`refactor` también funciona en `main`, pero una creada en `main` vuelve a traer TimescaleDB y en
+`refactor` la carga de datos puede fallar. Recrea la base solo estando en `refactor`; si la
+recreaste en `main`, repite estos pasos al volver.
+
 ---
+
 ## Levantar sin Docker en Windows
 
 Todos los comandos son de PowerShell.
@@ -82,9 +92,12 @@ Todos los comandos son de PowerShell.
    git clone https://github.com/Vigno-team/vigno-backend.git
    cd vigno-backend
    python -m venv .venv
+   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
    .venv\Scripts\Activate.ps1
    pip install -r requirements-dev.txt
 ```
+   `Set-ExecutionPolicy` es solo para esa ventana y no pide permisos de administrador: sin él,
+   Windows bloquea `Activate.ps1`. Repítelo cada vez que abras una ventana nueva.
 
 4. **Configurar `.env`:**
 
@@ -121,11 +134,12 @@ Todos los comandos son de PowerShell.
 
 Si el puerto 5432 está ocupado, apaga el contenedor de Docker (`docker compose down`)
 o cambia `POSTGRES_PORT` en `.env`.
+
 ---
 
 ## Comandos frecuentes
 
-### correlación con cosecha y calidad
+### Correlación con cosecha y calidad
 
 El comando `analizar_correlaciones` compara los índices calculados con un
 histórico D1.3 y exporta dos rankings con muestra, significación y advertencias.
@@ -143,7 +157,6 @@ docker compose exec backend python manage.py migrate
 docker compose exec backend pytest                 # correr tests
 docker compose exec backend ruff check .           # linter
 ```
-
 ---
 
 ## Estructura
@@ -163,7 +176,6 @@ tests/                  tests transversales
 Solo se registran apps que tienen código en uso. Las apps vacías de la
 estructura inicial (`core`, `cuartel`, `muestras`, `cosecha`) se eliminaron; el
 health check que vivía en `core` ahora está en `clima`, con la misma URL.
-
 ---
 
 ## Cómo trabajamos
@@ -220,7 +232,6 @@ Un PR está listo cuando:
 - El proyecto levanta desde cero con `docker compose up` (y, si tocas la base, también sin Docker)
 - No hay datos del cliente ni `.env` en el diff
 - Está enlazado a un ticket de Jira
-
 ---
 
 ## Instalar los hooks de pre-commit
@@ -232,7 +243,6 @@ output de los notebooks antes de commitear.
 pip install pre-commit
 pre-commit install
 ```
-
 ---
 
 ## Datos del cliente
@@ -243,7 +253,6 @@ pre-commit install
 
 Para desarrollar y escribir tests se usa el generador de datos sintéticos de
 `data/synthetic/`.
-
 ---
 
 ## Contrato de la API
@@ -276,3 +285,4 @@ docker compose exec backend python manage.py exportar_json
 
 Queda en `data/cliente/vigno-datos-reales.json`. Tiene datos del cliente: se comparte
 por el Drive, no por el repo.
+---
