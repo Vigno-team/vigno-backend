@@ -118,7 +118,6 @@ el comando previo `calcular_indices` conserva el comportamiento del equipo.
 
 ## Dependencias para cerrar la historia
 
-- E1C-18 debe entregar la clasificación térmica/hídrica.
 - E1C-48 y E1C-49 cubren entrega al frontend y correcciones de integración.
 - E1C-101 cubre el despliegue accesible al frontend. Una URL local no cumple ese despliegue.
 - El catálogo de El Arenal puede conservar un código distinto del ejemplo. El frontend

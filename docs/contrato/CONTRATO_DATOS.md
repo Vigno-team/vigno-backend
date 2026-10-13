@@ -45,6 +45,10 @@ Hoy hay una estación por subzona. Si se agregan zonas, llegan como estaciones n
 | 7   | `GET /api/v1/rachas/{temporada}?estacion={id}`                               | Rachas de días sobre el umbral                               | 2      |
 | 8   | `GET /api/v1/comparacion?estacion={id}`                                      | Temporadas lado a lado y diferencia contra el promedio       | 3      |
 
+La comparación entre años y la publicación de consolidación, completitud
+y resumen diario no forman parte de este cambio. Sus funciones internas
+existentes siguen disponibles.
+
 Mientras la API no esté desplegada (D4.2), cada endpoint corresponde a una clave del archivo de ejemplo (`consolidacion`, `estaciones`, `temporadas`, `completitud_por_temporada`, `resumen_diario`, `ficha_temporada`, `rachas`, `comparacion`).
 
 El archivo con datos reales lo genera `python manage.py exportar_json` (E1C-48). Ahí `resumen_diario` trae un elemento por estación, y `ficha_temporada` y `rachas` uno por estación y temporada. Además incluye `generado` (fecha del archivo) y `temporada_en_curso`. Por ahora no incluye `consolidacion` ni `comparacion`.
@@ -172,18 +176,18 @@ No disponibles con los datos actuales: valores horarios e intensidad horaria de 
 
 ### 5.1 Ficha de temporada (`/temporadas/{temporada}`) — Sprint 2 (índices) y 3 (clasificación)
 
-| Campo             | Tipo            | Descripción                                                                                                                                                               |
-| ----------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `temporada`       | texto           | `"2023-2024"`                                                                                                                                                             |
-| `estacion_id`     | texto           | Estación consultada                                                                                                                                                       |
-| `subzona`         | texto           | Subzona de la estación                                                                                                                                                    |
-| `periodo`         | objeto          | `inicio` y `fin` de acumulación de los índices                                                                                                                            |
-| `indices.winkler` | objeto          | `valor`, `region` (I–V), `calidad_dato`                                                                                                                                   |
-| `indices.huglin`  | objeto          | `valor`, `clasificacion`, `calidad_dato`                                                                                                                                  |
-| `lluvia_invernal` | objeto          | `acumulado_mm`, `promedio_historico_mm`, `diferencia_pct`                                                                                                                 |
-| `calor`           | objeto          | `dias_sobre_umbral`, `umbral_c`, `rachas_con_incidencia`, `racha_maxima_dias`                                                                                             |
-| `clasificacion`   | objeto o `null` | `termica` (`calida` \| `normal` \| `fria`), `hidrica` (`lluviosa` \| `normal` \| `seca`), `criterio` (regla numérica usada). **Llega en el Sprint 3; antes viene `null`** |
-| `dias_criticos`   | lista           | Máximo 10 elementos: `fecha`, `tmax`, de mayor a menor                                                                                                                    |
+| Campo             | Tipo            | Descripción                                                                                                                                                                                                                                                                                  |
+| ----------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `temporada`       | texto           | `"2023-2024"`                                                                                                                                                                                                                                                                                |
+| `estacion_id`     | texto           | Estación consultada                                                                                                                                                                                                                                                                          |
+| `subzona`         | texto           | Subzona de la estación                                                                                                                                                                                                                                                                       |
+| `periodo`         | objeto          | `inicio` y `fin` de acumulación de los índices                                                                                                                                                                                                                                               |
+| `indices.winkler` | objeto          | `valor`, `region` (I–V), `calidad_dato`                                                                                                                                                                                                                                                      |
+| `indices.huglin`  | objeto          | `valor`, `clasificacion`, `calidad_dato`                                                                                                                                                                                                                                                     |
+| `lluvia_invernal` | objeto          | `acumulado_mm`, `promedio_historico_mm`, `diferencia_pct`                                                                                                                                                                                                                                    |
+| `calor`           | objeto          | `dias_sobre_umbral`, `umbral_c`, `rachas_con_incidencia`, `racha_maxima_dias`                                                                                                                                                                                                                |
+| `clasificacion`   | objeto o `null` | `termica` (`calida` \| `normal` \| `fria`), `hidrica` (`lluviosa` \| `normal` \| `seca`), `criterio` (regla numérica usada). Viene `null` solo si no se puede clasificar ningún eje; si falta uno, ese eje viene `null` y se explica en `motivo_nulo`. Incluye `en_curso` y `parcial_hasta`. |
+| `dias_criticos`   | lista           | Máximo 10 elementos: `fecha`, `tmax`, de mayor a menor                                                                                                                                                                                                                                       |
 
 Parámetros de Winkler, Huglin y del período de acumulación: por confirmar con el enólogo. El valor usado queda en `version_calculo`.
 

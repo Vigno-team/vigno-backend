@@ -121,15 +121,15 @@ E1C-145: corregir zona horaria en fechas de muestreo
 ```bash
 git checkout main
 git pull origin main
-git checkout -b feat/VIG-123-descripcion-corta
+git checkout -b feat/E1C-123-descripcion-corta
 
 # trabajas y commiteas
 
 git checkout main && git pull origin main
-git checkout feat/VIG-123-descripcion-corta
+git checkout feat/E1C-123-descripcion-corta
 git rebase main              # antes de abrir el PR
 
-git push -u origin feat/VIG-123-descripcion-corta
+git push -u origin feat/E1C-123-descripcion-corta
 ```
 
 Abres el PR, lo revisa un compañero del equipo, y un lead hace el merge con
@@ -184,7 +184,7 @@ La API de resultados publica `GET /api/v1/estaciones`, `GET /api/v1/temporadas`,
 `GET /api/v1/temporadas/{temporada}?estacion={codigo}` y
 `GET /api/v1/rachas/{temporada}?estacion={codigo}`.
 La ficha usa índices reales guardados, metadatos de calidad y nulos explícitos.
-La clasificación de temporada depende de E1C-18.
+La ficha incluye la clasificación térmica e hídrica de la temporada (E1C-18).
 
 Ver [la guía de E1C-17](docs/E1C-17_RESULTADOS.md) para ejecutar el pipeline,
 probar los endpoints y revisar las dependencias de integración.
