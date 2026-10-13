@@ -45,10 +45,6 @@ Hoy hay una estación por subzona. Si se agregan zonas, llegan como estaciones n
 | 7   | `GET /api/v1/rachas/{temporada}?estacion={id}`                               | Rachas de días sobre el umbral                               | 2      |
 | 8   | `GET /api/v1/comparacion?estacion={id}`                                      | Temporadas lado a lado y diferencia contra el promedio       | 3      |
 
-La comparación entre años y la publicación de consolidación, completitud
-y resumen diario no forman parte de este cambio. Sus funciones internas
-existentes siguen disponibles.
-
 Mientras la API no esté desplegada (D4.2), cada endpoint corresponde a una clave del archivo de ejemplo (`consolidacion`, `estaciones`, `temporadas`, `completitud_por_temporada`, `resumen_diario`, `ficha_temporada`, `rachas`, `comparacion`).
 
 El archivo con datos reales lo genera `python manage.py exportar_json` (E1C-48). Ahí `resumen_diario` trae un elemento por estación, y `ficha_temporada` y `rachas` uno por estación y temporada. Además incluye `generado` (fecha del archivo) y `temporada_en_curso`. Por ahora no incluye `consolidacion` ni `comparacion`.
@@ -226,6 +222,10 @@ sin barra final, usando datos del backend:
 El cuerpo es directamente la lista u objeto del contrato; no se envuelve en las claves
 `ficha_temporada` o `rachas` del archivo de ejemplo. OpenAPI está en `/api/schema/`
 y la documentación interactiva en `/api/docs/`.
+
+La comparación entre años y la publicación de consolidación, completitud
+y resumen diario no forman parte de este cambio. Sus funciones internas
+existentes siguen disponibles.
 
 Precisiones de calidad para esta entrega:
 
