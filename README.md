@@ -30,12 +30,12 @@ docker compose up --build
 
 Cuando termine, verifica que todo esté bien:
 
-| URL | Qué es |
-|---|---|
-| http://localhost:8000/api/health/ | Estado de la API y de la base de datos |
-| http://localhost:8000/api/docs/ | Documentación interactiva de la API |
+| URL                               | Qué es                                    |
+| --------------------------------- | ----------------------------------------- |
+| http://localhost:8000/api/health/ | Estado de la API y de la base de datos    |
+| http://localhost:8000/api/docs/   | Documentación interactiva de la API       |
 | http://localhost:8000/api/schema/ | Contrato OpenAPI (lo consume el frontend) |
-| http://localhost:8000/admin/ | Admin de Django |
+| http://localhost:8000/admin/      | Admin de Django                           |
 
 Si `/api/health/` devuelve `"status": "ok"`, tu entorno está listo.
 
@@ -98,10 +98,10 @@ health check que vivía en `core` ahora está en `clima`, con la misma URL.
 corta que sale de `main` y vuelve por Pull Request.
 
 ```
-feat/VIG-123-descripcion-corta     nueva funcionalidad
-fix/VIG-145-descripcion-corta      corrección de bug
-chore/VIG-150-descripcion-corta    configuración, dependencias, tooling
-docs/VIG-152-descripcion-corta     documentación
+feat/E1C-123-descripcion-corta     nueva funcionalidad
+fix/E1C-145-descripcion-corta      corrección de bug
+chore/E1C-150-descripcion-corta    configuración, dependencias, tooling
+docs/E1C-152-descripcion-corta     documentación
 ```
 
 Si una rama lleva más de una semana abierta, la historia estaba mal cortada.
@@ -112,8 +112,8 @@ Avísale al PO para partirla en dos tickets.
 Siempre con la clave del ticket adelante, para que Jira enlace el trabajo solo:
 
 ```
-VIG-123: agregar parser de planillas de laboratorio
-VIG-145: corregir zona horaria en fechas de muestreo
+E1C-123: agregar parser de planillas de laboratorio
+E1C-145: corregir zona horaria en fechas de muestreo
 ```
 
 ### Ciclo de trabajo
