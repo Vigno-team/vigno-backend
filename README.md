@@ -30,12 +30,12 @@ docker compose up --build
 
 Cuando termine, verifica que todo esté bien:
 
-| URL | Qué es |
-|---|---|
-| http://localhost:8000/api/health/ | Estado de la API y de la base de datos |
-| http://localhost:8000/api/docs/ | Documentación interactiva de la API |
+| URL                               | Qué es                                    |
+| --------------------------------- | ----------------------------------------- |
+| http://localhost:8000/api/health/ | Estado de la API y de la base de datos    |
+| http://localhost:8000/api/docs/   | Documentación interactiva de la API       |
 | http://localhost:8000/api/schema/ | Contrato OpenAPI (lo consume el frontend) |
-| http://localhost:8000/admin/ | Admin de Django |
+| http://localhost:8000/admin/      | Admin de Django                           |
 
 Si `/api/health/` devuelve `"status": "ok"`, tu entorno está listo.
 
@@ -98,10 +98,10 @@ health check que vivía en `core` ahora está en `clima`, con la misma URL.
 corta que sale de `main` y vuelve por Pull Request.
 
 ```
-feat/VIG-123-descripcion-corta     nueva funcionalidad
-fix/VIG-145-descripcion-corta      corrección de bug
-chore/VIG-150-descripcion-corta    configuración, dependencias, tooling
-docs/VIG-152-descripcion-corta     documentación
+feat/E1C-123-descripcion-corta     nueva funcionalidad
+fix/E1C-145-descripcion-corta      corrección de bug
+chore/E1C-150-descripcion-corta    configuración, dependencias, tooling
+docs/E1C-152-descripcion-corta     documentación
 ```
 
 Si una rama lleva más de una semana abierta, la historia estaba mal cortada.
@@ -112,8 +112,8 @@ Avísale al PO para partirla en dos tickets.
 Siempre con la clave del ticket adelante, para que Jira enlace el trabajo solo:
 
 ```
-VIG-123: agregar parser de planillas de laboratorio
-VIG-145: corregir zona horaria en fechas de muestreo
+E1C-123: agregar parser de planillas de laboratorio
+E1C-145: corregir zona horaria en fechas de muestreo
 ```
 
 ### Ciclo de trabajo
@@ -121,15 +121,15 @@ VIG-145: corregir zona horaria en fechas de muestreo
 ```bash
 git checkout main
 git pull origin main
-git checkout -b feat/VIG-123-descripcion-corta
+git checkout -b feat/E1C-123-descripcion-corta
 
 # trabajas y commiteas
 
 git checkout main && git pull origin main
-git checkout feat/VIG-123-descripcion-corta
+git checkout feat/E1C-123-descripcion-corta
 git rebase main              # antes de abrir el PR
 
-git push -u origin feat/VIG-123-descripcion-corta
+git push -u origin feat/E1C-123-descripcion-corta
 ```
 
 Abres el PR, lo revisa un compañero del equipo, y un lead hace el merge con
@@ -184,7 +184,7 @@ La API de resultados publica `GET /api/v1/estaciones`, `GET /api/v1/temporadas`,
 `GET /api/v1/temporadas/{temporada}?estacion={codigo}` y
 `GET /api/v1/rachas/{temporada}?estacion={codigo}`.
 La ficha usa índices reales guardados, metadatos de calidad y nulos explícitos.
-La clasificación de temporada depende de E1C-18.
+La ficha incluye la clasificación térmica e hídrica de la temporada (E1C-18).
 
 Ver [la guía de E1C-17](docs/E1C-17_RESULTADOS.md) para ejecutar el pipeline,
 probar los endpoints y revisar las dependencias de integración.

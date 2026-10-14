@@ -1,10 +1,20 @@
 ## Ticket
 
-VIG-
+E1C-
 
 ## Que hace este PR
 
+## Contexto para el equipo
 
+**Antes / ahora:** qué hacía este código y qué hace después del cambio.
+
+**Lo que saqué o junté:** y por qué no rompe nada.
+
+**Cómo lo comprobé:** por ejemplo, el JSON de referencia sale igual.
+
+**Si alguien tiene que cambiar esto después:** dónde mirar primero (archivo y función).
+
+**Ojo con:** algo que no quedó del todo claro, un caso raro o una duda pendiente.
 
 ## Como probarlo
 
@@ -23,5 +33,3 @@ docker compose up
 - [ ] Documentacion o README actualizados si aplica
 
 ## Notas para quien revisa
-
-

@@ -70,7 +70,6 @@ class FichaTemporadaView(ResultadosView):
         description=(
             "Lee índices ya calculados y reúne lluvia, calor y días críticos. "
             "No ejecuta la ingesta ni recalcula Winkler/Huglin. "
-            "La clasificación de temporada permanece null hasta integrar E1C-18."
         ),
         parameters=PARAMETROS_TEMPORADA,
         responses={200: serializers.FichaTemporadaSerializer, **ERRORES},

@@ -6,18 +6,18 @@ Reutiliza los cálculos del equipo y reúne sus resultados para el frontend.
 
 ## Archivos y responsabilidades
 
-| Archivo | Función |
-|---|---|
-| `apps/clima/resultados.py` | Armar ficha de temporada y detalle de rachas con datos reales y calidad |
-| `apps/clima/serializers.py` | Validar consultas, dar forma a respuestas y describir OpenAPI |
-| `apps/clima/views.py` | Atender GET y devolver errores 400/404 cuando corresponda |
-| `apps/clima/urls.py` y `vigno/urls.py` | Registrar las rutas `/api/v1/` |
-| `apps/clima/models.py` | Leer el umbral sin crear configuración durante un GET |
-| `apps/clima/services.py` | Usar fechas con datos en el catálogo de estaciones |
-| `vigno/settings/base.py` | Configurar el umbral de calor y el mínimo de días de incidencia |
-| `apps/clima/tests/test_api_resultados.py` | Probar contrato, datos reales, nulos, calidad, aislamiento y errores |
-| `apps/clima/tests/test_resumen_diario.py` | Ajustar la expectativa del catálogo al primer día con datos |
-| `docs/contrato/CONTRATO_DATOS.md` | Documentar las respuestas, nulos y dependencias de esta entrega |
+| Archivo                                   | Función                                                                 |
+| ----------------------------------------- | ----------------------------------------------------------------------- |
+| `apps/clima/resultados.py`                | Armar ficha de temporada y detalle de rachas con datos reales y calidad |
+| `apps/clima/serializers.py`               | Validar consultas, dar forma a respuestas y describir OpenAPI           |
+| `apps/clima/views.py`                     | Atender GET y devolver errores 400/404 cuando corresponda               |
+| `apps/clima/urls.py` y `vigno/urls.py`    | Registrar las rutas `/api/v1/`                                          |
+| `apps/clima/models.py`                    | Leer el umbral sin crear configuración durante un GET                   |
+| `apps/clima/services.py`                  | Usar fechas con datos en el catálogo de estaciones                      |
+| `vigno/settings/base.py`                  | Configurar el umbral de calor y el mínimo de días de incidencia         |
+| `apps/clima/tests/test_api_resultados.py` | Probar contrato, datos reales, nulos, calidad, aislamiento y errores    |
+| `apps/clima/tests/test_resumen_diario.py` | Ajustar la expectativa del catálogo al primer día con datos             |
+| `docs/contrato/CONTRATO_DATOS.md`         | Documentar las respuestas, nulos y dependencias de esta entrega         |
 
 No cambia el esquema de tablas ni requiere nuevas migraciones.
 
@@ -118,8 +118,6 @@ el comando previo `calcular_indices` conserva el comportamiento del equipo.
 
 ## Dependencias para cerrar la historia
 
-- E1C-18 debe entregar la clasificación térmica/hídrica. Hasta integrarla, se devuelve
-  `clasificacion: null`; no se puede afirmar que toda E1C-17 está cerrada.
 - E1C-48 y E1C-49 cubren entrega al frontend y correcciones de integración.
 - E1C-101 cubre el despliegue accesible al frontend. Una URL local no cumple ese despliegue.
 - El catálogo de El Arenal puede conservar un código distinto del ejemplo. El frontend
