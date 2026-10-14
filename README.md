@@ -139,24 +139,7 @@ o cambia `POSTGRES_PORT` en `.env`.
 
 ## Comandos frecuentes
 
-### Correlación con cosecha y calidad
 
-El comando `analizar_correlaciones` compara los índices calculados con un
-histórico D1.3 y exporta dos rankings con muestra, significación y advertencias.
-Requiere datos reales y una escala de calidad acordada; no modifica la base.
-Consultar [contrato de entrada, ejecución y límites](docs/E1C-20_CORRELACIONES.md).
-
-```bash
-docker compose up                                  # levantar
-docker compose down                                # apagar
-docker compose down -v                             # apagar y borrar la base
-docker compose logs -f backend                     # ver logs
-
-docker compose exec backend python manage.py makemigrations
-docker compose exec backend python manage.py migrate
-docker compose exec backend pytest                 # correr tests
-docker compose exec backend ruff check .           # linter
-```
 ---
 
 ## Estructura
@@ -167,7 +150,6 @@ vigno/                  configuración del proyecto Django
 apps/
   clima/                serie climática, índices, resultados, API y health check
   ingesta/              registro de cada carga de Excel
-  ml/                   correlaciones con cosecha (módulo Python, no es app Django)
 notebooks/              exploración y spikes de ciencia de datos
 data/synthetic/         generador de datos falsos para desarrollo
 tests/                  tests transversales
