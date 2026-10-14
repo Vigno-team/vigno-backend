@@ -139,6 +139,17 @@ o cambia `POSTGRES_PORT` en `.env`.
 
 ## Comandos frecuentes
 
+```bash
+docker compose up                                  # levantar
+docker compose down                                # apagar
+docker compose down -v                             # apagar y borrar la base
+docker compose logs -f backend                     # ver logs
+
+docker compose exec backend python manage.py makemigrations
+docker compose exec backend python manage.py migrate
+docker compose exec backend pytest                 # correr tests
+docker compose exec backend ruff check .           # linter
+```
 
 ---
 
