@@ -16,7 +16,7 @@ def _anio_inicio(temporada: str) -> int:
     return int(temporada[:4])
 
 
-def rango_temporada_agricola(temporada: str) -> tuple[date, date]:
+def rango_temporada(temporada: str) -> tuple[date, date]:
     inicio = _anio_inicio(temporada)
     primer_dia = date(inicio, MES_INICIO_TEMPORADA, 1)
     siguiente = date(inicio + 1, MES_INICIO_TEMPORADA, 1)

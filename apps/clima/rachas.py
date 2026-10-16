@@ -1,7 +1,7 @@
 from typing import Any
 
 from apps.clima.models import Estacion, ResumenDiario
-from apps.clima.temporadas import rango_temporada_agricola
+from apps.clima.temporadas import rango_temporada
 
 
 def identificar_rachas(
@@ -31,7 +31,7 @@ def identificar_rachas(
     racha_actual = None
     prev_d = None
 
-    inicio_temp, fin_temp = rango_temporada_agricola(temporada)
+    inicio_temp, fin_temp = rango_temporada(temporada)
 
     for d in dias:
         if d.tmax is not None and d.tmax >= umbral_temp:

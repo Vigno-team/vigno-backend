@@ -16,7 +16,7 @@ from apps.clima.rachas import identificar_rachas
 from apps.clima.temporadas import (
     rango_huglin,
     rango_invernal,
-    rango_temporada_agricola,
+    rango_temporada,
     rango_winkler,
 )
 
@@ -112,7 +112,7 @@ def resultados_rachas(estacion, temporada):
     umbral = ConfiguracionCalidad.obtener_umbral()
     umbral_c = settings.UMBRAL_CALOR_C
     minimo_dias = settings.MINIMO_DIAS_INCIDENCIA
-    inicio, fin = rango_temporada_agricola(temporada)
+    inicio, fin = rango_temporada(temporada)
     fin_efectivo = min(fin, timezone.localdate())
     dias_esperados = max((fin_efectivo - inicio).days + 1, 0)
     dias_con_dato = ResumenDiario.objects.filter(

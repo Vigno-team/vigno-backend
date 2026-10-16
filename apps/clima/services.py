@@ -3,7 +3,7 @@ from django.db.models import Count, Max, Min, Q
 from django.utils import timezone
 
 from apps.clima.models import ConfiguracionCalidad, Estacion, ResumenDiario
-from apps.clima.temporadas import rango_temporada_agricola, temporada_de
+from apps.clima.temporadas import rango_temporada, temporada_de
 
 HAY_DATO = (
     Q(tmax__isnull=False)
@@ -205,7 +205,7 @@ def completitud_por_temporada(estacion: Estacion | None = None) -> list[dict]:
 
     resultado = []
     for f in filas:
-        inicio, fin = rango_temporada_agricola(f["temporada"])
+        inicio, fin = rango_temporada(f["temporada"])
         fin = min(fin, hoy)
         total = max((fin - inicio).days + 1, 1)
 
