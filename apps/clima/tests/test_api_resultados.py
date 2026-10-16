@@ -72,6 +72,7 @@ def test_ficha_entrega_resultados_del_pipeline_y_respeta_contrato(client, estaci
         "dias_lluvia_intensa",
         "meses_inusuales",
         "calidad_dato",
+        "motivo_nulo",
     }
     assert set(data["lluvia_fuera_invierno"]["calidad_dato"]["ventanas"]) == {
         "total_anio_agricola",
@@ -81,6 +82,18 @@ def test_ficha_entrega_resultados_del_pipeline_y_respeta_contrato(client, estaci
         "etapa_cuaja_envero",
         "etapa_maduracion_cosecha",
     }
+    assert set(data["lluvia_fuera_invierno"]["etapas"][0]) == {
+        "etapa",
+        "desde",
+        "hasta",
+        "mm",
+        "promedio_mm",
+        "diferencia_pct",
+        "temporadas_en_promedio",
+        "en_curso",
+        "evaluado_hasta",
+    }
+    assert data["lluvia_fuera_invierno"]["calidad_dato"]["en_curso"] is False
     for tipo in ("winkler", "huglin"):
         calidad = data["indices"][tipo]["calidad_dato"]
         assert calidad["completitud_pct"] == 100
@@ -121,6 +134,8 @@ def test_faltantes_son_null_con_motivo_y_no_disparan_calculos(client, estacion):
         assert data["indices"][tipo]["calidad_dato"]["confiable"] is False
     assert data["lluvia_invernal"]["acumulado_mm"] is None
     assert data["lluvia_invernal"]["motivo_nulo"]
+    assert data["lluvia_fuera_invierno"]["total_anio_agricola_mm"] is None
+    assert data["lluvia_fuera_invierno"]["motivo_nulo"]
     assert data["calor"]["dias_sobre_umbral"] is None
     assert data["calor"]["racha_maxima_dias"] is None
     assert data["calor"]["motivo_nulo"]

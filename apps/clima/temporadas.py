@@ -2,6 +2,7 @@ from calendar import monthrange
 from datetime import date, timedelta
 
 MES_INICIO_TEMPORADA = 7
+MIN_TEMPORADAS_PROMEDIO = 2
 
 MES_INICIO_INVIERNO = 5  # mayo
 MES_FIN_INVIERNO = 8  # agosto
@@ -65,7 +66,10 @@ def rango_septiembre(temporada: str) -> tuple[date, date]:
 
 
 def rango_crecimiento(temporada: str) -> tuple[date, date]:
-    return rango_winkler(temporada)
+    etapas = rangos_etapas_crecimiento(temporada).values()
+    inicios = [inicio for inicio, _ in etapas]
+    fines = [fin for _, fin in etapas]
+    return min(inicios), max(fines)
 
 
 def rangos_etapas_crecimiento(temporada: str) -> dict[str, tuple[date, date]]:

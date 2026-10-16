@@ -48,7 +48,10 @@
           "hasta": "2024-11-30",
           "mm": 36.2,
           "promedio_mm": 28.4,
-          "diferencia_pct": 27.5
+          "diferencia_pct": 27.5,
+          "temporadas_en_promedio": 5,
+          "en_curso": false,
+          "evaluado_hasta": "2024-11-30"
         },
         {
           "etapa": "cuaja_envero",
@@ -56,7 +59,10 @@
           "hasta": "2025-01-31",
           "mm": 12.1,
           "promedio_mm": 15.0,
-          "diferencia_pct": -19.3
+          "diferencia_pct": -19.3,
+          "temporadas_en_promedio": 5,
+          "en_curso": false,
+          "evaluado_hasta": "2025-01-31"
         },
         {
           "etapa": "maduracion_cosecha",
@@ -64,7 +70,10 @@
           "hasta": "2025-04-30",
           "mm": 70.3,
           "promedio_mm": 43.0,
-          "diferencia_pct": 63.5
+          "diferencia_pct": 63.5,
+          "temporadas_en_promedio": 5,
+          "en_curso": false,
+          "evaluado_hasta": "2025-04-30"
         }
       ],
       "dias_lluvia_intensa": [
@@ -78,7 +87,8 @@
         {
           "mes": "2025-04",
           "mm": 43.2,
-          "promedio_mm": 18.4
+          "promedio_mm": 18.4,
+          "temporadas_en_promedio": 5
         }
       ],
       "calidad_dato": {
@@ -86,49 +96,51 @@
         "confiable": true,
         "umbral_completitud_pct": 80,
         "resolucion_origen": "diaria",
-        "version_calculo": "lluvia-fuera-invierno-v1_r10mm_mes2x",
+        "version_calculo": "lluvia-fuera-invierno-v2_ini5_r10mm_mes2x_min2_0110-3011_0112-3101_0102-3004",
+        "en_curso": false,
+        "evaluado_hasta": "2025-04-30",
         "ventanas": {
           "total_anio_agricola": {
             "completitud_pct": 100,
             "confiable": true,
             "umbral_completitud_pct": 80,
             "resolucion_origen": "diaria",
-            "version_calculo": "lluvia-fuera-invierno-v1_r10mm_mes2x"
+            "version_calculo": "lluvia-fuera-invierno-v2_ini5_r10mm_mes2x_min2_0110-3011_0112-3101_0102-3004"
           },
           "septiembre": {
             "completitud_pct": 100,
             "confiable": true,
             "umbral_completitud_pct": 80,
             "resolucion_origen": "diaria",
-            "version_calculo": "lluvia-fuera-invierno-v1_r10mm_mes2x"
+            "version_calculo": "lluvia-fuera-invierno-v2_ini5_r10mm_mes2x_min2_0110-3011_0112-3101_0102-3004"
           },
           "crecimiento": {
             "completitud_pct": 100,
             "confiable": true,
             "umbral_completitud_pct": 80,
             "resolucion_origen": "diaria",
-            "version_calculo": "lluvia-fuera-invierno-v1_r10mm_mes2x"
+            "version_calculo": "lluvia-fuera-invierno-v2_ini5_r10mm_mes2x_min2_0110-3011_0112-3101_0102-3004"
           },
           "etapa_brotacion_floracion": {
             "completitud_pct": 100,
             "confiable": true,
             "umbral_completitud_pct": 80,
             "resolucion_origen": "diaria",
-            "version_calculo": "lluvia-fuera-invierno-v1_r10mm_mes2x"
+            "version_calculo": "lluvia-fuera-invierno-v2_ini5_r10mm_mes2x_min2_0110-3011_0112-3101_0102-3004"
           },
           "etapa_cuaja_envero": {
             "completitud_pct": 100,
             "confiable": true,
             "umbral_completitud_pct": 80,
             "resolucion_origen": "diaria",
-            "version_calculo": "lluvia-fuera-invierno-v1_r10mm_mes2x"
+            "version_calculo": "lluvia-fuera-invierno-v2_ini5_r10mm_mes2x_min2_0110-3011_0112-3101_0102-3004"
           },
           "etapa_maduracion_cosecha": {
             "completitud_pct": 100,
             "confiable": true,
             "umbral_completitud_pct": 80,
             "resolucion_origen": "diaria",
-            "version_calculo": "lluvia-fuera-invierno-v1_r10mm_mes2x"
+            "version_calculo": "lluvia-fuera-invierno-v2_ini5_r10mm_mes2x_min2_0110-3011_0112-3101_0102-3004"
           }
         }
       }
