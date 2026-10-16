@@ -1,7 +1,6 @@
-from datetime import date
-
 from apps.clima.dias_criticos import calcular_dias_sobre_umbral
 from apps.clima.models import ConfiguracionCalidad, Estacion, IndiceClimatico, ResumenDiario
+from apps.clima.temporadas import rango_huglin, rango_winkler
 
 
 def k_huglin(latitud: float) -> float:
@@ -47,22 +46,6 @@ def clasificar_huglin(valor: float) -> str:
     return "Muy cálido"
 
 
-def rango_temporada(temporada: str, tipo: str) -> tuple[date, date]:
-    """
-    Recibe "2024-2025" y devuelve el rango para Winkler o Huglin en hemisferio sur.
-    """
-    partes = temporada.split("-")
-    anio_inicio = int(partes[0])
-    anio_fin = int(partes[1])
-
-    ini = date(anio_inicio, 10, 1)
-    if tipo == "Winkler":
-        fin = date(anio_fin, 4, 30)
-    else:
-        fin = date(anio_fin, 3, 31)
-    return ini, fin
-
-
 def aporte_winkler(d: ResumenDiario) -> float | None:
     """Grados-día Winkler de un día; None si el día no tiene datos para calcularlo."""
     # Usa tmedia si existe, si no lo aproxima
@@ -90,7 +73,7 @@ def aporte_huglin(d: ResumenDiario, k: float) -> float | None:
 
 
 def calcular_indice_winkler(estacion: Estacion, temporada: str) -> None:
-    ini, fin = rango_temporada(temporada, "Winkler")
+    ini, fin = rango_winkler(temporada)
     dias = ResumenDiario.objects.filter(estacion=estacion, fecha__range=[ini, fin])
 
     total_winkler = 0.0
@@ -135,7 +118,7 @@ def calcular_indice_winkler(estacion: Estacion, temporada: str) -> None:
 
 
 def calcular_indice_huglin(estacion: Estacion, temporada: str) -> None:
-    ini, fin = rango_temporada(temporada, "Huglin")
+    ini, fin = rango_huglin(temporada)
     dias = ResumenDiario.objects.filter(estacion=estacion, fecha__range=[ini, fin])
 
     total_huglin = 0.0

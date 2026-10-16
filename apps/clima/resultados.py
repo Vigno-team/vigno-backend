@@ -10,12 +10,16 @@ from rest_framework.exceptions import NotFound
 
 from apps.clima.clasificacion import clasificar_temporada
 from apps.clima.dias_criticos import obtener_dias_criticos
-from apps.clima.indices import rango_temporada
 from apps.clima.lluvia import comparar_lluvia_invernal, lluvia_invernal
 from apps.clima.metricas import lluvia_fuera_invierno
 from apps.clima.models import ConfiguracionCalidad, IndiceClimatico, ResumenDiario
 from apps.clima.rachas import identificar_rachas
-from apps.clima.temporadas import rango_de, rango_invernal
+from apps.clima.temporadas import (
+    rango_huglin,
+    rango_invernal,
+    rango_temporada,
+    rango_winkler,
+)
 
 
 def _resolucion(estacion, inicio, fin):
@@ -40,8 +44,11 @@ def _calidad(completitud, confiable, umbral, resolucion, version):
     }
 
 
+RANGOS_INDICE = {"Winkler": rango_winkler, "Huglin": rango_huglin}
+
+
 def _periodo_indice(indice, temporada, tipo):
-    inicio, fin = rango_temporada(temporada, tipo)
+    inicio, fin = RANGOS_INDICE[tipo](temporada)
     if indice:
         parametros = indice.parametros
         inicio = date.fromisoformat(parametros.get("fecha_inicio", inicio.isoformat()))
@@ -106,7 +113,7 @@ def resultados_rachas(estacion, temporada):
     umbral = ConfiguracionCalidad.obtener_umbral()
     umbral_c = settings.UMBRAL_CALOR_C
     minimo_dias = settings.MINIMO_DIAS_INCIDENCIA
-    inicio, fin = rango_de(temporada)
+    inicio, fin = rango_temporada(temporada)
     fin_efectivo = min(fin, timezone.localdate())
     dias_esperados = max((fin_efectivo - inicio).days + 1, 0)
     dias_con_dato = ResumenDiario.objects.filter(
@@ -131,7 +138,7 @@ def resultados_rachas(estacion, temporada):
 
 def _clasificacion(estacion, temporada):
     """Cálida/fría y lluviosa/seca. None solo si no se puede clasificar ningún eje."""
-    c = clasificar_temporada(estacion.codigo, temporada)
+    c = clasificar_temporada(estacion, temporada)
     if c["termica"] is None and c["hidrica"] is None:
         return None
     bloque = {
@@ -161,8 +168,8 @@ def ficha_temporada(estacion, temporada):
         )
     }
     inicio, fin = _periodo_indice(indices.get("Winkler"), temporada, "Winkler")
-    lluvia = lluvia_invernal(estacion.codigo, temporada)
-    historico = comparar_lluvia_invernal(estacion.codigo, temporadas=[temporada])
+    lluvia = lluvia_invernal(estacion, temporada)
+    historico = comparar_lluvia_invernal(estacion, temporadas=[temporada])
     comparacion = next(iter(historico["temporadas"]), {})
     ini_invierno, fin_invierno = rango_invernal(temporada)
     bloque_lluvia = {

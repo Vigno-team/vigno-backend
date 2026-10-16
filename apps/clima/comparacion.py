@@ -3,19 +3,14 @@ from datetime import date
 import pandas as pd
 from django.conf import settings
 from django.db.models import Max, Min, Q
+from django.utils import timezone
 
-from apps.clima.dias_criticos import ventana_verano
-from apps.clima.indices import aporte_huglin, aporte_winkler, k_huglin, rango_temporada
+from apps.clima.indices import aporte_huglin, aporte_winkler, k_huglin
 from apps.clima.models import ConfiguracionCalidad, Estacion, ResumenDiario
-from apps.clima.services import TZ
-from apps.clima.temporadas import rango_invernal
+from apps.clima.temporadas import rango_dias_calor, rango_huglin, rango_invernal, rango_winkler
 
 # Variables de temperatura que se comparan entre estaciones.
 VARIABLES_TERMICAS = ("tmedia", "tmax", "tmin")
-
-
-def hoy_en_chile() -> date:
-    return pd.Timestamp.now(tz=TZ).date()
 
 
 # Métricas por temporada
@@ -45,9 +40,9 @@ def _lluvia(dias, estacion):
 
 # nombre: (unidad, ventana de la temporada, función que calcula (valor, días con dato))
 METRICAS = {
-    "winkler": ("°C·día", lambda t: rango_temporada(t, "Winkler"), _winkler),
-    "huglin": ("°C·día", lambda t: rango_temporada(t, "Huglin"), _huglin),
-    "dias_sobre_umbral": ("días", ventana_verano, _dias_sobre_umbral),
+    "winkler": ("°C·día", rango_winkler, _winkler),
+    "huglin": ("°C·día", rango_huglin, _huglin),
+    "dias_sobre_umbral": ("días", rango_dias_calor, _dias_sobre_umbral),
     "lluvia_invernal": ("mm", rango_invernal, _lluvia),
 }
 
@@ -110,11 +105,10 @@ def valor_metrica(estacion: Estacion, metrica: str, temporada: str, corte: date,
 
 
 def comparar_temporadas(
-    estacion_codigo: str, temporada: str, referencia: str, hoy: date | None = None
+    estacion: Estacion, temporada: str, referencia: str, hoy: date | None = None
 ) -> dict:
     """Diferencia (temporada - referencia) de cada índice y métrica."""
-    estacion = Estacion.objects.get(codigo=estacion_codigo)  # error si no existe
-    hoy = hoy or hoy_en_chile()
+    hoy = hoy or timezone.localdate()
     umbral = ConfiguracionCalidad.obtener_umbral()
 
     metricas = []
@@ -143,7 +137,7 @@ def comparar_temporadas(
             item["observacion"] = f"datos insuficientes en: {', '.join(faltan)}"
         metricas.append(item)
     return {
-        "estacion_id": estacion_codigo,
+        "estacion_id": estacion.codigo,
         "temporada": temporada,
         "referencia": referencia,
         "metricas": metricas,
@@ -158,14 +152,13 @@ def temporadas_con_datos(estacion: Estacion) -> list[str]:
     return [f"{a}-{a + 1}" for a in sorted(anios)]
 
 
-def comparar_con_anteriores(estacion_codigo: str, temporada: str, hoy: date | None = None) -> dict:
+def comparar_con_anteriores(estacion: Estacion, temporada: str, hoy: date | None = None) -> dict:
     """La temporada frente a cada temporada anterior que tenga datos."""
-    estacion = Estacion.objects.get(codigo=estacion_codigo)
-    hoy = hoy or hoy_en_chile()
+    hoy = hoy or timezone.localdate()
     anteriores = [t for t in temporadas_con_datos(estacion) if t < temporada]
-    comparaciones = [comparar_temporadas(estacion_codigo, temporada, t, hoy) for t in anteriores]
+    comparaciones = [comparar_temporadas(estacion, temporada, t, hoy) for t in anteriores]
     return {
-        "estacion_id": estacion_codigo,
+        "estacion_id": estacion.codigo,
         "temporada": temporada,
         # Se omiten las temporadas anteriores sin ningún dato en ninguna métrica.
         "comparaciones": [
@@ -195,24 +188,22 @@ def _rango_comun(a: Estacion, b: Estacion) -> tuple[date, date] | None:
 
 
 def comparar_estaciones(
-    codigo_a: str, codigo_b: str, desde: date | None = None, hasta: date | None = None
+    a: Estacion, b: Estacion, desde: date | None = None, hasta: date | None = None
 ) -> dict:
     """Diferencia de temperatura (A - B) en los días en que ambas estaciones tienen dato.
 
     Sin `desde`/`hasta` usa el período en que las dos tienen datos.
     """
-    if codigo_a == codigo_b:
+    if a == b:
         raise ValueError("Elige dos estaciones distintas.")
-    a = Estacion.objects.get(codigo=codigo_a)
-    b = Estacion.objects.get(codigo=codigo_b)
     umbral = ConfiguracionCalidad.obtener_umbral()
 
     if desde is None or hasta is None:
         comun = _rango_comun(a, b)
         if comun is None:
             return {
-                "estacion_a": codigo_a,
-                "estacion_b": codigo_b,
+                "estacion_a": a.codigo,
+                "estacion_b": b.codigo,
                 "periodo": None,
                 "variables": {},
                 "observacion": "las estaciones no comparten período con datos de temperatura",
@@ -223,11 +214,11 @@ def comparar_estaciones(
     dias_periodo = (hasta - desde).days + 1
 
     filas = ResumenDiario.objects.filter(estacion__in=(a, b), fecha__range=(desde, hasta)).values(
-        "estacion__codigo", "fecha", *VARIABLES_TERMICAS
+        "estacion_id", "fecha", *VARIABLES_TERMICAS
     )
-    df = pd.DataFrame(list(filas), columns=["estacion__codigo", "fecha", *VARIABLES_TERMICAS])
-    ancho = df[df["estacion__codigo"] == codigo_a].merge(
-        df[df["estacion__codigo"] == codigo_b], on="fecha", suffixes=("_a", "_b")
+    df = pd.DataFrame(list(filas), columns=["estacion_id", "fecha", *VARIABLES_TERMICAS])
+    ancho = df[df["estacion_id"] == a.pk].merge(
+        df[df["estacion_id"] == b.pk], on="fecha", suffixes=("_a", "_b")
     )
 
     variables = {}
@@ -252,8 +243,8 @@ def comparar_estaciones(
             item["observacion"] = "sin días con dato en ambas estaciones"
         variables[var] = item
     return {
-        "estacion_a": codigo_a,
-        "estacion_b": codigo_b,
+        "estacion_a": a.codigo,
+        "estacion_b": b.codigo,
         "periodo": {"desde": desde.isoformat(), "hasta": hasta.isoformat()},
         "dias_en_periodo": dias_periodo,
         "variables": variables,

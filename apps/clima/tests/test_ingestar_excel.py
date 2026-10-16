@@ -1,8 +1,9 @@
 """Tests para el comando de ingesta de Excel de estaciones meteorológicas."""
 
+from zoneinfo import ZoneInfo
+
 import openpyxl
 import pytest
-import pytz
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
@@ -100,7 +101,7 @@ def test_ingesta_exitosa_y_reglas_negocio(excel_sintetico):
     assert "Dato en blanco" in medicion_vacia.motivo_nulo
 
     # Resolución del cambio de hora
-    tz = pytz.timezone("America/Santiago")
+    tz = ZoneInfo("America/Santiago")
 
     medicion_cambio = MedicionHoraria.objects.filter(timestamp__date__day=7).first()
     assert medicion_cambio.timestamp.astimezone(tz).hour == 12

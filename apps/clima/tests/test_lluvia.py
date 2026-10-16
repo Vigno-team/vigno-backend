@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
+from django.utils import timezone
 
 from apps.clima.lluvia import comparar_lluvia_invernal, eventos_lluvia, lluvia_invernal
 from apps.clima.models import Estacion, MedicionHoraria, ResumenDiario
@@ -81,7 +82,7 @@ def test_ventanas_de_lluvia_fuera_del_invierno():
 def test_acumulado_solo_cuenta_el_periodo_invernal(estacion):
     cargar_dias(estacion, date(2024, 4, 30), date(2024, 9, 1), 1.0)  # un día de más a cada lado
 
-    res = lluvia_invernal("lluvia-01", "2024-2025")
+    res = lluvia_invernal(estacion, "2024-2025")
 
     assert res["periodo"] == {"desde": "2024-05-01", "hasta": "2024-08-31"}
     assert res["acumulado_mm"] == 123.0  # mayo a agosto = 123 días
@@ -98,14 +99,14 @@ def test_el_invierno_se_busca_por_fecha_y_no_por_la_columna_temporada(estacion):
         "2024-2025",
     }
 
-    assert lluvia_invernal("lluvia-01", "2024-2025")["acumulado_mm"] == 123.0
-    assert lluvia_invernal("lluvia-01", "2023-2024")["acumulado_mm"] is None
+    assert lluvia_invernal(estacion, "2024-2025")["acumulado_mm"] == 123.0
+    assert lluvia_invernal(estacion, "2023-2024")["acumulado_mm"] is None
 
 
 def test_acumulado_incompleto_no_es_confiable(estacion):
     cargar_dias(estacion, date(2024, 5, 1), date(2024, 5, 10), 2.0)  # 10 de 123 días
 
-    res = lluvia_invernal("lluvia-01", "2024-2025")
+    res = lluvia_invernal(estacion, "2024-2025")
 
     assert res["acumulado_mm"] == 20.0
     assert res["completitud_pct"] == 8.1
@@ -114,16 +115,11 @@ def test_acumulado_incompleto_no_es_confiable(estacion):
 
 
 def test_acumulado_sin_datos(estacion):
-    res = lluvia_invernal("lluvia-01", "2024-2025")
+    res = lluvia_invernal(estacion, "2024-2025")
 
     assert res["acumulado_mm"] is None
     assert res["confiable"] is False
     assert "sin datos" in res["observacion"]
-
-
-def test_acumulado_estacion_inexistente_falla():
-    with pytest.raises(Estacion.DoesNotExist):
-        lluvia_invernal("no-existe", "2024-2025")
 
 
 # eventos de lluvia
@@ -139,7 +135,7 @@ def test_evento_que_cruza_medianoche_entrega_intensidad_duracion_y_total_diario(
         (2024, 6, 11, 15, 0.5),
     )
 
-    res = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-11")
+    res = eventos_lluvia(estacion, "2024-06-10", "2024-06-11")
 
     assert len(res["eventos"]) == 2
     primero = res["eventos"][0]
@@ -157,7 +153,7 @@ def test_evento_que_cruza_medianoche_entrega_intensidad_duracion_y_total_diario(
 def test_pocas_horas_secas_no_parten_el_evento(estacion):
     cargar_horas(estacion, (2024, 6, 10, 10, 1.0), (2024, 6, 10, 15, 3.0))  # 4 horas secas
 
-    res = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-10")
+    res = eventos_lluvia(estacion, "2024-06-10", "2024-06-10")
 
     assert len(res["eventos"]) == 1
     assert res["eventos"][0]["duracion_horas"] == 6.0
@@ -169,7 +165,7 @@ def test_limite_de_la_separacion_entre_eventos(estacion):
     cargar_horas(estacion, (2024, 6, 10, 10, 1.0), (2024, 6, 10, 16, 1.0))  # 5 horas secas
     cargar_horas(estacion, (2024, 6, 11, 10, 1.0), (2024, 6, 11, 17, 1.0))  # 6 horas secas
 
-    res = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-11")
+    res = eventos_lluvia(estacion, "2024-06-10", "2024-06-11")
 
     assert [e["horas_con_lluvia"] for e in res["eventos"]] == [2, 1, 1]
 
@@ -177,7 +173,7 @@ def test_limite_de_la_separacion_entre_eventos(estacion):
 def test_la_separacion_de_eventos_se_puede_cambiar(estacion):
     cargar_horas(estacion, (2024, 6, 10, 10, 1.0), (2024, 6, 10, 15, 3.0))
 
-    res = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-10", separacion_horas=2)
+    res = eventos_lluvia(estacion, "2024-06-10", "2024-06-10", separacion_horas=2)
 
     assert len(res["eventos"]) == 2
 
@@ -192,13 +188,13 @@ def test_eventos_respeta_el_rango_y_solo_usa_datos_horarios(estacion):
         valor=99.0,
     )
 
-    res = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-10")
+    res = eventos_lluvia(estacion, "2024-06-10", "2024-06-10")
 
     assert [e["total_mm"] for e in res["eventos"]] == [2.0]
 
 
 def test_eventos_sin_datos_horarios(estacion):
-    res = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-11")
+    res = eventos_lluvia(estacion, "2024-06-10", "2024-06-11")
 
     assert res["eventos"] == []
     assert "sin datos horarios" in res["observacion"]
@@ -207,7 +203,7 @@ def test_eventos_sin_datos_horarios(estacion):
 def test_eventos_ignora_horas_sin_lluvia(estacion):
     cargar_horas(estacion, (2024, 6, 10, 10, 0.0), (2024, 6, 10, 11, 0.0))
 
-    res = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-10")
+    res = eventos_lluvia(estacion, "2024-06-10", "2024-06-10")
 
     assert res["eventos"] == []
     assert res["observacion"] == "sin lluvia en el rango"
@@ -221,7 +217,7 @@ def test_comparacion_contra_el_promedio_historico(estacion):
     cargar_invierno(estacion, 2023, 2.0)  # 246 mm
     cargar_invierno(estacion, 2024, 3.0)  # 369 mm
 
-    res = comparar_lluvia_invernal("lluvia-01")
+    res = comparar_lluvia_invernal(estacion)
 
     assert res["promedio_historico_mm"] == 246.0
     assert res["temporadas_en_promedio"] == 3
@@ -235,7 +231,7 @@ def test_comparacion_de_algunas_temporadas_usa_el_promedio_de_todas(estacion):
     cargar_invierno(estacion, 2023, 2.0)
     cargar_invierno(estacion, 2024, 3.0)
 
-    res = comparar_lluvia_invernal("lluvia-01", temporadas=["2024-2025"])
+    res = comparar_lluvia_invernal(estacion, temporadas=["2024-2025"])
 
     assert res["promedio_historico_mm"] == 246.0
     assert [t["temporada"] for t in res["temporadas"]] == ["2024-2025"]
@@ -246,7 +242,7 @@ def test_invierno_no_confiable_no_entra_al_promedio(estacion):
     cargar_invierno(estacion, 2023, 3.0)
     cargar_dias(estacion, date(2024, 5, 1), date(2024, 5, 5), 50.0)  # incompleto: 250 mm
 
-    res = comparar_lluvia_invernal("lluvia-01")
+    res = comparar_lluvia_invernal(estacion)
 
     assert res["promedio_historico_mm"] == 246.0  # (123 + 369) / 2, sin el invierno de 2024
     assert res["temporadas_en_promedio"] == 2
@@ -258,7 +254,7 @@ def test_invierno_no_confiable_no_entra_al_promedio(estacion):
 def test_comparacion_sin_suficientes_inviernos_confiables(estacion):
     cargar_invierno(estacion, 2023, 2.0)
 
-    res = comparar_lluvia_invernal("lluvia-01")
+    res = comparar_lluvia_invernal(estacion)
 
     assert res["promedio_historico_mm"] is None
     assert "al menos 2" in res["observacion"]
@@ -272,17 +268,17 @@ def test_eventos_no_falla_en_el_cambio_de_hora(estacion):
     # El domingo 7 de septiembre de 2025 no existe la medianoche en Chile
     cargar_horas(estacion, (2025, 9, 8, 10, 3.0))
 
-    res = eventos_lluvia("lluvia-01", "2025-09-07", "2025-09-10")
+    res = eventos_lluvia(estacion, "2025-09-07", "2025-09-10")
     assert [e["total_mm"] for e in res["eventos"]] == [3.0]
 
-    res = eventos_lluvia("lluvia-01", "2025-09-01", "2025-09-06")  # termina el sábado anterior
+    res = eventos_lluvia(estacion, "2025-09-01", "2025-09-06")  # termina el sábado anterior
     assert res["eventos"] == []
 
 
 def test_eventos_no_falla_en_el_cambio_de_hora_de_abril(estacion):
     cargar_horas(estacion, (2025, 4, 6, 10, 1.0))
 
-    res = eventos_lluvia("lluvia-01", "2025-04-05", "2025-04-06")
+    res = eventos_lluvia(estacion, "2025-04-05", "2025-04-06")
 
     assert [e["total_mm"] for e in res["eventos"]] == [1.0]
 
@@ -292,7 +288,7 @@ def test_invierno_no_confiable_no_recibe_diferencia(estacion):
     cargar_invierno(estacion, 2023, 3.0)
     cargar_dias(estacion, date(2024, 5, 1), date(2024, 5, 20), 3.0)  # 20 de 123 días
 
-    parcial = comparar_lluvia_invernal("lluvia-01")["temporadas"][-1]
+    parcial = comparar_lluvia_invernal(estacion)["temporadas"][-1]
 
     assert parcial["confiable"] is False
     assert parcial["diferencia_mm"] is None
@@ -311,7 +307,7 @@ def test_evento_informa_horas_sin_dato(estacion):
             motivo_nulo="Dato en blanco en origen",
         )
 
-    evento = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-10")["eventos"][0]
+    evento = eventos_lluvia(estacion, "2024-06-10", "2024-06-10")["eventos"][0]
 
     assert evento["horas_sin_dato"] == 3
 
@@ -319,27 +315,18 @@ def test_evento_informa_horas_sin_dato(estacion):
 def test_evento_sin_huecos_tiene_cero_horas_sin_dato(estacion):
     cargar_horas(estacion, (2024, 6, 10, 10, 2.0), (2024, 6, 10, 11, 1.0))
 
-    evento = eventos_lluvia("lluvia-01", "2024-06-10", "2024-06-10")["eventos"][0]
+    evento = eventos_lluvia(estacion, "2024-06-10", "2024-06-10")["eventos"][0]
 
     assert evento["horas_sin_dato"] == 0
 
 
 def test_invierno_en_curso_no_se_compara_con_el_total_de_los_terminados(estacion, monkeypatch):
-    from types import SimpleNamespace
-
-    class _Ahora:
-        def date(self):
-            return date(2025, 7, 15)
-
-    monkeypatch.setattr(
-        "apps.clima.lluvia.pd",
-        SimpleNamespace(Timestamp=SimpleNamespace(now=lambda tz=None: _Ahora())),
-    )
+    monkeypatch.setattr(timezone, "localdate", lambda: date(2025, 7, 15))
     for anio in (2022, 2023, 2024):
         cargar_invierno(estacion, anio, 3.0)  # 369 mm cada uno
     cargar_dias(estacion, date(2025, 5, 1), date(2025, 7, 15), 3.0)  # 76 días: 228 mm hasta hoy
 
-    res = comparar_lluvia_invernal("lluvia-01")
+    res = comparar_lluvia_invernal(estacion)
     actual = next(t for t in res["temporadas"] if t["temporada"] == "2025-2026")
 
     assert actual["en_curso"] is True and actual["confiable"] is True

@@ -5,8 +5,5 @@
 # y el equipo no espere 5 minutos cada vez que levanta el entorno.
 
 numpy==2.1.2
-scikit-learn==1.5.2
-scipy==1.14.1
-pandera==0.20.4
 matplotlib==3.9.2
 jupyterlab==4.2.5
