@@ -1,12 +1,8 @@
 from datetime import date
 
-from apps.clima.comparacion import (
-    METRICAS,
-    cortes,
-    hoy_en_chile,
-    temporadas_con_datos,
-    valor_metrica,
-)
+from django.utils import timezone
+
+from apps.clima.comparacion import METRICAS, cortes, temporadas_con_datos, valor_metrica
 from apps.clima.models import ConfiguracionCalidad, Estacion
 
 # Cortes provisionales: CONFIRMAR con el enólogo. Están aquí para cambiarlos en un solo lugar.
@@ -87,9 +83,8 @@ def _termino(metrica: str, temporada: str, hoy: date) -> bool:
     return METRICAS[metrica][1](temporada)[1] <= hoy
 
 
-def clasificar_temporada(estacion_codigo: str, temporada: str, hoy: date | None = None) -> dict:
-    estacion = Estacion.objects.get(codigo=estacion_codigo)  # error si no existe
-    hoy = hoy or hoy_en_chile()
+def clasificar_temporada(estacion: Estacion, temporada: str, hoy: date | None = None) -> dict:
+    hoy = hoy or timezone.localdate()
     umbral = ConfiguracionCalidad.obtener_umbral()
 
     termica = _eje(
@@ -119,7 +114,7 @@ def clasificar_temporada(estacion_codigo: str, temporada: str, hoy: date | None 
         else ""
     )
     return {
-        "estacion_id": estacion_codigo,
+        "estacion_id": estacion.codigo,
         "temporada": temporada,
         "en_curso": parcial_hasta is not None,
         "parcial_hasta": parcial_hasta,
