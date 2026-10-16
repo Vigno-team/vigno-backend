@@ -1,18 +1,12 @@
-from datetime import date
-
 from apps.clima.models import ConfiguracionCalidad, Estacion, IndiceClimatico, ResumenDiario
-
-
-def ventana_verano(temporada: str) -> tuple[date, date]:
-    inicio = int(temporada[:4])
-    return date(inicio, 10, 1), date(inicio + 1, 4, 30)
+from apps.clima.temporadas import rango_dias_calor
 
 
 def calcular_dias_sobre_umbral(estacion: Estacion, temporada: str, umbral: float = 35.0) -> int:
     resumenes = ResumenDiario.objects.filter(estacion=estacion, temporada=temporada)
     dias_count = resumenes.filter(tmax__gte=umbral).count()
 
-    ini, fin = ventana_verano(temporada)
+    ini, fin = rango_dias_calor(temporada)
     dias_esperados = (fin - ini).days + 1
     dias_con_dato = resumenes.filter(fecha__range=[ini, fin], tmax__isnull=False).count()
     if dias_con_dato == 0:

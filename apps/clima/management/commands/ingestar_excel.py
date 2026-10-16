@@ -1,7 +1,6 @@
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -10,6 +9,7 @@ import pandas as pd
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from apps.clima.models import Estacion, MedicionHoraria
 from apps.ingesta.models import RegistroCarga
@@ -182,7 +182,7 @@ class Command(BaseCommand):
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
         # 5. Dias futuros
-        hoy = datetime.now(tz).date()
+        hoy = timezone.localdate()
         fechas_dia = df[col_fecha].dt.date
         tiene_dato = df[columnas_variables].notna().any(axis=1)
         futuras = fechas_dia > hoy
