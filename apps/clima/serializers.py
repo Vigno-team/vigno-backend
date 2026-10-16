@@ -56,6 +56,41 @@ class LluviaInvernalSerializer(serializers.Serializer):
     motivo_nulo = serializers.CharField(required=False)
 
 
+class CalidadLluviaFueraInviernoSerializer(CalidadDatoSerializer):
+    ventanas = serializers.DictField(child=CalidadDatoSerializer())
+
+
+class EtapaLluviaSerializer(serializers.Serializer):
+    etapa = serializers.CharField()
+    desde = serializers.DateField()
+    hasta = serializers.DateField()
+    mm = serializers.FloatField(allow_null=True)
+    promedio_mm = serializers.FloatField(allow_null=True)
+    diferencia_pct = serializers.FloatField(allow_null=True)
+
+
+class DiaLluviaIntensaSerializer(serializers.Serializer):
+    fecha = serializers.DateField()
+    mm = serializers.FloatField()
+    etapa = serializers.CharField()
+
+
+class MesInusualSerializer(serializers.Serializer):
+    mes = serializers.CharField()
+    mm = serializers.FloatField()
+    promedio_mm = serializers.FloatField()
+
+
+class LluviaFueraInviernoSerializer(serializers.Serializer):
+    total_anio_agricola_mm = serializers.FloatField(allow_null=True)
+    septiembre_mm = serializers.FloatField(allow_null=True)
+    crecimiento_mm = serializers.FloatField(allow_null=True)
+    etapas = EtapaLluviaSerializer(many=True)
+    dias_lluvia_intensa = DiaLluviaIntensaSerializer(many=True)
+    meses_inusuales = MesInusualSerializer(many=True)
+    calidad_dato = CalidadLluviaFueraInviernoSerializer()
+
+
 class CalorSerializer(serializers.Serializer):
     dias_sobre_umbral = serializers.IntegerField(allow_null=True)
     umbral_c = serializers.FloatField()
@@ -86,6 +121,7 @@ class FichaTemporadaSerializer(serializers.Serializer):
     periodo = PeriodoSerializer()
     indices = IndicesSerializer()
     lluvia_invernal = LluviaInvernalSerializer()
+    lluvia_fuera_invierno = LluviaFueraInviernoSerializer()
     calor = CalorSerializer()
     clasificacion = ClasificacionTemporadaSerializer(allow_null=True)
     dias_criticos = DiaCriticoSerializer(many=True)

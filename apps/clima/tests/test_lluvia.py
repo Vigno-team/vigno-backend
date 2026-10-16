@@ -5,7 +5,14 @@ import pytest
 
 from apps.clima.lluvia import comparar_lluvia_invernal, eventos_lluvia, lluvia_invernal
 from apps.clima.models import Estacion, MedicionHoraria, ResumenDiario
-from apps.clima.temporadas import rango_invernal, temporada_de
+from apps.clima.temporadas import (
+    rango_anio_agricola,
+    rango_crecimiento,
+    rango_invernal,
+    rango_septiembre,
+    rangos_etapas_crecimiento,
+    temporada_de,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -55,6 +62,17 @@ def cargar_horas(estacion, *horas):
 
 def test_rango_invernal():
     assert rango_invernal("2024-2025") == (date(2024, 5, 1), date(2024, 8, 31))
+
+
+def test_ventanas_de_lluvia_fuera_del_invierno():
+    assert rango_anio_agricola("2024-2025") == (date(2024, 5, 1), date(2025, 4, 30))
+    assert rango_septiembre("2024-2025") == (date(2024, 9, 1), date(2024, 9, 30))
+    assert rango_crecimiento("2024-2025") == (date(2024, 10, 1), date(2025, 4, 30))
+    assert rangos_etapas_crecimiento("2024-2025") == {
+        "brotacion_floracion": (date(2024, 10, 1), date(2024, 11, 30)),
+        "cuaja_envero": (date(2024, 12, 1), date(2025, 1, 31)),
+        "maduracion_cosecha": (date(2025, 2, 1), date(2025, 4, 30)),
+    }
 
 
 # acumulado invernal

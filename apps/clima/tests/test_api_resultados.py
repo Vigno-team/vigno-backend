@@ -53,6 +53,7 @@ def test_ficha_entrega_resultados_del_pipeline_y_respeta_contrato(client, estaci
         "periodo",
         "indices",
         "lluvia_invernal",
+        "lluvia_fuera_invierno",
         "calor",
         "clasificacion",
         "dias_criticos",
@@ -63,6 +64,23 @@ def test_ficha_entrega_resultados_del_pipeline_y_respeta_contrato(client, estaci
     assert data["indices"]["winkler"]["region"] == "IV"
     assert data["indices"]["huglin"]["valor"] == 3185
     assert data["indices"]["huglin"]["clasificacion"] == "muy calido"
+    assert set(data["lluvia_fuera_invierno"]) == {
+        "total_anio_agricola_mm",
+        "septiembre_mm",
+        "crecimiento_mm",
+        "etapas",
+        "dias_lluvia_intensa",
+        "meses_inusuales",
+        "calidad_dato",
+    }
+    assert set(data["lluvia_fuera_invierno"]["calidad_dato"]["ventanas"]) == {
+        "total_anio_agricola",
+        "septiembre",
+        "crecimiento",
+        "etapa_brotacion_floracion",
+        "etapa_cuaja_envero",
+        "etapa_maduracion_cosecha",
+    }
     for tipo in ("winkler", "huglin"):
         calidad = data["indices"][tipo]["calidad_dato"]
         assert calidad["completitud_pct"] == 100

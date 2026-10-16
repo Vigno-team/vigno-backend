@@ -179,11 +179,26 @@ No disponibles con los datos actuales: valores horarios e intensidad horaria de 
 | `indices.winkler` | objeto | `valor`, `region` (I–V), `calidad_dato` |
 | `indices.huglin` | objeto | `valor`, `clasificacion`, `calidad_dato` |
 | `lluvia_invernal` | objeto | `acumulado_mm`, `promedio_historico_mm`, `diferencia_pct` |
+| `lluvia_fuera_invierno` | objeto | Lluvia del año agrícola, septiembre, crecimiento, etapas, días intensos y meses inusuales; calidad por ventana |
 | `calor` | objeto | `dias_sobre_umbral`, `umbral_c`, `rachas_con_incidencia`, `racha_maxima_dias` |
 | `clasificacion` | objeto o `null` | `termica` (`calida` \| `normal` \| `fria`), `hidrica` (`lluviosa` \| `normal` \| `seca`), `criterio` (regla numérica usada). **Llega en el Sprint 3; antes viene `null`** |
 | `dias_criticos` | lista | Máximo 10 elementos: `fecha`, `tmax`, de mayor a menor |
 
 Parámetros de Winkler, Huglin y del período de acumulación: por confirmar con el enólogo. El valor usado queda en `version_calculo`.
+
+#### Lluvia fuera del invierno
+
+`lluvia_fuera_invierno` es informativo y no modifica la clasificación, que continúa usando la lluvia de mayo a agosto.
+
+- `total_anio_agricola_mm`: acumulado entre el 1 de mayo y el 30 de abril siguiente.
+- `septiembre_mm`: acumulado de septiembre.
+- `crecimiento_mm`: acumulado entre el 1 de octubre y el 30 de abril.
+- `etapas`: brotación y floración (`brotacion_floracion`, 1-oct a 30-nov), cuaja a envero (`cuaja_envero`, 1-dic a 31-ene) y maduración y cosecha (`maduracion_cosecha`, 1-feb a 30-abr). Cada etapa incluye `desde`, `hasta`, `mm`, el promedio histórico de la estación y su `diferencia_pct`.
+- `dias_lluvia_intensa`: días de crecimiento con precipitación diaria igual o superior a `UMBRAL_LLUVIA_INTENSA_MM` (10 mm por defecto, referencia R10mm del ETCCDI); cada registro indica `fecha`, `mm` y `etapa`.
+- `meses_inusuales`: meses de octubre a abril con al menos `UMBRAL_LLUVIA_INTENSA_MM` (10 mm por defecto) y un acumulado igual o superior a `FACTOR_MES_INUSUAL` (2 por defecto) veces el promedio de ese mes en la estación. `mes` usa formato `AAAA-MM`. El promedio incluye los años disponibles con al menos 80 % de completitud, incluido el mes evaluado.
+- `calidad_dato`: conserva los campos comunes (§3). `completitud_pct` es la menor completitud de las ventanas; `confiable` es `true` solo si todas las ventanas tienen al menos 80 % de días con dato. `ventanas` desglosa la calidad para el año agrícola, septiembre, crecimiento y cada etapa.
+
+Las ventanas de una temporada en curso se evalúan hasta la fecha local actual. Los promedios de etapa también usan solo ventanas históricas confiables (80 % o más), excluyendo la temporada evaluada. Las fechas son provisionales y deben confirmarse con el enólogo.
 
 ### 5.2 Rachas de calor (`/rachas/{temporada}`) — Sprint 2
 

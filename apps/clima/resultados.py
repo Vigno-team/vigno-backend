@@ -12,6 +12,7 @@ from apps.clima.clasificacion import clasificar_temporada
 from apps.clima.dias_criticos import obtener_dias_criticos
 from apps.clima.indices import rango_temporada
 from apps.clima.lluvia import comparar_lluvia_invernal, lluvia_invernal
+from apps.clima.metricas import lluvia_fuera_invierno
 from apps.clima.models import ConfiguracionCalidad, IndiceClimatico, ResumenDiario
 from apps.clima.rachas import identificar_rachas
 from apps.clima.temporadas import rango_de, rango_invernal
@@ -178,6 +179,7 @@ def ficha_temporada(estacion, temporada):
     }
     if lluvia["acumulado_mm"] is None:
         bloque_lluvia["motivo_nulo"] = "Sin datos de precipitación en el período invernal."
+    lluvia_exterior = lluvia_fuera_invierno(estacion.codigo, temporada)
     rachas = resultados_rachas(estacion, temporada)
     dias = ResumenDiario.objects.filter(estacion=estacion, temporada=temporada, tmax__isnull=False)
     hay_temperatura = dias.exists()
@@ -206,6 +208,7 @@ def ficha_temporada(estacion, temporada):
             for tipo in ("Winkler", "Huglin")
         },
         "lluvia_invernal": bloque_lluvia,
+        "lluvia_fuera_invierno": lluvia_exterior,
         "calor": calor,
         # La clasificación térmica/hídrica pertenece a E1C-18; no se inventa aquí.
         "clasificacion": _clasificacion(estacion, temporada),
