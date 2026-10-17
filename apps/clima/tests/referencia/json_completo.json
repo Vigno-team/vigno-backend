@@ -2882,7 +2882,7 @@
           "confiable": true,
           "umbral_completitud_pct": 80.0,
           "resolucion_origen": "diaria",
-          "version_calculo": "rachas-v1_35c_min5_temporada"
+          "version_calculo": "dias_umbral-v2_35c_1001-0430"
         }
       },
       "clasificacion": {
@@ -3059,11 +3059,11 @@
         "rachas_con_incidencia": 0,
         "racha_maxima_dias": 3,
         "calidad_dato": {
-          "completitud_pct": 97.3,
+          "completitud_pct": 98.6,
           "confiable": true,
           "umbral_completitud_pct": 80.0,
           "resolucion_origen": "diaria",
-          "version_calculo": "rachas-v1_35c_min5_temporada"
+          "version_calculo": "dias_umbral-v2_35c_1001-0430"
         }
       },
       "clasificacion": {
@@ -3230,11 +3230,11 @@
         "rachas_con_incidencia": 2,
         "racha_maxima_dias": 6,
         "calidad_dato": {
-          "completitud_pct": 99.2,
+          "completitud_pct": 98.6,
           "confiable": true,
           "umbral_completitud_pct": 80.0,
           "resolucion_origen": "diaria",
-          "version_calculo": "rachas-v1_35c_min5_temporada"
+          "version_calculo": "dias_umbral-v2_35c_1001-0430"
         }
       },
       "clasificacion": {
@@ -3399,11 +3399,11 @@
         "rachas_con_incidencia": 1,
         "racha_maxima_dias": 6,
         "calidad_dato": {
-          "completitud_pct": 99.2,
+          "completitud_pct": 99.5,
           "confiable": true,
           "umbral_completitud_pct": 80.0,
           "resolucion_origen": "diaria",
-          "version_calculo": "rachas-v1_35c_min5_temporada"
+          "version_calculo": "dias_umbral-v2_35c_1001-0430"
         }
       },
       "clasificacion": {
@@ -3567,17 +3567,18 @@
         "motivo_nulo": "Sin datos de precipitación en el año agrícola."
       },
       "calor": {
-        "dias_sobre_umbral": 0,
+        "dias_sobre_umbral": null,
         "umbral_c": 35.0,
         "rachas_con_incidencia": 0,
         "racha_maxima_dias": 0,
         "calidad_dato": {
-          "completitud_pct": 16.7,
+          "completitud_pct": 0.0,
           "confiable": false,
           "umbral_completitud_pct": 80.0,
-          "resolucion_origen": "diaria",
-          "version_calculo": "rachas-v1_35c_min5_temporada"
-        }
+          "resolucion_origen": null,
+          "version_calculo": "dias_umbral-v2_35c_1001-0430"
+        },
+        "motivo_nulo": "Sin temperaturas máximas en la ventana de días de calor."
       },
       "clasificacion": null,
       "dias_criticos": [
@@ -3742,7 +3743,7 @@
           "confiable": true,
           "umbral_completitud_pct": 80.0,
           "resolucion_origen": "diaria",
-          "version_calculo": "rachas-v1_35c_min5_temporada"
+          "version_calculo": "dias_umbral-v2_35c_1001-0430"
         }
       },
       "clasificacion": {
@@ -3919,11 +3920,11 @@
         "rachas_con_incidencia": 0,
         "racha_maxima_dias": 0,
         "calidad_dato": {
-          "completitud_pct": 85.0,
-          "confiable": true,
+          "completitud_pct": 74.2,
+          "confiable": false,
           "umbral_completitud_pct": 80.0,
           "resolucion_origen": "diaria",
-          "version_calculo": "rachas-v1_35c_min5_temporada"
+          "version_calculo": "dias_umbral-v2_35c_1001-0430"
         }
       },
       "clasificacion": {
@@ -4106,7 +4107,7 @@
           "confiable": true,
           "umbral_completitud_pct": 80.0,
           "resolucion_origen": "diaria",
-          "version_calculo": "rachas-v1_35c_min5_temporada"
+          "version_calculo": "dias_umbral-v2_35c_1001-0430"
         }
       },
       "clasificacion": {

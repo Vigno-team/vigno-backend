@@ -235,8 +235,8 @@ def _esperado_de_los_datos_crudos() -> dict:
                         esperados,
                         confiable,
                     )
-            """ Comportamiento ACTUAL, no la regla: cuenta los días >= 35 °C de julio a junio, pero
-            mide la completitud de octubre a abril y usa 35 fijo (no UMBRAL_CALOR_C)."""
+            # E1C-120: conteo y completitud usan la misma ventana de octubre a abril.
+            # El fixture fija UMBRAL_CALOR_C=35; la ventana queda escrita a mano como oráculo.
             ini, fin = _ventana(temporada, "Verano")
             con_dato = [
                 r for r in filas if ini <= r["fecha"] <= fin and r["temperatura_maxima"] is not None
@@ -245,7 +245,7 @@ def _esperado_de_los_datos_crudos() -> dict:
                 dias_calor = sum(
                     r["temperatura_maxima"] >= 35.0
                     for r in filas
-                    if temporada_de(r["fecha"]) == temporada and r["temperatura_maxima"] is not None
+                    if ini <= r["fecha"] <= fin and r["temperatura_maxima"] is not None
                 )
                 esperado[(est["codigo"], "DiasSobreUmbral", temporada)] = (
                     float(dias_calor),

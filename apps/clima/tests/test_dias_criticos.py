@@ -12,7 +12,7 @@ def estacion_prueba():
 
 
 @pytest.mark.django_db
-def test_calcular_dias_sobre_umbral(estacion_prueba):
+def test_calcular_dias_sobre_umbral(estacion_prueba, settings):
     temporada = "2024-2025"
     # Insertar datos: 2 días sobre 35, 1 día bajo 35
     ResumenDiario.objects.create(
@@ -35,11 +35,12 @@ def test_calcular_dias_sobre_umbral(estacion_prueba):
     )
     assert indice_bd.valor == 2.0
     assert indice_bd.parametros["umbral_tmax"] == 35.0
-    assert indice_bd.version_calculo == "dias_umbral-v1_35c"
+    assert indice_bd.version_calculo == "dias_umbral-v2_35c_1001-0430"
     assert indice_bd.clasificacion is None
 
-    # Prueba recalculando con umbral distinto
-    total_dias_ajustado = calcular_dias_sobre_umbral(estacion_prueba, temporada, umbral=36.0)
+    # El mismo setting gobierna pipeline, comparación y ficha.
+    settings.UMBRAL_CALOR_C = 36.0
+    total_dias_ajustado = calcular_dias_sobre_umbral(estacion_prueba, temporada)
     assert total_dias_ajustado == 1
 
 
