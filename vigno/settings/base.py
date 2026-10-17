@@ -94,6 +94,8 @@ USE_TZ = True
 # Parámetros compartidos por la ficha de temporada y el detalle de rachas.
 UMBRAL_CALOR_C = config("UMBRAL_CALOR_C", default=35.0, cast=float)
 MINIMO_DIAS_INCIDENCIA = config("MINIMO_DIAS_INCIDENCIA", default=5, cast=int)
+UMBRAL_LLUVIA_INTENSA_MM = config("UMBRAL_LLUVIA_INTENSA_MM", default=10.0, cast=float)
+FACTOR_MES_INUSUAL = config("FACTOR_MES_INUSUAL", default=2.0, cast=float)
 
 # --- Archivos estaticos ---
 STATIC_URL = "static/"

@@ -3,14 +3,10 @@ from django.db.models import Count, Sum
 from django.utils import timezone
 
 from apps.clima.models import ConfiguracionCalidad, Estacion, MedicionHoraria, ResumenDiario
-from apps.clima.temporadas import rango_invernal
+from apps.clima.temporadas import MIN_TEMPORADAS_PROMEDIO, rango_invernal
 
 # Horas secas seguidas que separan un evento de otro (HAY QUE CONFIRMAR CON EL ENOLOGO).
 SEPARACION_HORAS_EVENTO = 6
-# Minimo de temporadas confiables para que el "promedio histórico" tenga sentido.
-MIN_TEMPORADAS_PROMEDIO = 2
-
-
 # Acumulado invernal por temporada
 
 

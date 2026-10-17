@@ -179,11 +179,28 @@ No disponibles con los datos actuales: valores horarios e intensidad horaria de 
 | `indices.winkler` | objeto | `valor`, `region` (I–V), `calidad_dato` |
 | `indices.huglin` | objeto | `valor`, `clasificacion`, `calidad_dato` |
 | `lluvia_invernal` | objeto | `acumulado_mm`, `promedio_historico_mm`, `diferencia_pct` |
+| `lluvia_fuera_invierno` | objeto | Lluvia del año agrícola, septiembre, crecimiento, etapas, días intensos y meses inusuales; calidad por ventana |
 | `calor` | objeto | `dias_sobre_umbral`, `umbral_c`, `rachas_con_incidencia`, `racha_maxima_dias` |
 | `clasificacion` | objeto o `null` | `termica` (`calida` \| `normal` \| `fria`), `hidrica` (`lluviosa` \| `normal` \| `seca`), `criterio` (regla numérica usada). **Llega en el Sprint 3; antes viene `null`** |
 | `dias_criticos` | lista | Máximo 10 elementos: `fecha`, `tmax`, de mayor a menor |
 
 Parámetros de Winkler, Huglin y del período de acumulación: por confirmar con el enólogo. El valor usado queda en `version_calculo`.
+
+#### Lluvia fuera del invierno
+
+`lluvia_fuera_invierno` es informativo y no modifica la clasificación, que continúa usando la lluvia de mayo a agosto.
+
+- `total_anio_agricola_mm`: acumulado entre el 1 de mayo y el 30 de abril siguiente.
+- `septiembre_mm`: acumulado de septiembre.
+- `crecimiento_mm`: acumulado entre el 1 de octubre y el 30 de abril.
+- `etapas`: brotación y floración (`brotacion_floracion`, 1-oct a 30-nov), cuaja a envero (`cuaja_envero`, 1-dic a 31-ene) y maduración y cosecha (`maduracion_cosecha`, 1-feb a 30-abr). Cada etapa incluye `desde`, `hasta`, `mm`, `promedio_mm`, `diferencia_pct`, `temporadas_en_promedio`, `en_curso` y `evaluado_hasta`. Si la etapa está en curso, el promedio histórico se corta al mismo día y mes; `diferencia_pct` queda `null` si los datos no son confiables o el promedio es cero/no disponible.
+- `dias_lluvia_intensa`: días de crecimiento con precipitación diaria igual o superior a `UMBRAL_LLUVIA_INTENSA_MM` (10 mm por defecto, referencia R10mm del ETCCDI); cada registro indica `fecha`, `mm` y `etapa`.
+- `meses_inusuales`: meses de octubre a abril con al menos `UMBRAL_LLUVIA_INTENSA_MM` (10 mm por defecto) y un acumulado igual o superior a `FACTOR_MES_INUSUAL` (2 por defecto) veces el promedio de ese mes en la estación. `mes` usa formato `AAAA-MM`. El promedio incluye la temporada evaluada si el mes ya terminó, y solo temporadas terminadas y confiables. Se requieren al menos `MIN_TEMPORADAS_PROMEDIO` (2) para publicar promedio y alerta; se entrega `temporadas_en_promedio`.
+- Los promedios de etapas aplican la misma regla: temporadas terminadas y confiables, incluida la evaluada si terminó, con un mínimo de `MIN_TEMPORADAS_PROMEDIO` (2). Cada etapa informa `temporadas_en_promedio`.
+- `calidad_dato`: conserva los campos comunes (§3), agrega `en_curso` y `evaluado_hasta`. `completitud_pct` es la menor completitud entre las ventanas iniciadas; las ventanas futuras no afectan el resultado global. `confiable` es `true` solo si todas las ventanas iniciadas alcanzan el umbral global. `ventanas` desglosa la calidad para el año agrícola, septiembre, crecimiento y cada etapa.
+- Si `total_anio_agricola_mm` es `null`, se entrega `motivo_nulo`. Un día intenso que quede fuera de las etapas configuradas se omite; no hace fallar la ficha.
+
+Las ventanas de una temporada en curso se evalúan hasta la fecha local actual. Para comparar una etapa en curso, cada temporada histórica se corta al mismo día y mes; el 29 de febrero se ajusta al 28 en años no bisiestos. Las fechas fenológicas son provisionales y deben confirmarse con el enólogo.
 
 ### 5.2 Rachas de calor (`/rachas/{temporada}`) — Sprint 2
 
