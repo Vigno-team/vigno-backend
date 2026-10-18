@@ -1,4 +1,4 @@
-# Contrato de datos backend ↔ frontend 
+﻿# Contrato de datos backend ↔ frontend 
 ## 0. Qué pueden mostrar hoy y qué llega después
 
 | Disponible | Bloques | Pantallas sugeridas | Archivo de ejemplo |
@@ -285,3 +285,4 @@ Para que el frontend sepa qué ya responde con datos reales (fuera de la API, qu
 | `completitud_por_temporada` | Implementado | — |
 | `resumen_diario` | Implementado | Los días que el Excel no trae se omiten en vez de venir con `null` y motivo |
 | `consolidacion` | Datos guardados, falta armar el bloque | `columnas_descartadas` se guarda como texto |
+

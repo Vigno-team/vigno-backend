@@ -1,4 +1,4 @@
-# E1C-17 Resultados y calidad de datos
+﻿# E1C-17 Resultados y calidad de datos
 
 Esta implementación cubre E1C-46 (endpoints de resultados) y E1C-47 (metadatos de
 completitud y confiabilidad) en la rama `feat/e1c-17-resultados-calidad`, Sprint 3.
@@ -92,9 +92,7 @@ También se pueden probar en `http://localhost:8000/api/docs/`.
 - Los promedios de lluvia siguen el módulo existente: mínimo de dos inviernos
   terminados y confiables. La diferencia puede ser `null` aunque exista un acumulado.
 
-El calor se calcula sobre la temporada agrícola completa del contrato; Winkler,
-Huglin y lluvia conservan sus ventanas específicas. No se cambia la fórmula ni
-la ventana de los módulos de cálculo.
+Desde E1C-107, `dias_sobre_umbral` y la calidad del bloque `calor` usan del 1 de octubre al 30 de abril, la misma ventana del índice guardado y de la comparación. Las rachas y los días críticos siguen usando la temporada completa.
 
 ## Configuración de calor
 
@@ -137,3 +135,5 @@ errores 400/404, catálogos para seleccionar datos y esquema OpenAPI actualizado
 E1C-47: completitud, umbral, confiabilidad, resolución, versión de cálculo y tratamiento
 de nulos comprobados por pruebas. Añadir al PR el resultado de las pruebas ejecutadas
 en la rama y una consulta local de ejemplo, sin adjuntar datos reales del cliente.
+
+
