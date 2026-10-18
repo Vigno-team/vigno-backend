@@ -84,3 +84,69 @@ def test_comando_falla_sin_los_excel(tmp_path, settings):
     settings.BASE_DIR = tmp_path
     with pytest.raises(CommandError, match="Subset1.xlsx"):
         call_command("cargar_dataset_ficticio")
+
+
+def test_lee_hojas_originales_y_une_indices_anuales(tmp_path):
+    rutas = [tmp_path / f"Subset{i}.xlsx" for i in (1, 2, 3)]
+    cosechas = pd.DataFrame(
+        {
+            "Cultivar": ["Chardony", "Sin fecha"],
+            "Reg": [1, 1],
+            "Harvest date": [pd.Timestamp("1935-10-07"), pd.NaT],
+            "DOY": [280, None],
+            "Must.Brix": ["22.1", None],
+            "Must.Tacid": ["0.72", None],
+            "Must.pH": ["3.38", None],
+            "Recommend": ["Particularly recommended", None],
+        }
+    )
+    napa = pd.DataFrame(
+        {"Year": [1994], "Cultivar": ["Merlot"], "Harvest date": [250], "Brix": [24]}
+    )
+    for ruta, datos in zip(rutas[:2], (cosechas, napa), strict=True):
+        with pd.ExcelWriter(ruta) as writer:
+            pd.DataFrame({"nota": ["Metadatos, no registros"]}).to_excel(
+                writer, sheet_name="metadata", index=False
+            )
+            datos.to_excel(writer, sheet_name="data", index=False)
+    with pd.ExcelWriter(rutas[2]) as writer:
+        pd.DataFrame({"nota": ["Metadatos"]}).to_excel(writer, sheet_name="metadata", index=False)
+        for i in range(1, 6):
+            # El año diario difiere del anual: se debe usar la segunda tabla.
+            clima = pd.DataFrame(
+                [
+                    [1911, 1, 1, 8, 16, 0, 1, None, 1935, 16, 1500, 1700],
+                    [1911, 1, 2, 9, 17, 1, 2, None, 1994, 17, 1800, 1900],
+                ],
+                columns=[
+                    "Year",
+                    "Month",
+                    "day",
+                    "Tave",
+                    "Tmax",
+                    "Tmin",
+                    "DOY",
+                    "",
+                    "Year",
+                    "GST",
+                    "WI",
+                    "HI",
+                ],
+            )
+            clima.to_excel(writer, sheet_name=f"Region_{i}", index=False)
+    res = procesar_historico_ficticio(*rutas, tmp_path / "cosechas.csv")
+    assert len(res) == 2
+    aw = res[res.fuente == "Amerine & Winkler"].iloc[0]
+    assert (aw.anio, aw.region, aw.doy, aw.wi, aw.brix) == (1935, "I", 280, 1500, 22.1)
+    assert aw.recommend == "Particularly recommended"
+    assert res[res.fuente == "Napa"].iloc[0].wi == 1800
+
+
+def test_comando_rechaza_dos_versiones_del_mismo_subset(tmp_path, settings):
+    settings.BASE_DIR = tmp_path
+    carpeta = tmp_path / "data" / "ficticio"
+    carpeta.mkdir(parents=True)
+    (carpeta / "Subset1.xls").touch()
+    (carpeta / "Subset1.xlsx").touch()
+    with pytest.raises(CommandError, match="dos versiones de Subset1"):
+        call_command("cargar_dataset_ficticio")
