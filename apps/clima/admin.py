@@ -8,7 +8,7 @@ from .models import ConfiguracionCalidad, Estacion, IndiceClimatico, MedicionHor
 # Visualizar tablas tablas estandarizadas en Admin
 @admin.register(Estacion)
 class EstacionAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "codigo", "subzona", "propietario")
+    list_display = ("nombre", "codigo", "subzona", "propietario", "latitud", "longitud")
     search_fields = ("nombre", "codigo")
 
 

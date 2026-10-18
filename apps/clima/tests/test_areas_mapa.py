@@ -1,0 +1,154 @@
+import json
+from io import StringIO
+
+import pytest
+from django.core.management import call_command
+from django.core.management.base import CommandError
+
+from apps.clima.areas_mapa import AreasMapaError, cargar_areas
+from apps.clima.models import Estacion
+
+# Cuadrado de ~1 km cerca de Cauquenes, en [longitud, latitud].
+ANILLO = [
+    [-72.36, -35.53],
+    [-72.35, -35.53],
+    [-72.35, -35.52],
+    [-72.36, -35.52],
+    [-72.36, -35.53],
+]
+
+
+def feature(codigo="prueba-01", lat=-35.525, lon=-72.355, anillo=ANILLO, geometry="auto"):
+    if geometry == "auto":
+        geometry = {"type": "Polygon", "coordinates": [anillo]}
+    return {
+        "type": "Feature",
+        "properties": {"codigo": codigo, "latitud": lat, "longitud": lon},
+        "geometry": geometry,
+    }
+
+
+def escribir(tmp_path, *features):
+    ruta = tmp_path / "areas.json"
+    ruta.write_text(json.dumps({"type": "FeatureCollection", "features": list(features)}))
+    return ruta
+
+
+def test_archivo_valido(tmp_path):
+    areas = cargar_areas(escribir(tmp_path, feature()))
+    assert areas[0].codigo == "prueba-01"
+    assert (areas[0].latitud, areas[0].longitud) == (-35.525, -72.355)
+    assert areas[0].estacion_dentro
+
+
+def test_estacion_fuera_del_contorno_no_es_error(tmp_path):
+    areas = cargar_areas(escribir(tmp_path, feature(lat=-35.60, lon=-72.30)))
+    assert not areas[0].estacion_dentro
+
+
+@pytest.mark.parametrize(
+    "kwargs, texto",
+    [
+        ({"geometry": None}, "falta el contorno"),
+        ({"lat": None}, "faltan las coordenadas"),
+        ({"lat": -72.355, "lon": -35.525}, "fuera de Chile"),
+        ({"anillo": ANILLO[:3]}, "al menos 4 puntos"),
+        ({"anillo": ANILLO[:-1] + [[-72.37, -35.53]]}, "no está cerrado"),
+        (
+            {"geometry": {"type": "Point", "coordinates": [-72.35, -35.52]}},
+            "Polygon o MultiPolygon",
+        ),
+        ({"lat": "-35.5"}, "debe ser un número"),
+    ],
+)
+def test_archivo_invalido(tmp_path, kwargs, texto):
+    with pytest.raises(AreasMapaError, match=texto):
+        cargar_areas(escribir(tmp_path, feature(**kwargs)))
+
+
+def test_codigo_duplicado_y_faltante(tmp_path):
+    sin_codigo = feature()
+    del sin_codigo["properties"]["codigo"]
+    with pytest.raises(AreasMapaError) as exc:
+        cargar_areas(escribir(tmp_path, feature(), feature(), sin_codigo))
+    assert "más de una vez" in str(exc.value)
+    assert "falta properties.codigo" in str(exc.value)
+
+
+def test_json_roto_y_no_featurecollection(tmp_path):
+    ruta = tmp_path / "malo.json"
+    ruta.write_text("{")
+    with pytest.raises(AreasMapaError, match="no es un JSON válido"):
+        cargar_areas(ruta)
+    ruta.write_text('{"type": "Feature"}')
+    with pytest.raises(AreasMapaError, match="FeatureCollection"):
+        cargar_areas(ruta)
+
+
+def test_config_versionada_es_geojson_con_las_dos_estaciones():
+    from django.conf import settings
+
+    ruta = settings.BASE_DIR / "config" / "areas_mapa.json"
+    datos = json.loads(ruta.read_text(encoding="utf-8"))
+    codigos = {f["properties"]["codigo"] for f in datos["features"]}
+    assert codigos == {"cp-villavicencio-01", "cp-san-clemente-01"}
+
+
+@pytest.mark.django_db
+def test_comando_actualiza_latitud_y_longitud(tmp_path):
+    Estacion.objects.create(nombre="Prueba", codigo="prueba-01", latitud=-35.52)
+    ruta = escribir(tmp_path, feature())
+    call_command("cargar_areas_mapa", archivo=str(ruta), stdout=StringIO())
+    est = Estacion.objects.get(codigo="prueba-01")
+    assert (est.latitud, est.longitud) == (-35.525, -72.355)
+    # Idempotente
+    call_command("cargar_areas_mapa", archivo=str(ruta), stdout=StringIO())
+    assert Estacion.objects.get(codigo="prueba-01").longitud == -72.355
+
+
+@pytest.mark.django_db
+def test_comando_solo_validar_no_escribe(tmp_path):
+    Estacion.objects.create(nombre="Prueba", codigo="prueba-01", latitud=-35.52)
+    call_command(
+        "cargar_areas_mapa",
+        archivo=str(escribir(tmp_path, feature())),
+        solo_validar=True,
+        stdout=StringIO(),
+    )
+    est = Estacion.objects.get(codigo="prueba-01")
+    assert (est.latitud, est.longitud) == (-35.52, None)
+
+
+@pytest.mark.django_db
+def test_comando_falla_con_codigo_desconocido(tmp_path):
+    Estacion.objects.create(nombre="Prueba", codigo="prueba-01")
+    with pytest.raises(CommandError, match="otro-99"):
+        call_command(
+            "cargar_areas_mapa",
+            archivo=str(escribir(tmp_path, feature("otro-99"))),
+            stdout=StringIO(),
+        )
+
+
+@pytest.mark.django_db
+def test_comando_avisa_estacion_sin_contorno(tmp_path):
+    Estacion.objects.create(nombre="Prueba", codigo="prueba-01")
+    Estacion.objects.create(nombre="Otra", codigo="otra-01")
+    salida = StringIO()
+    call_command("cargar_areas_mapa", archivo=str(escribir(tmp_path, feature())), stdout=salida)
+    assert "sin contorno" in salida.getvalue()
+    assert "otra-01" in salida.getvalue()
+
+
+@pytest.mark.django_db
+def test_comando_falla_con_el_archivo_pendiente_del_repo():
+    # Mientras el cliente no entregue contornos, el archivo versionado debe rechazarse.
+    with pytest.raises(CommandError, match="falta el contorno"):
+        call_command("cargar_areas_mapa", stdout=StringIO())
+
+
+@pytest.mark.django_db
+def test_longitud_es_opcional():
+    est = Estacion.objects.create(nombre="Sin lon", codigo="sin-lon", latitud=-35.5)
+    est.refresh_from_db()
+    assert est.longitud is None
