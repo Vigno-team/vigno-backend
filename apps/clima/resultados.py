@@ -13,7 +13,7 @@ from apps.clima.clasificacion import clasificar_temporada
 from apps.clima.dias_criticos import obtener_dias_criticos
 from apps.clima.lluvia import comparar_lluvia_invernal, lluvia_invernal
 from apps.clima.lluvia_fuera_invierno import lluvia_fuera_invierno
-from apps.clima.metricas import calidad_metrica, valor_metrica
+from apps.clima.metricas import calidad_metrica, valor_metrica, version_calculo
 from apps.clima.models import ConfiguracionCalidad, IndiceClimatico, ResumenDiario
 from apps.clima.rachas import identificar_rachas
 from apps.clima.temporadas import (
@@ -157,7 +157,7 @@ def ficha_temporada(estacion, temporada):
             lluvia["dias_con_dato"] > 0 and lluvia["confiable"],
             umbral,
             resolucion_estacion(estacion, ini_invierno, fin_invierno),
-            f"lluvia-invernal-v1_{ini_invierno:%d%m}-{fin_invierno:%d%m}",
+            version_calculo("lluvia_invernal", temporada),
         ),
     }
     if lluvia["acumulado_mm"] is None:
@@ -186,7 +186,7 @@ def ficha_temporada(estacion, temporada):
             calor_metrica["confiable"],
             umbral,
             resolucion_estacion(estacion, inicio_calor, fin_calor),
-            f"dias_umbral-v2_{rachas['umbral_c']:g}c_{inicio_calor:%m%d}-{fin_calor:%m%d}",
+            version_calculo("dias_sobre_umbral", temporada),
         ),
     }
     if calor_metrica["valor"] is None:

@@ -12,7 +12,7 @@ import pytest
 from django.conf import settings
 from django.core.management import call_command
 
-from apps.clima.indices import clasificar_huglin, clasificar_winkler
+from apps.clima.metricas import clasificar_huglin, clasificar_winkler
 from apps.clima.models import Estacion, IndiceClimatico, MedicionHoraria, ResumenDiario
 from apps.clima.temporadas import temporada_de
 

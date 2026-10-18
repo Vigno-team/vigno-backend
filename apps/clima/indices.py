@@ -1,14 +1,8 @@
 """Persistencia de los resultados calculados por metricas.py."""
 
 from apps.clima import metricas
-from apps.clima.metricas import aporte_huglin as aporte_huglin
-from apps.clima.metricas import aporte_winkler as aporte_winkler
-from apps.clima.metricas import clasificar_huglin as clasificar_huglin
-from apps.clima.metricas import clasificar_winkler as clasificar_winkler
-from apps.clima.metricas import k_huglin as k_huglin
 from apps.clima.models import Estacion, IndiceClimatico
 
-# Reexportaciones de compatibilidad: la implementación vive solo en metricas.py.
 NOMBRES_INDICE = {"winkler": "Winkler", "huglin": "Huglin", "dias_sobre_umbral": "DiasSobreUmbral"}
 
 

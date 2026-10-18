@@ -5,9 +5,8 @@ import pytest
 from apps.clima.indices import (
     calcular_indice_huglin,
     calcular_indice_winkler,
-    clasificar_winkler,
-    k_huglin,
 )
+from apps.clima.metricas import clasificar_winkler, k_huglin
 from apps.clima.models import ConfiguracionCalidad, Estacion, IndiceClimatico, ResumenDiario
 
 

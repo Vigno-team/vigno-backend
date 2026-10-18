@@ -1,4 +1,3 @@
-from apps.clima.indices import calcular_dias_sobre_umbral as calcular_dias_sobre_umbral
 from apps.clima.models import Estacion, ResumenDiario
 
 
