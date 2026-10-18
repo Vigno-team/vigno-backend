@@ -1,4 +1,4 @@
-# VIGNO Backend
+﻿# VIGNO Backend
 
 Sistema de apoyo a la decisión de fecha de cosecha para **Casas Patronales**.
 
