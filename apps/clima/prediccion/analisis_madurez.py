@@ -2,59 +2,50 @@ import pandas as pd
 
 from apps.clima.prediccion.correlaciones import _holm, correlacion
 
+INDICES = {"wi": "winkler", "hi": "huglin", "gst": "gst"}
+OBJETIVOS = ["doy", "brix", "acidez", "ph"]
 
-def correlacionar_clima_madurez(ruta_csv: str):
+
+def _niveles(df: pd.DataFrame) -> list[tuple[str, pd.DataFrame]]:
+    """Promedia por temporada: el clima solo cambia entre región-año."""
+    amerine = df[df["fuente"] == "Amerine & Winkler"]
+    napa = df[df["fuente"] == "Napa"]
+    return [
+        ("region_anio", amerine.groupby(["region", "anio"]).mean(numeric_only=True)),
+        ("anio_cultivar", napa.groupby(["anio", "cultivar"]).mean(numeric_only=True)),
+    ]
+
+
+def correlacionar_clima_madurez(ruta_csv) -> list[dict]:
+    """Spearman de cada índice contra cada objetivo; Holm dentro de cada nivel.
+
+    Devuelve filas {indice, objetivo, nivel, n, rho, p, p_holm}.
+    """
     df = pd.read_csv(ruta_csv)
-    df_amerine = (
-        df[df["fuente"] == "Amerine & Winkler"]
-        .groupby(["region", "anio"])
-        .mean(numeric_only=True)
-        .reset_index()
-    )
-    df_napa = (
-        df[df["fuente"] == "Napa"]
-        .groupby(["anio", "cultivar"])
-        .mean(numeric_only=True)
-        .reset_index()
-    )
-
-    niveles = [("region_anio", df_amerine), ("anio_cultivar", df_napa)]
-    mapa_ind = {"wi": "winkler", "hi": "huglin", "gst": "gst"}
-    objetivos = ["doy", "brix", "acidez", "ph"]
-
     resultados = []
-    for nombre_nivel, df_nivel in niveles:
-        res_nivel = []
-        for col_ind, nom_ind in mapa_ind.items():
-            for obj in objetivos:
-                if col_ind not in df_nivel.columns or obj not in df_nivel.columns:
+    for nivel, temporadas in _niveles(df):
+        filas = []
+        for columna, indice in INDICES.items():
+            for objetivo in OBJETIVOS:
+                if columna not in temporadas or objetivo not in temporadas:
                     continue
-                valid = df_nivel[[col_ind, obj]].dropna()
-                n = len(valid)
-                if n < 5:
+                pares = temporadas[[columna, objetivo]].dropna()
+                medida = correlacion(pares[columna].tolist(), pares[objetivo].tolist())
+                if medida["estado"] != "ok":
                     continue
-
-                rho, p_val = correlacion(valid[col_ind].values, valid[obj].values)
-                if rho is not None:
-                    res_nivel.append(
-                        {
-                            "indice": nom_ind,
-                            "objetivo": obj,
-                            "nivel": nombre_nivel,
-                            "n": n,
-                            "rho": round(rho, 3),
-                            "p": p_val,
-                        }
-                    )
-
-        if res_nivel:
-            res_nivel = _holm(res_nivel)
-            for r in res_nivel:
-                if "p_valor" in r:
-                    r["p"] = round(r["p_valor"], 4)
-                    del r["p_valor"]
-                if "p_ajustado_holm" in r:
-                    r["p_holm"] = round(r["p_ajustado_holm"], 4)
-                    del r["p_ajustado_holm"]
-            resultados.extend(res_nivel)
+                filas.append(
+                    {
+                        "indice": indice,
+                        "objetivo": objetivo,
+                        "nivel": nivel,
+                        "n": medida["n"],
+                        "rho": round(medida["rho"], 3),
+                        "p_valor": medida["p_valor"],
+                    }
+                )
+        _holm(filas)
+        for fila in filas:
+            fila["p"] = round(fila.pop("p_valor"), 4)
+            fila["p_holm"] = round(fila.pop("p_ajustado_holm"), 4)
+        resultados.extend(filas)
     return resultados
