@@ -1,0 +1,340 @@
+diff --git a/apps/clima/prediccion/analogos.py b/apps/clima/prediccion/analogos.py
+index 276d58a..d09d550 100644
+--- a/apps/clima/prediccion/analogos.py
++++ b/apps/clima/prediccion/analogos.py
+@@ -1,14 +1,25 @@
++"""E1C-83: años análogos de cada temporada de VIGNO en el dataset ficticio.
++
++Similitud: se estandarizan (z) las variables elegidas con la media y la desviación
++de las temporadas ficticias, se mide la distancia euclidiana d entre la temporada
++de VIGNO y cada temporada ficticia, y se convierte a similitud = 100 / (1 + d).
++Una temporada idéntica da 100 %; la similitud baja a medida que crece la distancia.
++"""
++
+ from datetime import date, timedelta
+ 
+-import numpy as np
+ import pandas as pd
+ 
+ from apps.clima.models import IndiceClimatico
+ 
++COLUMNA = {"winkler": "wi", "huglin": "hi", "gst": "gst"}
++ESTACIONES = ("El Arenal", "San Clemente")
++CLAVE = ["fuente", "region", "anio"]
++
+ 
+-def temporadas_ficticias(df):
+-    """Una fila por temporada: Subset1 por región-año y Napa por año."""
+-    return df.groupby(["fuente", "region", "anio"], as_index=False).agg(
++def temporadas_ficticias(df: pd.DataFrame, calidad: pd.DataFrame | None = None) -> pd.DataFrame:
++    """Una fila por temporada: Subset1 por región-año y Napa por año (región II)."""
++    temporadas = df.groupby(CLAVE, as_index=False).agg(
+         wi=("wi", "first"),
+         hi=("hi", "first"),
+         gst=("gst", "first"),
+@@ -16,82 +27,111 @@ def temporadas_ficticias(df):
+         doy_hs=("doy_hs", "mean"),
+         brix=("brix", "median"),
+     )
++    if calidad is not None:
++        temporadas = temporadas.merge(
++            calidad[[*CLAVE, "pct_alta", "motivo_nulo"]], on=CLAVE, how="left"
++        )
++    return temporadas
+ 
+ 
+-def calcular_analogos(
+-    temp_vigno: dict, df_historico: pd.DataFrame, anio_inicio: int, variables=None
+-):
+-    if variables is None:
+-        variables = ["winkler", "huglin"]
++def _numero(valor):
++    return None if pd.isna(valor) else round(float(valor), 1)
++
+ 
++def _origen(fila) -> str:
++    if fila["fuente"] == "Napa":
++        return f"Napa {fila['anio']}"
++    return f"Región {fila['region']} {fila['anio']}"
++
++
++def calcular_analogos(
++    temp_vigno: dict,
++    df_historico: pd.DataFrame,
++    anio_inicio: int,
++    variables=("winkler", "huglin"),
++    calidad: pd.DataFrame | None = None,
++    cantidad: int = 3,
++) -> list[dict]:
++    """Las `cantidad` temporadas ficticias más parecidas a `temp_vigno`."""
++    desconocidas = [v for v in variables if v not in COLUMNA]
++    if desconocidas:
++        raise ValueError(f"Variables no soportadas: {desconocidas}")
+     faltan = [v for v in variables if temp_vigno.get(v) is None]
+     if faltan:
+         raise ValueError(f"Faltan variables de la temporada: {faltan}")
++    if df_historico.empty:
++        return []
+ 
+-    mapa_vars = {"winkler": "wi", "huglin": "hi", "gst": "gst"}
+-    columnas_req = [mapa_vars[v] for v in variables if v in mapa_vars]
+-    df = df_historico.dropna(subset=columnas_req).copy()
++    columnas = [COLUMNA[v] for v in variables]
++    df = temporadas_ficticias(df_historico, calidad).dropna(subset=columnas)
+     if df.empty:
+         return []
+ 
+-    df = temporadas_ficticias(df)
+-    z_scores_vigno = {}
+-
+-    for var in variables:
+-        col = mapa_vars[var]
+-        mean_val = df[col].mean()
+-        std_val = df[col].std() if pd.notna(df[col].std()) and df[col].std() > 0 else 1.0
+-        df[f"z_{col}"] = (df[col] - mean_val) / std_val
+-        z_scores_vigno[var] = (temp_vigno[var] - mean_val) / std_val
++    diferencias = pd.DataFrame(index=df.index)
++    for variable, columna in zip(variables, columnas, strict=True):
++        desviacion = df[columna].std()
++        if pd.isna(desviacion) or desviacion == 0:
++            desviacion = 1.0
++        diferencias[variable] = (df[columna] - temp_vigno[variable]) / desviacion
+ 
+-    def evaluar_similitud(row):
+-        dist_sq = sum((row[f"z_{mapa_vars[v]}"] - z_scores_vigno[v]) ** 2 for v in variables)
+-        min_diff = min(variables, key=lambda v: abs(row[f"z_{mapa_vars[v]}"] - z_scores_vigno[v]))
+-        return pd.Series([np.sqrt(dist_sq), max(0, 100 / (1 + np.sqrt(dist_sq))), min_diff])
+-
+-    df[["distancia", "similitud", "explicacion"]] = df.apply(evaluar_similitud, axis=1)
+-    df_top = df.sort_values("similitud", ascending=False).head(3)
++    df["distancia"] = (diferencias**2).sum(axis=1) ** 0.5
++    df["explica"] = diferencias.abs().idxmin(axis=1)
++    mejores = df.nsmallest(cantidad, "distancia")
+ 
+     resultados = []
+-    for _, row in df_top.iterrows():
+-        try:
+-            fecha = date(anio_inicio, 1, 1) + timedelta(days=round(row.get("doy_hs")) - 1)
+-            fecha_iso = fecha.isoformat()
+-        except (TypeError, ValueError):
+-            fecha_iso = None
+-
++    for _, fila in mejores.iterrows():
++        fecha = None
++        if pd.notna(fila["doy_hs"]):
++            fecha = date(anio_inicio, 1, 1) + timedelta(days=round(fila["doy_hs"]) - 1)
+         resultados.append(
+             {
+-                "temporada_ficticia": f"{row['fuente']} {row['region']} {row['anio']}".strip(),
+-                "similitud_pct": round(row["similitud"], 1),
+-                "variable_explicativa": row["explicacion"],
+-                "fecha_equivalente": fecha_iso,
+-                "brix": row.get("brix"),
++                "origen": _origen(fila),
++                "similitud_pct": round(100 / (1 + fila["distancia"]), 1),
++                "doy": _numero(fila["doy"]),
++                "fecha_equivalente": fecha.isoformat() if fecha else None,
++                "calidad": {
++                    "pct_alta": _numero(fila.get("pct_alta")),
++                    "motivo_nulo": None
++                    if pd.isna(fila.get("motivo_nulo"))
++                    else fila["motivo_nulo"],
++                },
++                "brix": _numero(fila["brix"]),
++                "explica": fila["explica"],
+             }
+         )
+     return resultados
+ 
+ 
+-def obtener_analogos_vigno(df_historico):
+-    """Obtiene los análogos iterando sobre temporadas confiables de la BD VIGNO."""
+-    temporadas = IndiceClimatico.objects.filter(
+-        estacion__in=["El Arenal", "San Clemente"], confiable=True
+-    )
++def indices_vigno() -> dict:
++    """{(estacion, temporada): {"winkler": x, "huglin": y}} con índices confiables."""
++    filas = IndiceClimatico.objects.filter(
++        estacion__nombre__in=ESTACIONES, indice__in=["Winkler", "Huglin"], confiable=True
++    ).select_related("estacion")
++    temporadas = {}
++    for fila in filas:
++        temporadas.setdefault((fila.estacion, fila.temporada), {})[fila.indice.lower()] = fila.valor
++    return temporadas
++
++
++def obtener_analogos_vigno(df_historico: pd.DataFrame, calidad: pd.DataFrame | None = None):
++    """Análogos de cada temporada de VIGNO con Winkler y Huglin confiables.
++
++    Compara solo con Winkler y Huglin: el GST de VIGNO todavía no se calcula.
++    """
+     resultados = []
+-    for temp in temporadas:
+-        if not temp.winkler or not temp.huglin:
+-            continue
+-        anio_inicio = int(temp.temporada.split("-")[0])
+-        dict_vigno = {"winkler": temp.winkler, "huglin": temp.huglin}
+-        try:
+-            analogos = calcular_analogos(dict_vigno, df_historico, anio_inicio)
+-            resultados.append(
+-                {
+-                    "temporada": temp.temporada,
+-                    "estacion": temp.estacion.nombre,
+-                    "analogos": analogos,
+-                }
+-            )
+-        except ValueError:
++    for (estacion, temporada), indices in sorted(
++        indices_vigno().items(), key=lambda item: (item[0][0].nombre, item[0][1])
++    ):
++        if indices.keys() != {"winkler", "huglin"}:
+             continue
++        resultados.append(
++            {
++                "estacion_id": estacion.codigo,
++                "temporada": temporada,
++                "indices": {"wi": indices["winkler"], "hi": indices["huglin"]},
++                "anios_analogos": calcular_analogos(
++                    indices, df_historico, int(temporada[:4]), calidad=calidad
++                ),
++            }
++        )
+     return resultados
+diff --git a/apps/clima/tests/prediccion/test_analogos.py b/apps/clima/tests/prediccion/test_analogos.py
+index a4bb482..b244fd6 100644
+--- a/apps/clima/tests/prediccion/test_analogos.py
++++ b/apps/clima/tests/prediccion/test_analogos.py
+@@ -1,47 +1,101 @@
+ import pandas as pd
++import pytest
+ 
+-from apps.clima.prediccion.analogos import calcular_analogos
++from apps.clima.models import Estacion, IndiceClimatico
++from apps.clima.prediccion.analogos import calcular_analogos, obtener_analogos_vigno
+ 
+ 
+-def test_calcular_analogos_identicos():
+-    # Simular el CSV de temporadas clasificadas
+-    df_historico = pd.DataFrame(
++def _historico():
++    # Cosechas del CSV de E1C-78: 2 registros por temporada en la región I.
++    return pd.DataFrame(
+         {
+-            "fuente": ["Amerine", "Napa"],
+-            "region": ["I", "II"],
+-            "anio": [1990, 1991],
+-            "wi": [1500, 2000],
+-            "hi": [2200, 2500],
+-            "gst": [16.0, 18.0],
+-            "doy": [240, 250],
+-            "doy_hs": [240 + 182, 250 + 182],  # 422 y 432
+-            "calidad_estimada": ["Excelente", "Buena"],
+-            "brix": [24.0, 21.0],
++            "fuente": ["Amerine & Winkler"] * 4 + ["Napa"],
++            "region": ["I", "I", "III", "III", "II"],
++            "anio": [1935, 1935, 1936, 1936, 2004],
++            "wi": [1500, 1500, 2000, 2000, 1700],
++            "hi": [2200, 2200, 2500, 2500, 2300],
++            "gst": [16.0, 16.0, 18.0, 18.0, 17.0],
++            "doy": [238, 242, 250, 250, 245],
++            "doy_hs": [420, 424, 432, 432, 427],
++            "brix": [23.0, 25.0, 21.0, 21.0, 24.6],
+         }
+     )
+ 
+-    # Una temporada en VIGNO que es EXACTAMENTE igual al año 1990
+-    temp_vigno = {"winkler": 1500, "huglin": 2200, "gst": 16.0}
+ 
+-    # 1. Probar parametrización (conjunto de variables modificable)
+-    res = calcular_analogos(temp_vigno, df_historico, variables=["winkler", "huglin", "gst"])
++def _calidad():
++    # Salida de calidad_por_temporada (E1C-79).
++    return pd.DataFrame(
++        {
++            "fuente": ["Amerine & Winkler", "Amerine & Winkler", "Napa"],
++            "region": ["I", "III", "II"],
++            "anio": [1935, 1936, 2004],
++            "pct_alta": [75.0, 20.0, None],
++            "motivo_nulo": [None, None, "Napa solo trae °Brix; no tiene evaluación de calidad."],
++        }
++    )
++
++
++def test_temporada_identica_tiene_similitud_maxima():
++    vigno = {"winkler": 1500, "huglin": 2200, "gst": 16.0}
++
++    res = calcular_analogos(
++        vigno, _historico(), 2024, variables=["winkler", "huglin", "gst"], calidad=_calidad()
++    )
++
++    assert len(res) == 3
++    assert res[0] == {
++        "origen": "Región I 1935",
++        "similitud_pct": 100.0,
++        "doy": 240.0,
++        "fecha_equivalente": "2025-02-25",  # 1-ene-2024 + 422 - 1 días
++        "calidad": {"pct_alta": 75.0, "motivo_nulo": None},
++        "brix": 24.0,
++        "explica": "winkler",
++    }
++    assert res[1]["origen"] == "Napa 2004"
++    assert res[1]["calidad"]["motivo_nulo"].startswith("Napa solo trae")
++    assert res[0]["similitud_pct"] > res[1]["similitud_pct"] > res[2]["similitud_pct"]
++
++
++def test_las_variables_son_un_parametro():
++    # Por Winkler se parece a Napa 2004; por Huglin, a la región III de 1936.
++    vigno = {"winkler": 1700, "huglin": 2500}
++
++    solo_winkler = calcular_analogos(vigno, _historico(), 2024, variables=["winkler"])
++    solo_huglin = calcular_analogos(vigno, _historico(), 2024, variables=["huglin"])
++
++    assert solo_winkler[0]["origen"] == "Napa 2004"
++    assert solo_huglin[0]["origen"] == "Región III 1936"
++    assert solo_winkler[0]["calidad"] == {"pct_alta": None, "motivo_nulo": None}
++
++
++def test_sin_historico_devuelve_lista_vacia():
++    assert calcular_analogos({"winkler": 1000, "huglin": 2000}, pd.DataFrame(), 2024) == []
+ 
+-    assert len(res) == 2
+-    mejor = res[0]
+ 
+-    # 2. Una temporada idéntica debe tener similitud máxima (100%)
+-    assert mejor["temporada_ficticia"] == "Amerine I 1990"
+-    assert mejor["similitud_pct"] == 100.0
++def test_falta_una_variable_de_la_temporada():
++    with pytest.raises(ValueError, match="huglin"):
++        calcular_analogos({"winkler": 1000}, _historico(), 2024)
+ 
+-    # 3. Debe devolver fechas, calidades y brix
+-    assert mejor["calidad"] == "Excelente"
+-    assert mejor["brix"] == 24.0
+-    assert "fecha_chile" in mejor
+ 
+-    # 4. Variable explicativa presente
+-    assert mejor["variable_explicativa"] in ["winkler", "huglin", "gst"]
++@pytest.mark.django_db
++def test_lee_winkler_y_huglin_confiables_de_indice_climatico():
++    arenal = Estacion.objects.get(nombre="El Arenal")
++    otra = Estacion.objects.create(nombre="Otra", codigo="otra-01")
++    for estacion, temporada, indice, valor, confiable in [
++        (arenal, "2024-2025", "Winkler", 1500, True),
++        (arenal, "2024-2025", "Huglin", 2200, True),
++        (arenal, "2023-2024", "Winkler", 1600, True),
++        (arenal, "2023-2024", "Huglin", 2300, False),  # no confiable: se omite la temporada
++        (otra, "2024-2025", "Winkler", 1500, True),
++        (otra, "2024-2025", "Huglin", 2200, True),
++    ]:
++        IndiceClimatico.objects.create(
++            estacion=estacion, temporada=temporada, indice=indice, valor=valor, confiable=confiable
++        )
+ 
++    res = obtener_analogos_vigno(_historico(), calidad=_calidad())
+ 
+-def test_calcular_analogos_sin_datos():
+-    res = calcular_analogos({"winkler": 1000}, pd.DataFrame())
+-    assert res == []
++    assert [(r["estacion_id"], r["temporada"]) for r in res] == [(arenal.codigo, "2024-2025")]
++    assert res[0]["indices"] == {"wi": 1500, "hi": 2200}
++    assert res[0]["anios_analogos"][0]["origen"] == "Región I 1935"

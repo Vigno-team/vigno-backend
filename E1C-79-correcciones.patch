@@ -1,0 +1,202 @@
+diff --git a/apps/clima/management/commands/clasificar_temporadas.py b/apps/clima/management/commands/clasificar_temporadas.py
+index cb0b050..9227062 100644
+--- a/apps/clima/management/commands/clasificar_temporadas.py
++++ b/apps/clima/management/commands/clasificar_temporadas.py
+@@ -1,31 +1,24 @@
+-import os
+-
++import pandas as pd
+ from django.conf import settings
+-from django.core.management.base import BaseCommand
++from django.core.management.base import BaseCommand, CommandError
++
++from apps.clima.prediccion.calidad_vino import calidad_por_temporada
+ 
+ 
+ class Command(BaseCommand):
+-    help = "Clasifica la calidad de las temporadas del dataset ficticio"
++    help = "Calcula la calidad por temporada del dataset ficticio (E1C-79)"
+ 
+     def handle(self, *args, **options):
+-        base_dir = settings.BASE_DIR
+-        ruta_entrada = os.path.join(base_dir, "data", "ficticio", "cosechas.csv")
+-        ruta_salida = os.path.join(base_dir, "data", "ficticio", "cosechas_clasificadas.csv")
++        carpeta = settings.BASE_DIR / "data" / "ficticio"
++        entrada = carpeta / "cosechas.csv"
++        if not entrada.exists():
++            raise CommandError("Falta cosechas.csv: corre primero cargar_dataset_ficticio")
+ 
+         try:
+-            self.stdout.write("Evaluando calidad de las cosechas...")
+-            df = procesar_calidad_temporadas(ruta_entrada, ruta_salida)
+-
+-            conteo = df["calidad_estimada"].value_counts().to_dict()
+-
+-            self.stdout.write(
+-                self.style.SUCCESS(f"¡Éxito! Dataset clasificado generado en {ruta_salida}")
+-            )
+-            self.stdout.write(f"Resumen de calidades: {conteo}")
++            calidad = calidad_por_temporada(pd.read_csv(entrada))
++        except ValueError as error:
++            raise CommandError(str(error)) from error
+ 
+-        except FileNotFoundError:
+-            self.stdout.write(
+-                self.style.ERROR(
+-                    "Error: Primero debes generar el cosechas.csv ejecutando cargar_dataset_ficticio"
+-                )
+-            )
++        salida = carpeta / "calidad_temporadas.csv"
++        calidad.to_csv(salida, index=False, encoding="utf-8")
++        self.stdout.write(self.style.SUCCESS(f"¡Éxito! {len(calidad)} temporadas en {salida}"))
+diff --git a/apps/clima/prediccion/calidad_vino.py b/apps/clima/prediccion/calidad_vino.py
+index 5ad8dec..b2a7814 100644
+--- a/apps/clima/prediccion/calidad_vino.py
++++ b/apps/clima/prediccion/calidad_vino.py
+@@ -1,11 +1,21 @@
+ import pandas as pd
+ 
+-# IMPORTANTE: Reemplaza estos 5 valores con los exactos de la hoja 'metadata' del Excel real cuando lo tengas
++# Los 5 niveles de `recommend` (Amerine & Winkler), de mejor a peor, tal como
++# vienen en la hoja de metadatos del Excel. PENDIENTE: copiar los valores reales.
+ NIVELES_RECOMMEND = ["Nivel1", "Nivel2", "Nivel3", "Nivel4", "Nivel5"]
+-ESCALA = dict(zip(NIVELES_RECOMMEND, ["alta", "alta", "media", "baja", "baja"]))
++# Escala provisional, a confirmar con el enólogo: los 2 mejores = alta, el del
++# medio = media y los 2 peores = baja.
++ESCALA = dict(zip(NIVELES_RECOMMEND, ["alta", "alta", "media", "baja", "baja"], strict=True))
+ 
+ 
+-def calidad_por_temporada(df):
++def _pct_alta(calidades: pd.Series) -> float | None:
++    evaluadas = calidades.dropna()
++    if evaluadas.empty:
++        return None
++    return round((evaluadas == "alta").mean() * 100, 1)
++
++
++def calidad_por_temporada(df: pd.DataFrame) -> pd.DataFrame:
+     """Una fila por temporada: Subset1 por región-año y Napa por año."""
+     s1 = df[df["fuente"] == "Amerine & Winkler"].copy()
+     desconocidos = set(s1["recommend"].dropna()) - set(ESCALA)
+@@ -14,18 +24,22 @@ def calidad_por_temporada(df):
+ 
+     s1["calidad"] = s1["recommend"].map(ESCALA)
+     amerine = s1.groupby(["fuente", "region", "anio"], as_index=False).agg(
+-        pct_alta=("calidad", lambda c: round((c == "alta").sum() / c.notna().sum() * 100, 1)),
++        pct_alta=("calidad", _pct_alta),
+         brix_mediana=("brix", "median"),
+         acidez_mediana=("acidez", "median"),
+         ph_mediana=("ph", "median"),
+     )
++    amerine["pct_alta"] = amerine["pct_alta"].astype(float)
++    amerine["motivo_nulo"] = (
++        amerine["pct_alta"].isna().map({True: "La temporada no tiene evaluaciones.", False: None})
++    )
+ 
+     napa = (
+         df[df["fuente"] == "Napa"]
+         .groupby(["fuente", "region", "anio"], as_index=False)
+         .agg(brix_mediana=("brix", "median"))
+     )
+-    napa["pct_alta"] = None
+     napa["motivo_nulo"] = "Napa solo trae °Brix; no tiene evaluación de calidad."
++    napa = napa.reindex(columns=amerine.columns).astype(amerine.dtypes.to_dict())
+ 
+     return pd.concat([amerine, napa], ignore_index=True)
+diff --git a/apps/clima/tests/prediccion/test_calidad.py b/apps/clima/tests/prediccion/test_calidad.py
+deleted file mode 100644
+index eafbc56..0000000
+--- a/apps/clima/tests/prediccion/test_calidad.py
++++ /dev/null
+@@ -1,32 +0,0 @@
+-import os
+-
+-import pandas as pd
+-
+-from apps.clima.prediccion.calidad import evaluar_calidad, procesar_calidad_temporadas
+-
+-
+-def test_evaluar_calidad():
+-    assert evaluar_calidad({"recommend": "Top Tier"}) == "Top Tier"
+-    assert evaluar_calidad({"brix": 24.5}) == "Excelente"
+-    assert evaluar_calidad({"brix": 21.0}) == "Buena"
+-    assert evaluar_calidad({"brix": 18.0}) == "Regular"
+-    assert evaluar_calidad({"brix": None}) == "Sin datos"
+-
+-
+-def test_procesamiento_clasificacion(tmp_path):
+-    df_in = pd.DataFrame(
+-        {
+-            "anio": [1990, 1991, 1992],
+-            "brix": [24.0, 21.0, None],
+-            "recommend": [None, None, "Premium"],
+-        }
+-    )
+-
+-    ruta_in = tmp_path / "cosechas.csv"
+-    ruta_out = tmp_path / "cosechas_clasificadas.csv"
+-    df_in.to_csv(ruta_in, index=False)
+-
+-    df_res = procesar_calidad_temporadas(ruta_in, ruta_out)
+-
+-    assert os.path.exists(ruta_out)
+-    assert list(df_res["calidad_estimada"]) == ["Excelente", "Buena", "Premium"]
+diff --git a/apps/clima/tests/prediccion/test_calidad_vino.py b/apps/clima/tests/prediccion/test_calidad_vino.py
+new file mode 100644
+index 0000000..f4d52ea
+--- /dev/null
++++ b/apps/clima/tests/prediccion/test_calidad_vino.py
+@@ -0,0 +1,53 @@
++import pandas as pd
++import pytest
++
++from apps.clima.prediccion.calidad_vino import NIVELES_RECOMMEND, calidad_por_temporada
++
++MEJOR, _, MEDIO, _, PEOR = NIVELES_RECOMMEND
++
++
++def _cosechas():
++    return pd.DataFrame(
++        {
++            "fuente": ["Amerine & Winkler"] * 5 + ["Napa", "Napa"],
++            "region": ["I", "I", "I", "I", "II", "II", "II"],
++            "anio": [1935, 1935, 1935, 1935, 1935, 2000, 2000],
++            "recommend": [MEJOR, MEJOR, MEDIO, PEOR, None, None, None],
++            "brix": [22.0, 23.0, 24.0, 25.0, 21.0, 24.0, 26.0],
++            "acidez": [0.6, 0.7, 0.8, 0.9, 0.5, None, None],
++            "ph": [3.3, 3.4, 3.5, 3.6, 3.2, None, None],
++        }
++    )
++
++
++def test_calidad_por_region_anio():
++    res = calidad_por_temporada(_cosechas()).set_index(["fuente", "region", "anio"])
++
++    region_i = res.loc[("Amerine & Winkler", "I", 1935)]
++    assert region_i["pct_alta"] == 50.0  # 2 de 4 evaluadas
++    assert region_i["brix_mediana"] == 23.5
++    assert region_i["motivo_nulo"] is None
++
++
++def test_temporada_sin_evaluaciones_queda_nula_con_motivo():
++    res = calidad_por_temporada(_cosechas()).set_index(["fuente", "region", "anio"])
++
++    region_ii = res.loc[("Amerine & Winkler", "II", 1935)]
++    assert pd.isna(region_ii["pct_alta"])
++    assert region_ii["motivo_nulo"] == "La temporada no tiene evaluaciones."
++
++
++def test_napa_publica_brix_sin_calidad():
++    res = calidad_por_temporada(_cosechas()).set_index(["fuente", "region", "anio"])
++
++    napa = res.loc[("Napa", "II", 2000)]
++    assert pd.isna(napa["pct_alta"])
++    assert napa["brix_mediana"] == 25.0
++    assert "°Brix" in napa["motivo_nulo"]
++
++
++def test_recommend_desconocido_falla():
++    df = _cosechas()
++    df.loc[0, "recommend"] = "Inventado"
++    with pytest.raises(ValueError, match="Inventado"):
++        calidad_por_temporada(df)

@@ -1,0 +1,411 @@
+diff --git a/apps/clima/management/commands/correlacionar_madurez.py b/apps/clima/management/commands/correlacionar_madurez.py
+index f2e570d..772e549 100644
+--- a/apps/clima/management/commands/correlacionar_madurez.py
++++ b/apps/clima/management/commands/correlacionar_madurez.py
+@@ -1,35 +1,27 @@
+-import os
+-
+ from django.conf import settings
+-from django.core.management.base import BaseCommand
++from django.core.management.base import BaseCommand, CommandError
+ 
+ from apps.clima.prediccion.analisis_madurez import correlacionar_clima_madurez
+ 
+ 
+ class Command(BaseCommand):
+-    help = "Correlaciona indices climaticos con fecha de cosecha y madurez"
++    help = "Correlaciona índices climáticos con fecha de cosecha y madurez (E1C-82)"
+ 
+     def handle(self, *args, **options):
+-        ruta = os.path.join(settings.BASE_DIR, "data", "ficticio", "cosechas.csv")
+-        if not os.path.exists(ruta):
+-            self.stdout.write(self.style.ERROR("Error: Falta cosechas.csv"))
+-            return
++        ruta = settings.BASE_DIR / "data" / "ficticio" / "cosechas.csv"
++        if not ruta.exists():
++            raise CommandError("Falta cosechas.csv: corre primero cargar_dataset_ficticio")
+ 
+         resultados = correlacionar_clima_madurez(ruta)
+-
+-        self.stdout.write("--- Correlaciones Destacadas ---")
+         for r in resultados:
+             if r["indice"] == "winkler" and r["objetivo"] == "doy":
+-                # Criterio de aceptación: Winkler vs Doy debe dar negativo
+-                color = self.style.SUCCESS if r["rho"] < 0 else self.style.WARNING
++                # Criterio de E1C-82: Winkler vs. día de cosecha debe salir negativo.
++                estilo = self.style.SUCCESS if r["rho"] < 0 else self.style.WARNING
+                 self.stdout.write(
+-                    color(
+-                        f"[{r['nivel']}] {r['indice']} vs {r['objetivo']} -> rho: {r['rho']}, p_holm: {r['p_holm']} (n={r['n']})"
++                    estilo(
++                        f"[{r['nivel']}] winkler vs doy: rho={r['rho']}, p_holm={r['p_holm']}, n={r['n']}"
+                     )
+                 )
+-
+         self.stdout.write(
+-            self.style.SUCCESS(
+-                f"¡Éxito! {len(resultados)} correlaciones calculadas con formato listo para el JSON."
+-            )
++            self.style.SUCCESS(f"¡Éxito! {len(resultados)} correlaciones calculadas.")
+         )
+diff --git a/apps/clima/prediccion/analisis_madurez.py b/apps/clima/prediccion/analisis_madurez.py
+index 274d19b..9500d4f 100644
+--- a/apps/clima/prediccion/analisis_madurez.py
++++ b/apps/clima/prediccion/analisis_madurez.py
+@@ -2,59 +2,50 @@ import pandas as pd
+ 
+ from apps.clima.prediccion.correlaciones import _holm, correlacion
+ 
++INDICES = {"wi": "winkler", "hi": "huglin", "gst": "gst"}
++OBJETIVOS = ["doy", "brix", "acidez", "ph"]
++
++
++def _niveles(df: pd.DataFrame) -> list[tuple[str, pd.DataFrame]]:
++    """Promedia por temporada: el clima solo cambia entre región-año."""
++    amerine = df[df["fuente"] == "Amerine & Winkler"]
++    napa = df[df["fuente"] == "Napa"]
++    return [
++        ("region_anio", amerine.groupby(["region", "anio"]).mean(numeric_only=True)),
++        ("anio_cultivar", napa.groupby(["anio", "cultivar"]).mean(numeric_only=True)),
++    ]
+ 
+-def correlacionar_clima_madurez(ruta_csv: str):
+-    df = pd.read_csv(ruta_csv)
+-    df_amerine = (
+-        df[df["fuente"] == "Amerine & Winkler"]
+-        .groupby(["region", "anio"])
+-        .mean(numeric_only=True)
+-        .reset_index()
+-    )
+-    df_napa = (
+-        df[df["fuente"] == "Napa"]
+-        .groupby(["anio", "cultivar"])
+-        .mean(numeric_only=True)
+-        .reset_index()
+-    )
+ 
+-    niveles = [("region_anio", df_amerine), ("anio_cultivar", df_napa)]
+-    mapa_ind = {"wi": "winkler", "hi": "huglin", "gst": "gst"}
+-    objetivos = ["doy", "brix", "acidez", "ph"]
++def correlacionar_clima_madurez(ruta_csv) -> list[dict]:
++    """Spearman de cada índice contra cada objetivo; Holm dentro de cada nivel.
+ 
++    Devuelve filas {indice, objetivo, nivel, n, rho, p, p_holm}.
++    """
++    df = pd.read_csv(ruta_csv)
+     resultados = []
+-    for nombre_nivel, df_nivel in niveles:
+-        res_nivel = []
+-        for col_ind, nom_ind in mapa_ind.items():
+-            for obj in objetivos:
+-                if col_ind not in df_nivel.columns or obj not in df_nivel.columns:
++    for nivel, temporadas in _niveles(df):
++        filas = []
++        for columna, indice in INDICES.items():
++            for objetivo in OBJETIVOS:
++                if columna not in temporadas or objetivo not in temporadas:
+                     continue
+-                valid = df_nivel[[col_ind, obj]].dropna()
+-                n = len(valid)
+-                if n < 5:
++                pares = temporadas[[columna, objetivo]].dropna()
++                medida = correlacion(pares[columna].tolist(), pares[objetivo].tolist())
++                if medida["estado"] != "ok":
+                     continue
+-
+-                rho, p_val = correlacion(valid[col_ind].values, valid[obj].values)
+-                if rho is not None:
+-                    res_nivel.append(
+-                        {
+-                            "indice": nom_ind,
+-                            "objetivo": obj,
+-                            "nivel": nombre_nivel,
+-                            "n": n,
+-                            "rho": round(rho, 3),
+-                            "p": p_val,
+-                        }
+-                    )
+-
+-        if res_nivel:
+-            res_nivel = _holm(res_nivel)
+-            for r in res_nivel:
+-                if "p_valor" in r:
+-                    r["p"] = round(r["p_valor"], 4)
+-                    del r["p_valor"]
+-                if "p_ajustado_holm" in r:
+-                    r["p_holm"] = round(r["p_ajustado_holm"], 4)
+-                    del r["p_ajustado_holm"]
+-            resultados.extend(res_nivel)
++                filas.append(
++                    {
++                        "indice": indice,
++                        "objetivo": objetivo,
++                        "nivel": nivel,
++                        "n": medida["n"],
++                        "rho": round(medida["rho"], 3),
++                        "p_valor": medida["p_valor"],
++                    }
++                )
++        _holm(filas)
++        for fila in filas:
++            fila["p"] = round(fila.pop("p_valor"), 4)
++            fila["p_holm"] = round(fila.pop("p_ajustado_holm"), 4)
++        resultados.extend(filas)
+     return resultados
+diff --git a/apps/clima/prediccion/correlaciones.py b/apps/clima/prediccion/correlaciones.py
+index b6f1872..fb2b278 100644
+--- a/apps/clima/prediccion/correlaciones.py
++++ b/apps/clima/prediccion/correlaciones.py
+@@ -1,37 +1,86 @@
+-import numpy as np
+-from scipy.stats import spearmanr
+-
+-
+-def calcular_spearman_holm(df, col_x, col_y, n_perm=999):
+-    valid = df[[col_x, col_y]].dropna()
+-    n = len(valid)
+-    if n < 5:
+-        return None, None, n
+-
+-    x, y = valid[col_x].values, valid[col_y].values
+-    rho, _ = spearmanr(x, y)
+-    if np.isnan(rho):
+-        return None, None, n
+-
+-    # Cálculo de P-value por permutaciones
+-    count = 0
+-    y_perm = np.copy(y)
+-    for _ in range(n_perm):
+-        np.random.shuffle(y_perm)
+-        r_perm, _ = spearmanr(x, y_perm)
+-        if abs(r_perm) >= abs(rho):
+-            count += 1
+-
+-    p_val = (count + 1) / (n_perm + 1)
+-    return float(rho), float(p_val), n
+-
+-
+-def aplicar_holm(resultados):
+-    res_sorted = sorted(resultados, key=lambda x: x["p"])
+-    m = len(res_sorted)
+-    for k, r in enumerate(res_sorted):
+-        r["p_holm"] = min(1.0, r["p"] * (m - k))
+-    # Forzar la monotonicidad de Holm
+-    for k in range(1, m):
+-        res_sorted[k]["p_holm"] = max(res_sorted[k]["p_holm"], res_sorted[k - 1]["p_holm"])
+-    return res_sorted
++"""Spearman con p por permutaciones y ajuste de Holm (traído de archivo/e1c-20)."""
++
++import math
++import random
++from itertools import permutations
++
++MIN_MUESTRA = 3
++UMBRAL_HISTORICO_CORTO = 10
++SEMILLA = 2026
++REPETICIONES = 9999
++
++
++def _rangos(valores):
++    """Rangos medios para empates, comenzando en 1."""
++    orden = sorted(range(len(valores)), key=valores.__getitem__)
++    resultado = [0.0] * len(valores)
++    inicio = 0
++    while inicio < len(orden):
++        fin = inicio + 1
++        while fin < len(orden) and valores[orden[fin]] == valores[orden[inicio]]:
++            fin += 1
++        for posicion in orden[inicio:fin]:
++            resultado[posicion] = (inicio + 1 + fin) / 2
++        inicio = fin
++    return resultado
++
++
++def correlacion(x, y):
++    """Spearman y p bilateral por |rho|; permuta solo un miembro de cada par.
++
++    Exacta hasta n=8 (incluidos empates); Monte Carlo con semilla fija después.
++    No usa el p asintótico, inadecuado para el histórico corto de este proyecto.
++    """
++    if len(x) != len(y):
++        raise ValueError("Las dos series deben tener el mismo tamaño.")
++    if any(
++        isinstance(v, bool) or not isinstance(v, int | float) or not math.isfinite(v)
++        for v in [*x, *y]
++    ):
++        raise ValueError("Las series deben contener números finitos.")
++    n = len(x)
++    resultado = {
++        "n": n,
++        "rho": None,
++        "p_valor": None,
++        "estado": "muestra_insuficiente",
++        "prueba": None,
++        "permutaciones": 0,
++        "historico_corto": n < UMBRAL_HISTORICO_CORTO,
++    }
++    if n < MIN_MUESTRA:
++        return resultado
++    media = (n + 1) / 2
++    rx = [v - media for v in _rangos(x)]
++    ry = [v - media for v in _rangos(y)]
++    norma = math.sqrt(sum(v * v for v in rx) * sum(v * v for v in ry))
++    if norma == 0:
++        resultado["estado"] = "serie_constante"
++        return resultado
++    producto = sum(a * b for a, b in zip(rx, ry, strict=True))
++    exacta = n <= 8
++    rng = random.Random(SEMILLA)
++    muestras = permutations(rx) if exacta else (rng.sample(rx, n) for _ in range(REPETICIONES))
++    extremos = total = 0
++    for muestra in muestras:
++        # Los rangos medios son múltiplos de 0.5; no se redondea el estadístico.
++        simulado = sum(a * b for a, b in zip(muestra, ry, strict=True))
++        extremos += abs(simulado) >= abs(producto) - 1e-12
++        total += 1
++    resultado.update(
++        estado="ok",
++        rho=max(-1.0, min(1.0, producto / norma)),
++        p_valor=extremos / total if exacta else (extremos + 1) / (total + 1),
++        prueba="permutacion_exacta" if exacta else "permutacion_monte_carlo",
++        permutaciones=total,
++    )
++    return resultado
++
++
++def _holm(filas):
++    """Ajuste de Holm sobre las filas que se comparan juntas; escribe p_ajustado_holm en cada una."""
++    orden = sorted(filas, key=lambda fila: fila["p_valor"])
++    previo = 0.0
++    for posicion, fila in enumerate(orden):
++        previo = max(previo, min(1.0, (len(orden) - posicion) * fila["p_valor"]))
++        fila["p_ajustado_holm"] = previo
+diff --git a/apps/clima/tests/prediccion/test_analisis_madurez.py b/apps/clima/tests/prediccion/test_analisis_madurez.py
+index ab2c8c7..82ff383 100644
+--- a/apps/clima/tests/prediccion/test_analisis_madurez.py
++++ b/apps/clima/tests/prediccion/test_analisis_madurez.py
+@@ -1,14 +1,38 @@
+ import pandas as pd
+ 
+-from apps.clima.prediccion.correlaciones import calcular_spearman_holm
+-
+-
+-def test_correlacion_winkler_doy_negativa():
+-    # Simula el criterio de la H39: Mayor calor -> cosecha más temprana
+-    df = pd.DataFrame(
+-        {"wi": [1000, 1200, 1400, 1600, 1800, 2000], "doy": [300, 280, 260, 240, 220, 200]}
+-    )
+-    rho, p, n = calcular_spearman_holm(df, "wi", "doy")
+-    assert rho < 0
+-    assert rho == -1.0
+-    assert n == 6
++from apps.clima.prediccion.analisis_madurez import correlacionar_clima_madurez
++
++
++def test_winkler_vs_doy_negativo_por_region_anio(tmp_path):
++    # 6 temporadas región-año, con 2 cultivares cada una: más calor, cosecha más temprana.
++    filas = []
++    for i, (wi, doy) in enumerate(
++        zip([1000, 1200, 1400, 1600, 1800, 2000], [300, 280, 260, 240, 220, 200], strict=True)
++    ):
++        for cultivar, desfase in (("Cabernet", 0), ("Merlot", 4)):
++            filas.append(
++                {
++                    "fuente": "Amerine & Winkler",
++                    "region": "I" if i < 3 else "II",
++                    "anio": 1935 + i,
++                    "cultivar": cultivar,
++                    "doy": doy + desfase,
++                    "brix": 22.0 + i,
++                    "wi": wi,
++                    "hi": wi + 600,
++                    "gst": 14.0 + i,
++                }
++            )
++    ruta = tmp_path / "cosechas.csv"
++    pd.DataFrame(filas).to_csv(ruta, index=False)
++
++    resultados = correlacionar_clima_madurez(ruta)
++
++    winkler_doy = next(r for r in resultados if r["indice"] == "winkler" and r["objetivo"] == "doy")
++    assert winkler_doy["nivel"] == "region_anio"
++    assert winkler_doy["n"] == 6  # una fila por temporada, no 12 registros
++    assert winkler_doy["rho"] == -1.0
++    assert set(winkler_doy) == {"indice", "objetivo", "nivel", "n", "rho", "p", "p_holm"}
++    assert winkler_doy["p"] <= winkler_doy["p_holm"] <= 1
++    # Sin acidez ni pH en el CSV, esos objetivos no aparecen.
++    assert {r["objetivo"] for r in resultados} == {"doy", "brix"}
+diff --git a/apps/clima/tests/prediccion/test_correlaciones.py b/apps/clima/tests/prediccion/test_correlaciones.py
+new file mode 100644
+index 0000000..8a863a8
+--- /dev/null
++++ b/apps/clima/tests/prediccion/test_correlaciones.py
+@@ -0,0 +1,68 @@
++"""Tests traídos de archivo/e1c-20 (test_correlaciones_cosecha.py), solo los de correlacion."""
++
++import pytest
++
++from apps.clima.prediccion.correlaciones import _holm, correlacion
++
++
++@pytest.mark.parametrize(
++    "x,y,rho,p",
++    [
++        ([1, 2, 3], [3, 2, 1], -1, 1 / 3),
++        ([1, 2, 3, 4, 5], [1, 2, 3, 4, 5], 1, 1 / 60),
++        ([1, 1, 2], [1, 1, 2], 1, 1 / 3),
++        ([1, 2, 3], [1, 3, 2], 0.5, 1),
++    ],
++)
++def test_coeficientes_y_p_exactos_conocidos(x, y, rho, p):
++    resultado = correlacion(x, y)
++    assert resultado["rho"] == pytest.approx(rho)
++    assert resultado["p_valor"] == pytest.approx(p)
++    assert resultado["prueba"] == "permutacion_exacta"
++
++
++def test_spearman_con_empates_referencia_scipy():
++    # Ejemplo oficial scipy.stats.spearmanr 1.14.1: rho=0.7.
++    resultado = correlacion(
++        [7.1, 7.1, 7.2, 8.3, 9.4, 10.5, 11.4], [2.8, 2.9, 2.8, 2.6, 3.5, 4.6, 5]
++    )
++    assert resultado["rho"] == pytest.approx(0.7)
++    assert resultado["permutaciones"] == 5040
++
++
++@pytest.mark.parametrize(
++    "x,y,estado",
++    [
++        ([], [], "muestra_insuficiente"),
++        ([1, 2], [2, 1], "muestra_insuficiente"),
++        ([1, 1, 1], [2, 3, 4], "serie_constante"),
++        ([1, 2, 3], [4, 4, 4], "serie_constante"),
++    ],
++)
++def test_no_inventa_correlaciones(x, y, estado):
++    resultado = correlacion(x, y)
++    assert resultado["estado"] == estado
++    assert resultado["rho"] is None and resultado["p_valor"] is None
++
++
++@pytest.mark.parametrize(
++    "x,y", [([1], []), ([float("nan")] * 3, [1] * 3), ([True] * 3, [1] * 3), ([None] * 3, [1] * 3)]
++)
++def test_rechaza_series_invalidas(x, y):
++    with pytest.raises(ValueError):
++        correlacion(x, y)
++
++
++def test_permutacion_aleatoria_reproducible_y_p_no_cero():
++    x = list(range(9))
++    a = correlacion(x, x)
++    b = correlacion(x, x)
++    assert a == b
++    assert a["prueba"] == "permutacion_monte_carlo"
++    assert a["permutaciones"] == 9999 and 0 < a["p_valor"] <= 1
++
++
++def test_holm_ordena_y_es_monotono():
++    filas = [{"p_valor": 0.04}, {"p_valor": 0.01}, {"p_valor": 0.03}]
++    _holm(filas)
++    assert [f["p_ajustado_holm"] for f in filas] == pytest.approx([0.06, 0.03, 0.06])
