@@ -34,6 +34,7 @@ data/cliente/
 *.csv
 *.parquet
 !data/synthetic/**/*.csv
+data/synthetic/datos_sinteticos.csv
 
 # Modelos entrenados
 *.pkl

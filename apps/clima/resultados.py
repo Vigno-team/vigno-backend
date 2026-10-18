@@ -8,39 +8,27 @@ from django.db.models import Count
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
+from apps.clima.calidad import construir_calidad_dato, resolucion_estacion
 from apps.clima.clasificacion import clasificar_temporada
 from apps.clima.dias_criticos import obtener_dias_criticos
-from apps.clima.indices import rango_temporada
 from apps.clima.lluvia import comparar_lluvia_invernal, lluvia_invernal
+from apps.clima.lluvia_fuera_invierno import lluvia_fuera_invierno
+from apps.clima.metricas import calidad_metrica, valor_metrica
 from apps.clima.models import ConfiguracionCalidad, IndiceClimatico, ResumenDiario
 from apps.clima.rachas import identificar_rachas
-from apps.clima.temporadas import rango_de, rango_invernal
+from apps.clima.temporadas import (
+    rango_dias_calor,
+    rango_huglin,
+    rango_invernal,
+    rango_temporada,
+    rango_winkler,
+)
 
-
-def _resolucion(estacion, inicio, fin):
-    origenes = set(
-        ResumenDiario.objects.filter(estacion=estacion, fecha__range=(inicio, fin))
-        .order_by()
-        .values_list("origen", flat=True)
-        .distinct()
-    )
-    if len(origenes) > 1:
-        return "mixta"
-    return {"D": "diaria", "H": "horaria"}.get(next(iter(origenes), None))
-
-
-def _calidad(completitud, confiable, umbral, resolucion, version):
-    return {
-        "completitud_pct": round(completitud, 1) if completitud is not None else None,
-        "confiable": bool(confiable),
-        "umbral_completitud_pct": umbral,
-        "resolucion_origen": resolucion,
-        "version_calculo": version,
-    }
+RANGOS_INDICE = {"Winkler": rango_winkler, "Huglin": rango_huglin}
 
 
 def _periodo_indice(indice, temporada, tipo):
-    inicio, fin = rango_temporada(temporada, tipo)
+    inicio, fin = RANGOS_INDICE[tipo](temporada)
     if indice:
         parametros = indice.parametros
         inicio = date.fromisoformat(parametros.get("fecha_inicio", inicio.isoformat()))
@@ -51,17 +39,13 @@ def _periodo_indice(indice, temporada, tipo):
 def _bloque_indice(estacion, temporada, tipo, indice, umbral):
     inicio, fin = _periodo_indice(indice, temporada, tipo)
     campo = "region" if tipo == "Winkler" else "clasificacion"
-    completitud = None
-    if indice and indice.dias_esperados > 0:
-        completitud = min(max(indice.dias_con_dato / indice.dias_esperados * 100, 0), 100)
-    # Nunca promovemos un resultado que el motor marcó no confiable (p. ej. sin latitud).
-    confiable = bool(
-        indice
-        and indice.confiable
-        and indice.dias_con_dato > 0
-        and completitud is not None
-        and completitud >= umbral
+    calidad = calidad_metrica(
+        indice.dias_con_dato if indice else 0,
+        indice.dias_esperados if indice else 0,
+        umbral,
+        habilitada=indice is not None and indice.confiable,
     )
+    completitud, confiable = calidad["completitud_pct"], calidad["confiable"]
     etiqueta = None
     if confiable and indice.clasificacion:
         if tipo == "Winkler":
@@ -73,11 +57,11 @@ def _bloque_indice(estacion, temporada, tipo, indice, umbral):
     resultado = {
         "valor": indice.valor if indice else None,
         campo: etiqueta,
-        "calidad_dato": _calidad(
+        "calidad_dato": construir_calidad_dato(
             completitud,
             confiable,
             umbral,
-            _resolucion(estacion, inicio, fin),
+            resolucion_estacion(estacion, inicio, fin),
             indice.version_calculo if indice else None,
         ),
     }
@@ -105,14 +89,14 @@ def resultados_rachas(estacion, temporada):
     umbral = ConfiguracionCalidad.obtener_umbral()
     umbral_c = settings.UMBRAL_CALOR_C
     minimo_dias = settings.MINIMO_DIAS_INCIDENCIA
-    inicio, fin = rango_de(temporada)
+    inicio, fin = rango_temporada(temporada)
     fin_efectivo = min(fin, timezone.localdate())
     dias_esperados = max((fin_efectivo - inicio).days + 1, 0)
     dias_con_dato = ResumenDiario.objects.filter(
         estacion=estacion, temporada=temporada, fecha__range=(inicio, fin_efectivo)
     ).aggregate(n=Count("tmax"))["n"]
-    completitud = min(dias_con_dato / dias_esperados * 100, 100) if dias_esperados else None
-    confiable = dias_con_dato > 0 and completitud is not None and completitud >= umbral
+    calidad = calidad_metrica(dias_con_dato, dias_esperados, umbral)
+    completitud, confiable = calidad["completitud_pct"], calidad["confiable"]
     rachas = identificar_rachas(estacion, temporada, umbral_temp=umbral_c, min_dias=minimo_dias)
     # Publicamos los campos acordados, conservando la advertencia sobre huecos.
     version = f"rachas-v1_{umbral_c:g}c_min{minimo_dias}_temporada"
@@ -122,15 +106,15 @@ def resultados_rachas(estacion, temporada):
         "umbral_c": umbral_c,
         "minimo_dias_incidencia": minimo_dias,
         "rachas": rachas,
-        "calidad_dato": _calidad(
-            completitud, confiable, umbral, _resolucion(estacion, inicio, fin), version
+        "calidad_dato": construir_calidad_dato(
+            completitud, confiable, umbral, resolucion_estacion(estacion, inicio, fin), version
         ),
     }
 
 
 def _clasificacion(estacion, temporada):
     """Cálida/fría y lluviosa/seca. None solo si no se puede clasificar ningún eje."""
-    c = clasificar_temporada(estacion.codigo, temporada)
+    c = clasificar_temporada(estacion, temporada)
     if c["termica"] is None and c["hidrica"] is None:
         return None
     bloque = {
@@ -160,31 +144,36 @@ def ficha_temporada(estacion, temporada):
         )
     }
     inicio, fin = _periodo_indice(indices.get("Winkler"), temporada, "Winkler")
-    lluvia = lluvia_invernal(estacion.codigo, temporada)
-    historico = comparar_lluvia_invernal(estacion.codigo, temporadas=[temporada])
+    lluvia = lluvia_invernal(estacion, temporada)
+    historico = comparar_lluvia_invernal(estacion, temporadas=[temporada])
     comparacion = next(iter(historico["temporadas"]), {})
     ini_invierno, fin_invierno = rango_invernal(temporada)
     bloque_lluvia = {
         "acumulado_mm": lluvia["acumulado_mm"],
         "promedio_historico_mm": historico["promedio_historico_mm"],
         "diferencia_pct": comparacion.get("diferencia_pct"),
-        "calidad_dato": _calidad(
+        "calidad_dato": construir_calidad_dato(
             lluvia["completitud_pct"],
             lluvia["dias_con_dato"] > 0 and lluvia["confiable"],
             umbral,
-            _resolucion(estacion, ini_invierno, fin_invierno),
+            resolucion_estacion(estacion, ini_invierno, fin_invierno),
             f"lluvia-invernal-v1_{ini_invierno:%d%m}-{fin_invierno:%d%m}",
         ),
     }
     if lluvia["acumulado_mm"] is None:
         bloque_lluvia["motivo_nulo"] = "Sin datos de precipitación en el período invernal."
+    lluvia_exterior = lluvia_fuera_invierno(estacion, temporada)
     rachas = resultados_rachas(estacion, temporada)
-    dias = ResumenDiario.objects.filter(estacion=estacion, temporada=temporada, tmax__isnull=False)
-    hay_temperatura = dias.exists()
+    calor_metrica = valor_metrica(
+        estacion, "dias_sobre_umbral", temporada, timezone.localdate(), umbral
+    )
+    # Las rachas conservan su ventana anual; la métrica de días usa octubre-abril.
+    hay_temperatura = ResumenDiario.objects.filter(
+        estacion=estacion, temporada=temporada, tmax__isnull=False
+    ).exists()
+    inicio_calor, fin_calor = rango_dias_calor(temporada)
     calor = {
-        "dias_sobre_umbral": dias.filter(tmax__gte=rachas["umbral_c"]).count()
-        if hay_temperatura
-        else None,
+        "dias_sobre_umbral": calor_metrica["valor"],
         "umbral_c": rachas["umbral_c"],
         "rachas_con_incidencia": sum(r["con_incidencia"] for r in rachas["rachas"])
         if hay_temperatura
@@ -192,10 +181,16 @@ def ficha_temporada(estacion, temporada):
         "racha_maxima_dias": max((r["dias"] for r in rachas["rachas"]), default=0)
         if hay_temperatura
         else None,
-        "calidad_dato": rachas["calidad_dato"],
+        "calidad_dato": construir_calidad_dato(
+            calor_metrica["completitud_pct"],
+            calor_metrica["confiable"],
+            umbral,
+            resolucion_estacion(estacion, inicio_calor, fin_calor),
+            f"dias_umbral-v2_{rachas['umbral_c']:g}c_{inicio_calor:%m%d}-{fin_calor:%m%d}",
+        ),
     }
-    if not hay_temperatura:
-        calor["motivo_nulo"] = "Sin temperaturas máximas en la temporada."
+    if calor_metrica["valor"] is None:
+        calor["motivo_nulo"] = "Sin temperaturas máximas en la ventana de días de calor."
     return {
         "temporada": temporada,
         "estacion_id": estacion.codigo,
@@ -206,6 +201,7 @@ def ficha_temporada(estacion, temporada):
             for tipo in ("Winkler", "Huglin")
         },
         "lluvia_invernal": bloque_lluvia,
+        "lluvia_fuera_invierno": lluvia_exterior,
         "calor": calor,
         "clasificacion": _clasificacion(estacion, temporada),
         "dias_criticos": obtener_dias_criticos(estacion, temporada, limite=10),

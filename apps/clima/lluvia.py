@@ -1,38 +1,28 @@
 import pandas as pd
-from django.db.models import Count, Sum
+from django.utils import timezone
 
+from apps.clima.metricas import valor_metrica
 from apps.clima.models import ConfiguracionCalidad, Estacion, MedicionHoraria, ResumenDiario
-from apps.clima.services import TZ
-from apps.clima.temporadas import rango_invernal
+from apps.clima.temporadas import MIN_TEMPORADAS_PROMEDIO, rango_invernal
 
 # Horas secas seguidas que separan un evento de otro (HAY QUE CONFIRMAR CON EL ENOLOGO).
 SEPARACION_HORAS_EVENTO = 6
-# Minimo de temporadas confiables para que el "promedio histórico" tenga sentido.
-MIN_TEMPORADAS_PROMEDIO = 2
-
-
 # Acumulado invernal por temporada
 
 
 def _acumulado_invernal(estacion: Estacion, temporada: str, umbral: float, hoy) -> dict:
     ini, fin = rango_invernal(temporada)
-    # Se filtra por fecha y no por la columna `temporada`: esa columna parte en julio,
-    # mayo-junio caen en la temporada anterior.
-    agg = ResumenDiario.objects.filter(estacion=estacion, fecha__range=[ini, fin]).aggregate(
-        total=Sum("precipitacion"), n=Count("precipitacion")
-    )
-    n_dias, total = agg["n"], agg["total"]
-
-    fin_efectivo = min(fin, hoy)  # invierno en curso: se espera hasta hoy
-    esperados = max((fin_efectivo - ini).days + 1, 0)
-    completitud = round(min(n_dias / esperados * 100, 100), 1) if esperados else None
-    confiable = completitud is not None and completitud >= umbral
+    medicion = valor_metrica(estacion, "lluvia_invernal", temporada, hoy, umbral)
+    n_dias, total = medicion["dias_con_dato"], medicion["valor"]
+    esperados = medicion["dias_esperados"]
+    completitud = medicion["completitud_pct"]
+    confiable = medicion["confiable"]
 
     item = {
         "estacion_id": estacion.codigo,
         "temporada": temporada,
         "periodo": {"desde": ini.isoformat(), "hasta": fin.isoformat()},
-        "acumulado_mm": round(total, 1) if total is not None else None,
+        "acumulado_mm": total,
         "dias_con_dato": n_dias,
         "dias_esperados": esperados,
         "completitud_pct": completitud,
@@ -46,9 +36,8 @@ def _acumulado_invernal(estacion: Estacion, temporada: str, umbral: float, hoy) 
     return item
 
 
-def lluvia_invernal(estacion_codigo: str, temporada: str) -> dict:
-    estacion = Estacion.objects.get(codigo=estacion_codigo)  # error si no existe
-    hoy = pd.Timestamp.now(tz=TZ).date()
+def lluvia_invernal(estacion: Estacion, temporada: str) -> dict:
+    hoy = timezone.localdate()
     return _acumulado_invernal(estacion, temporada, ConfiguracionCalidad.obtener_umbral(), hoy)
 
 
@@ -56,16 +45,16 @@ def lluvia_invernal(estacion_codigo: str, temporada: str) -> dict:
 
 
 def eventos_lluvia(
-    estacion_codigo: str, desde, hasta, separacion_horas: int = SEPARACION_HORAS_EVENTO
+    estacion: Estacion, desde, hasta, separacion_horas: int = SEPARACION_HORAS_EVENTO
 ) -> dict:
-    estacion = Estacion.objects.get(codigo=estacion_codigo)
-    inicio_rango = pd.Timestamp(desde).tz_localize(TZ, nonexistent="shift_forward")
+    tz = timezone.get_current_timezone_name()
+    inicio_rango = pd.Timestamp(desde).tz_localize(tz, nonexistent="shift_forward")
     fin_rango = (pd.Timestamp(hasta) + pd.Timedelta(days=1)).tz_localize(
-        TZ, nonexistent="shift_forward"
+        tz, nonexistent="shift_forward"
     )  # incluye el día "hasta"
 
     data = {
-        "estacion_id": estacion_codigo,
+        "estacion_id": estacion.codigo,
         "desde": str(desde),
         "hasta": str(hasta),
         "separacion_horas": separacion_horas,
@@ -88,7 +77,7 @@ def eventos_lluvia(
         return data
 
     serie = pd.DataFrame(filas, columns=["timestamp", "valor"])
-    serie["timestamp"] = pd.to_datetime(serie["timestamp"], utc=True).dt.tz_convert(TZ)
+    serie["timestamp"] = pd.to_datetime(serie["timestamp"], utc=True).dt.tz_convert(tz)
     serie["fecha"] = serie["timestamp"].dt.date
     total_dia = serie.groupby("fecha")["valor"].sum(min_count=1)
 
@@ -129,10 +118,9 @@ def eventos_lluvia(
 # Comparación contra el promedio histórico
 
 
-def comparar_lluvia_invernal(estacion_codigo: str, temporadas: list[str] | None = None) -> dict:
-    estacion = Estacion.objects.get(codigo=estacion_codigo)
+def comparar_lluvia_invernal(estacion: Estacion, temporadas: list[str] | None = None) -> dict:
     umbral = ConfiguracionCalidad.obtener_umbral()
-    hoy = pd.Timestamp.now(tz=TZ).date()
+    hoy = timezone.localdate()
 
     anios = ResumenDiario.objects.filter(estacion=estacion, precipitacion__isnull=False).dates(
         "fecha", "year"
@@ -148,7 +136,7 @@ def comparar_lluvia_invernal(estacion_codigo: str, temporadas: list[str] | None 
     promedio = round(sum(base) / len(base), 1) if len(base) >= MIN_TEMPORADAS_PROMEDIO else None
 
     resultado = {
-        "estacion_id": estacion_codigo,
+        "estacion_id": estacion.codigo,
         "promedio_historico_mm": promedio,
         "temporadas_en_promedio": len(base),
         "temporadas": [],

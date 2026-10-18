@@ -185,11 +185,6 @@ def test_dia_sin_datos_es_null_con_motivo():
     assert res.motivo_nulo == "Sensor en mantención"
 
 
-def test_resumen_diario_estacion_inexistente_falla():
-    with pytest.raises(Estacion.DoesNotExist):
-        resumen_diario("no-existe", "2025-01-01", "2025-01-31")
-
-
 def test_cadena_medicion_a_resumen_diario():
     est = Estacion.objects.create(nombre="Cadena", codigo="cadena")
     for var, val in [
@@ -205,7 +200,7 @@ def test_cadena_medicion_a_resumen_diario():
             valor=val,
         )
     call_command("generar_resumenes")
-    data = resumen_diario("cadena", "2025-01-01", "2025-01-31")
+    data = resumen_diario(est, "2025-01-01", "2025-01-31")
     assert data["dias"][0]["tmax"] == 25.0
     assert data["dias"][0]["amplitud"] == 15.0
 
@@ -221,7 +216,7 @@ def test_completitud_temporada_sin_lluvia_tiene_observacion():
             tmin=10.0,
             tmedia=17.0,
         )
-    res = completitud_por_temporada("comp")
+    res = completitud_por_temporada(est)
     assert len(res) == 1
     assert res[0]["variables"]["precipitacion"] == 0
     assert "observacion" in res[0]
@@ -275,7 +270,7 @@ def estacion_contrato():
 
 def test_contrato_resumen_diario(estacion_contrato):
     ejemplo = EJEMPLO["resumen_diario"]
-    data = resumen_diario("cp-test-01", "2024-01-25", "2024-01-31")
+    data = resumen_diario(estacion_contrato, "2024-01-25", "2024-01-31")
     assert set(data) == set(ejemplo)
 
     dia_normal = ejemplo["dias"][0]
@@ -289,7 +284,7 @@ def test_contrato_completitud_por_temporada(estacion_contrato):
     sin_obs = next(i for i in ejemplo if "observacion" not in i)
     con_obs = next(i for i in ejemplo if "observacion" in i)
 
-    item = completitud_por_temporada("cp-test-01")[0]
+    item = completitud_por_temporada(estacion_contrato)[0]
     assert set(item) - {"observacion"} == set(sin_obs)
     assert set(item["variables"]) == set(sin_obs["variables"])
     assert item["observacion"] == con_obs["observacion"]  # el fixture no tiene lluvia

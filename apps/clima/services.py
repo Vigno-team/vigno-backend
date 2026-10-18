@@ -1,10 +1,10 @@
 import pandas as pd
 from django.db.models import Count, Max, Min, Q
+from django.utils import timezone
 
 from apps.clima.models import ConfiguracionCalidad, Estacion, ResumenDiario
-from apps.clima.temporadas import rango_de, temporada_de
+from apps.clima.temporadas import rango_temporada, temporada_de
 
-TZ = "America/Santiago"
 HAY_DATO = (
     Q(tmax__isnull=False)
     | Q(tmin__isnull=False)
@@ -15,8 +15,9 @@ RESOLUCION = {"D": "diaria", "H": "horaria"}
 
 
 def horas_del_dia(fecha) -> int:
-    ini = pd.Timestamp(fecha).tz_localize(TZ, nonexistent="shift_forward")
-    fin = (pd.Timestamp(fecha) + pd.Timedelta(days=1)).tz_localize(TZ, nonexistent="shift_forward")
+    tz = timezone.get_current_timezone_name()
+    ini = pd.Timestamp(fecha).tz_localize(tz, nonexistent="shift_forward")
+    fin = (pd.Timestamp(fecha) + pd.Timedelta(days=1)).tz_localize(tz, nonexistent="shift_forward")
     return int((fin - ini) / pd.Timedelta(hours=1))
 
 
@@ -40,7 +41,7 @@ def derivar_resumenes_diarios(df_ingesta: pd.DataFrame) -> list[ResumenDiario]:
     config = ConfiguracionCalidad.obtener_config()
 
     ts = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
-    df["fecha"] = ts.dt.tz_convert(TZ).dt.date
+    df["fecha"] = ts.dt.tz_convert(timezone.get_current_timezone_name()).dt.date
     df = df.dropna(subset=["fecha", "frecuencia"])
 
     campos_update = [
@@ -162,13 +163,11 @@ def derivar_resumenes_diarios(df_ingesta: pd.DataFrame) -> list[ResumenDiario]:
 # Funciones del contrato JSON
 
 
-def resumen_diario(estacion_codigo: str, desde: str, hasta: str) -> dict:
-    # Lanza Estacion.DoesNotExist si es que el código no existe
-    estacion = Estacion.objects.get(codigo=estacion_codigo)
+def resumen_diario(estacion: Estacion, desde: str, hasta: str) -> dict:
     dias = ResumenDiario.objects.filter(estacion=estacion, fecha__range=[desde, hasta]).order_by(
         "fecha"
     )
-    data = {"estacion_id": estacion_codigo, "desde": desde, "hasta": hasta, "dias": []}
+    data = {"estacion_id": estacion.codigo, "desde": desde, "hasta": hasta, "dias": []}
 
     for d in dias:
         dia_dict = {
@@ -185,14 +184,13 @@ def resumen_diario(estacion_codigo: str, desde: str, hasta: str) -> dict:
     return data
 
 
-def completitud_por_temporada(estacion_codigo: str | None = None) -> list[dict]:
+def completitud_por_temporada(estacion: Estacion | None = None) -> list[dict]:
     qs = ResumenDiario.objects.all()
-    if estacion_codigo:
-        estacion = Estacion.objects.get(codigo=estacion_codigo)  # error si no existe
+    if estacion is not None:
         qs = qs.filter(estacion=estacion)
 
     umbral = ConfiguracionCalidad.obtener_umbral()
-    hoy = pd.Timestamp.now(tz=TZ).date()
+    hoy = timezone.localdate()
 
     filas = (
         qs.values("estacion__codigo", "temporada")
@@ -207,7 +205,7 @@ def completitud_por_temporada(estacion_codigo: str | None = None) -> list[dict]:
 
     resultado = []
     for f in filas:
-        inicio, fin = rango_de(f["temporada"])
+        inicio, fin = rango_temporada(f["temporada"])
         fin = min(fin, hoy)
         total = max((fin - inicio).days + 1, 1)
 

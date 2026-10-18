@@ -1,21 +1,21 @@
 import json
 from pathlib import Path
 
-import pandas as pd
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Max, Min
+from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
 from apps.clima import resultados, serializers, services
 from apps.clima.models import Estacion, ResumenDiario
-from apps.clima.services import HAY_DATO, TZ
+from apps.clima.services import HAY_DATO
 from apps.clima.temporadas import temporada_de
 
 SALIDA = "data/cliente/vigno-datos-reales.json"
 
 
 def exportar() -> dict:
-    ahora = pd.Timestamp.now(tz=TZ)
+    ahora = timezone.localtime()
     resumen, fichas, rachas = [], [], []
 
     for est in Estacion.objects.order_by("nombre"):
@@ -24,9 +24,7 @@ def exportar() -> dict:
         if rango["desde"] is None:
             continue
         resumen.append(
-            services.resumen_diario(
-                est.codigo, rango["desde"].isoformat(), rango["hasta"].isoformat()
-            )
+            services.resumen_diario(est, rango["desde"].isoformat(), rango["hasta"].isoformat())
         )
 
         # sin el order_by, distinct no saca las temporadas repetidas
@@ -45,7 +43,7 @@ def exportar() -> dict:
 
     return {
         "generado": ahora.isoformat(timespec="seconds"),
-        "temporada_en_curso": temporada_de(ahora.date()),
+        "temporada_en_curso": temporada_de(timezone.localdate()),
         "estaciones": serializers.EstacionResultadoSerializer(
             services.estaciones(), many=True
         ).data,

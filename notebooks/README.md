@@ -9,7 +9,7 @@ Convenciones:
   lo hace automaticamente; si no lo tienes instalado, corre `nbstripout <archivo>`
   antes de commitear.
 - Un notebook no es un entregable de produccion. Cuando un experimento funciona,
-  el codigo se migra a `apps/ml/`.
+  el codigo se migra a `apps/ml/` (hoy archivada, ver la rama `archivo/e1c-20`).
 - Nunca guardar datos del cliente aqui. Usar `data/synthetic/`.
 
 Para trabajar con notebooks instala las dependencias del track de datos:
