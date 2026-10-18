@@ -2,7 +2,8 @@ from datetime import date, timedelta
 
 import pytest
 
-from apps.clima.dias_criticos import calcular_dias_sobre_umbral, obtener_dias_criticos
+from apps.clima.dias_criticos import obtener_dias_criticos
+from apps.clima.indices import calcular_dias_sobre_umbral
 from apps.clima.models import Estacion, IndiceClimatico, ResumenDiario
 
 

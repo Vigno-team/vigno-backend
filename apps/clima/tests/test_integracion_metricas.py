@@ -5,8 +5,7 @@ from datetime import date, timedelta
 import pytest
 
 from apps.clima.comparacion import comparar_temporadas
-from apps.clima.dias_criticos import calcular_dias_sobre_umbral
-from apps.clima.indices import calcular_indices_temporada
+from apps.clima.indices import calcular_dias_sobre_umbral, calcular_indices_temporada
 from apps.clima.lluvia import lluvia_invernal
 from apps.clima.metricas import valor_metrica
 from apps.clima.models import Estacion, IndiceClimatico, ResumenDiario
@@ -66,6 +65,10 @@ def test_ficha_y_dias_criticos_comparten_umbral_ventana_y_calidad(estacion):
     assert ficha["calor"]["calidad_dato"]["completitud_pct"] == 100
     assert ficha["calor"]["calidad_dato"]["confiable"] is True
     assert ficha["calor"]["calidad_dato"]["version_calculo"] == "dias_umbral-v2_36c_1001-0430"
+    guardado = IndiceClimatico.objects.get(
+        estacion=estacion, temporada="2024-2025", indice="DiasSobreUmbral"
+    )
+    assert ficha["calor"]["calidad_dato"]["version_calculo"] == guardado.version_calculo
 
 
 def test_solo_datos_fuera_de_la_ventana_no_inventan_cero(estacion):

@@ -5,6 +5,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from apps.clima.calidad import construir_calidad_dato, resolucion_desde_origenes
+from apps.clima.metricas import calidad_metrica
 from apps.clima.models import ConfiguracionCalidad, Estacion, ResumenDiario
 from apps.clima.temporadas import (
     MES_INICIO_ANIO_AGRICOLA,
@@ -22,13 +23,14 @@ def _medir(lluvia, inicio: date, fin: date, hoy: date, umbral: float) -> dict:
     valores = [
         valor for fecha, valor in lluvia.items() if inicio <= fecha <= hasta and valor is not None
     ]
-    completitud = round(min(len(valores) / esperados * 100, 100), 1) if esperados else None
+    calidad = calidad_metrica(len(valores), esperados, umbral)
+    completitud = calidad["completitud_pct"]
     return {
         "mm": round(sum(valores), 1) if valores else None,
         "dias_con_dato": len(valores),
         "dias_esperados": esperados,
-        "completitud_pct": completitud,
-        "confiable": completitud is not None and completitud >= umbral and bool(valores),
+        "completitud_pct": round(completitud, 1) if completitud is not None else None,
+        "confiable": calidad["confiable"],
     }
 
 

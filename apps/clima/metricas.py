@@ -112,6 +112,18 @@ METRICAS = {
 }
 
 
+def version_calculo(metrica: str, temporada: str) -> str:
+    """Versión publicada de la métrica, compartida por persistencia y API."""
+    inicio, fin = METRICAS[metrica][1](temporada)
+    if metrica == "winkler":
+        return "winkler-v1_base10_1001-0430"
+    if metrica == "huglin":
+        return "huglin-v1_base10_1001-0331"
+    if metrica == "dias_sobre_umbral":
+        return f"dias_umbral-v2_{float(settings.UMBRAL_CALOR_C):g}c_{inicio:%m%d}-{fin:%m%d}"
+    return f"lluvia-invernal-v1_{inicio:%d%m}-{fin:%d%m}"
+
+
 def calidad_metrica(dias_con_dato, dias_esperados, umbral, *, habilitada=True):
     """Porcentaje sin redondear y confiabilidad; ausencia nunca equivale a cero observado."""
     completitud = (
@@ -175,17 +187,11 @@ def valor_metrica(
         parametros["temp_base"] = 10.0
         clasificar = clasificar_winkler if metrica == "winkler" else clasificar_huglin
         clasificacion = clasificar(valor) if calidad["confiable"] else "Sin datos suficientes"
-        version = (
-            "winkler-v1_base10_1001-0430" if metrica == "winkler" else "huglin-v1_base10_1001-0331"
-        )
         if metrica == "huglin":
             parametros.update(k=k_huglin(estacion.latitud), latitud=estacion.latitud)
     elif metrica == "dias_sobre_umbral":
         umbral_c = float(settings.UMBRAL_CALOR_C)
         parametros["umbral_tmax"] = umbral_c
-        version = f"dias_umbral-v2_{umbral_c:g}c_{inicio:%m%d}-{fin:%m%d}"
-    else:
-        version = f"lluvia-invernal-v1_{inicio:%d%m}-{fin:%d%m}"
     return {
         "valor": float(valor) if valor is not None else None,
         "dias_con_dato": n,
@@ -193,5 +199,5 @@ def valor_metrica(
         "confiable": calidad["confiable"],
         "parametros": parametros,
         "clasificacion": clasificacion,
-        "version_calculo": version,
+        "version_calculo": version_calculo(metrica, temporada),
     }
