@@ -203,7 +203,6 @@ def ficha_temporada(estacion, temporada):
         "lluvia_invernal": bloque_lluvia,
         "lluvia_fuera_invierno": lluvia_exterior,
         "calor": calor,
-        # La clasificación térmica/hídrica pertenece a E1C-18; no se inventa aquí.
         "clasificacion": _clasificacion(estacion, temporada),
         "dias_criticos": obtener_dias_criticos(estacion, temporada, limite=10),
     }
