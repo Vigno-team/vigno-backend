@@ -1,7 +1,7 @@
 import pandas as pd
-from django.db.models import Count, Sum
 from django.utils import timezone
 
+from apps.clima.metricas import valor_metrica
 from apps.clima.models import ConfiguracionCalidad, Estacion, MedicionHoraria, ResumenDiario
 from apps.clima.temporadas import MIN_TEMPORADAS_PROMEDIO, rango_invernal
 
@@ -12,23 +12,17 @@ SEPARACION_HORAS_EVENTO = 6
 
 def _acumulado_invernal(estacion: Estacion, temporada: str, umbral: float, hoy) -> dict:
     ini, fin = rango_invernal(temporada)
-    # Se filtra por fecha y no por la columna `temporada`: esa columna parte en julio,
-    # mayo-junio caen en la temporada anterior.
-    agg = ResumenDiario.objects.filter(estacion=estacion, fecha__range=[ini, fin]).aggregate(
-        total=Sum("precipitacion"), n=Count("precipitacion")
-    )
-    n_dias, total = agg["n"], agg["total"]
-
-    fin_efectivo = min(fin, hoy)  # invierno en curso: se espera hasta hoy
-    esperados = max((fin_efectivo - ini).days + 1, 0)
-    completitud = round(min(n_dias / esperados * 100, 100), 1) if esperados else None
-    confiable = completitud is not None and completitud >= umbral
+    medicion = valor_metrica(estacion, "lluvia_invernal", temporada, hoy, umbral)
+    n_dias, total = medicion["dias_con_dato"], medicion["valor"]
+    esperados = medicion["dias_esperados"]
+    completitud = medicion["completitud_pct"]
+    confiable = medicion["confiable"]
 
     item = {
         "estacion_id": estacion.codigo,
         "temporada": temporada,
         "periodo": {"desde": ini.isoformat(), "hasta": fin.isoformat()},
-        "acumulado_mm": round(total, 1) if total is not None else None,
+        "acumulado_mm": total,
         "dias_con_dato": n_dias,
         "dias_esperados": esperados,
         "completitud_pct": completitud,

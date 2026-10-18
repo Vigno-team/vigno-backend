@@ -1,50 +1,18 @@
 from datetime import date
 
 import pandas as pd
-from django.conf import settings
 from django.db.models import Max, Min, Q
 from django.utils import timezone
 
-from apps.clima.indices import aporte_huglin, aporte_winkler, k_huglin
+from apps.clima.metricas import METRICAS as METRICAS
+from apps.clima.metricas import valor_metrica as valor_metrica
 from apps.clima.models import ConfiguracionCalidad, Estacion, ResumenDiario
-from apps.clima.temporadas import rango_dias_calor, rango_huglin, rango_invernal, rango_winkler
 
 # Variables de temperatura que se comparan entre estaciones.
 VARIABLES_TERMICAS = ("tmedia", "tmax", "tmin")
 
 
 # Métricas por temporada
-
-
-def _winkler(dias, estacion):
-    aportes = [a for d in dias if (a := aporte_winkler(d)) is not None]
-    return (round(sum(aportes), 1) if aportes else None), len(aportes)
-
-
-def _huglin(dias, estacion):
-    k = k_huglin(estacion.latitud)
-    aportes = [a for d in dias if (a := aporte_huglin(d, k)) is not None]
-    return (round(sum(aportes), 1) if aportes else None), len(aportes)
-
-
-def _dias_sobre_umbral(dias, estacion):
-    umbral_c = float(getattr(settings, "UMBRAL_CALOR_C", 35.0))
-    con_dato = [d for d in dias if d.tmax is not None]
-    return (sum(d.tmax >= umbral_c for d in con_dato) if con_dato else None), len(con_dato)
-
-
-def _lluvia(dias, estacion):
-    mm = [d.precipitacion for d in dias if d.precipitacion is not None]
-    return (round(sum(mm), 1) if mm else None), len(mm)
-
-
-# nombre: (unidad, ventana de la temporada, función que calcula (valor, días con dato))
-METRICAS = {
-    "winkler": ("°C·día", rango_winkler, _winkler),
-    "huglin": ("°C·día", rango_huglin, _huglin),
-    "dias_sobre_umbral": ("días", rango_dias_calor, _dias_sobre_umbral),
-    "lluvia_invernal": ("mm", rango_invernal, _lluvia),
-}
 
 
 def _trasladar(fecha: date, ini_origen: date, ini_destino: date) -> date:
@@ -70,35 +38,6 @@ def cortes(metrica: str, temporadas: list[str], hoy: date) -> tuple[dict[str, da
     ini0 = ventanas[temporadas[0]][0]
     corte0 = min(_trasladar(min(fin, hoy), ini, ini0) for ini, fin in ventanas.values())
     return {t: _trasladar(corte0, ini0, ini) for t, (ini, _) in ventanas.items()}, "al_mismo_dia"
-
-
-def valor_metrica(estacion: Estacion, metrica: str, temporada: str, corte: date, umbral: float):
-    """Valor de una métrica en una temporada, acumulado hasta `corte`, con su calidad."""
-    _, ventana, calculo = METRICAS[metrica]
-    ini, fin = ventana(temporada)
-    hasta = min(fin, corte)
-    esperados = max((hasta - ini).days + 1, 0)
-    dias = (
-        list(ResumenDiario.objects.filter(estacion=estacion, fecha__range=(ini, hasta)))
-        if esperados
-        else []
-    )
-    valor, n = calculo(dias, estacion)
-    completitud = round(min(n / esperados * 100, 100), 1) if esperados else None
-    confiable = (
-        valor is not None
-        and completitud is not None
-        and completitud >= umbral
-        and (metrica != "huglin" or estacion.latitud is not None)
-    )
-    return {
-        "valor": valor,
-        "dias_con_dato": n,
-        "dias_esperados": esperados,
-        "completitud_pct": completitud,
-        "confiable": confiable,
-        "hasta": hasta.isoformat(),
-    }
 
 
 # E1C-50: comparar temporadas

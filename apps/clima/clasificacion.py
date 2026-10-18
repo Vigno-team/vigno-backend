@@ -2,7 +2,8 @@ from datetime import date
 
 from django.utils import timezone
 
-from apps.clima.comparacion import METRICAS, cortes, temporadas_con_datos, valor_metrica
+from apps.clima.comparacion import cortes, temporadas_con_datos
+from apps.clima.metricas import METRICAS, valor_metrica
 from apps.clima.models import ConfiguracionCalidad, Estacion
 
 # Cortes provisionales: CONFIRMAR con el enólogo. Están aquí para cambiarlos en un solo lugar.

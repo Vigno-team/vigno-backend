@@ -92,9 +92,7 @@ También se pueden probar en `http://localhost:8000/api/docs/`.
 - Los promedios de lluvia siguen el módulo existente: mínimo de dos inviernos
   terminados y confiables. La diferencia puede ser `null` aunque exista un acumulado.
 
-El calor se calcula sobre la temporada agrícola completa del contrato; Winkler,
-Huglin y lluvia conservan sus ventanas específicas. No se cambia la fórmula ni
-la ventana de los módulos de cálculo.
+Desde E1C-107, `dias_sobre_umbral` y la calidad del bloque `calor` usan del 1 de octubre al 30 de abril, la misma ventana del índice guardado y de la comparación. Las rachas y los días críticos siguen usando la temporada completa.
 
 ## Configuración de calor
 
@@ -113,8 +111,7 @@ docker compose up -d --force-recreate backend
 ```
 
 Ambos endpoints comparten estos parámetros. Los parámetros aparecen en las respuestas
-y en la versión de la métrica de calor/rachas. La configuración aplica a la API;
-el comando previo `calcular_indices` conserva el comportamiento del equipo.
+y en la versión de la métrica de calor/rachas. La configuración aplica a la API y, desde E1C-107, también al comando `calcular_indices`.
 
 ## Dependencias para cerrar la historia
 
