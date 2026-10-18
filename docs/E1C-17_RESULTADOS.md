@@ -1,4 +1,4 @@
-﻿# E1C-17 Resultados y calidad de datos
+# E1C-17 Resultados y calidad de datos
 
 Esta implementación cubre E1C-46 (endpoints de resultados) y E1C-47 (metadatos de
 completitud y confiabilidad) en la rama `feat/e1c-17-resultados-calidad`, Sprint 3.
@@ -135,5 +135,3 @@ errores 400/404, catálogos para seleccionar datos y esquema OpenAPI actualizado
 E1C-47: completitud, umbral, confiabilidad, resolución, versión de cálculo y tratamiento
 de nulos comprobados por pruebas. Añadir al PR el resultado de las pruebas ejecutadas
 en la rama y una consulta local de ejemplo, sin adjuntar datos reales del cliente.
-
-
