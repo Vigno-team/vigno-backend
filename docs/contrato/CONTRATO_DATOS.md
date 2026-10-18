@@ -254,8 +254,7 @@ Precisiones de calidad para esta entrega:
   no hay un índice calculado. Para los índices existentes se conserva la versión
   guardada por el motor, sin reemplazarla por la del JSON ficticio.
 - La completitud de los índices usa los días válidos/esperados guardados por el motor,
-  en la ventana de cada índice. La de calor y rachas usa días con Tmáx sobre los días
-  esperados de la temporada (hasta hoy, en hora de Chile, si está en curso).
+  en la ventana de cada índice. La de `calor` usa días con Tmáx sobre los días esperados entre el 1 de octubre y el 30 de abril, igual que `dias_sobre_umbral`; la del detalle de `rachas` usa la temporada completa. En ambos casos, hasta hoy (hora de Chile) si la temporada está en curso.
   Son porcentajes basados en resúmenes diarios: `resolucion_origen` informa si estos
   provienen de datos diarios, horarios o mixtos; no afirma una cobertura horaria.
 - Se informa el umbral de completitud actualmente configurado. Un índice es confiable

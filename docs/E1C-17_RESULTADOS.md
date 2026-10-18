@@ -111,8 +111,7 @@ docker compose up -d --force-recreate backend
 ```
 
 Ambos endpoints comparten estos parámetros. Los parámetros aparecen en las respuestas
-y en la versión de la métrica de calor/rachas. La configuración aplica a la API;
-el comando previo `calcular_indices` conserva el comportamiento del equipo.
+y en la versión de la métrica de calor/rachas. La configuración aplica a la API y, desde E1C-107, también al comando `calcular_indices`.
 
 ## Dependencias para cerrar la historia
 
