@@ -2,7 +2,7 @@ import pandas as pd
 
 # Etiquetas originales de Subset1.xls, Figshare 19807777 (CC BY 4.0).
 # Recommend describe recomendación del cultivar, no una cata de cada cosecha.
-# La equivalencia alta/media/baja es la regla del proyecto confirmada por el autor.
+# Escala provisional de alta/media/baja, a confirmar con el enólogo.
 NIVELES_RECOMMEND = [
     "Particularly recommended",
     "Limited recommendation",
