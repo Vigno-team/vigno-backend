@@ -64,3 +64,6 @@ htmlcov/
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+# Archivo de prueba
+config/areas_mapa.dev.json

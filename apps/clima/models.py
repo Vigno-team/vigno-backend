@@ -8,6 +8,7 @@ class Estacion(models.Model):
     subzona = models.CharField(max_length=50, null=True, blank=True)
     propietario = models.CharField(max_length=100, null=True, blank=True)
     latitud = models.FloatField(null=True, blank=True)
+    longitud = models.FloatField(null=True, blank=True)
 
     class Meta:
         verbose_name_plural = "Estaciones"
