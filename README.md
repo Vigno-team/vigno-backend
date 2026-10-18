@@ -299,3 +299,22 @@ docker compose exec backend python manage.py exportar_json
 Queda en `data/cliente/vigno-datos-reales.json`. Tiene datos del cliente: se comparte
 por el Drive, no por el repo.
 ---
+
+### Histórico de California (E1C-78)
+
+Fuente: Bai, Huiqing (2022), *data*, Figshare, CC BY 4.0.
+https://doi.org/10.6084/m9.figshare.19807777.v1
+
+Descargar `data.zip` y colocar los originales `Subset1.xls`, `Subset2.xls` y
+`Subset3.xls` en `data/ficticio/` (ignorado por Git). No renombrar .xls a .xlsx.
+Instalar las dependencias actualizadas o reconstruir el backend, y ejecutar:
+
+```bash
+docker compose exec backend python manage.py cargar_dataset_ficticio
+```
+
+El lector usa `data` en Subset1/2 y los índices anuales de I:L de `Region_1`
+a `Region_5` en Subset3. Obtiene el año de la fecha de cosecha en Subset1,
+convierte las regiones 1–5 a I–V y conserva las etiquetas originales de Recommend.
+También acepta tablas .xlsx ya normalizadas, pero no dos versiones del mismo
+Subset a la vez. No sustituye índices climáticos ausentes por cero.
