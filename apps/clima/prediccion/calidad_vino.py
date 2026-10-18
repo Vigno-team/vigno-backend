@@ -1,11 +1,16 @@
 import pandas as pd
 
-# Los 5 niveles de `recommend` (Amerine & Winkler), de mejor a peor, tal como
-# vienen en la hoja de metadatos del Excel. PENDIENTE: copiar los valores reales.
-NIVELES_RECOMMEND = ["Nivel1", "Nivel2", "Nivel3", "Nivel4", "Nivel5"]
-# Escala provisional, a confirmar con el enólogo: los 2 mejores = alta, el del
-# medio = media y los 2 peores = baja.
-ESCALA = dict(zip(NIVELES_RECOMMEND, ["alta", "alta", "media", "baja", "baja"], strict=True))
+# Etiquetas originales de Subset1.xls, Figshare 19807777 (CC BY 4.0).
+# Recommend describe recomendación del cultivar, no una cata de cada cosecha.
+# La equivalencia alta/media/baja es la regla del proyecto confirmada por el autor.
+NIVELES_RECOMMEND = [
+    "Particularly recommended",
+    "Limited recommendation",
+    "Not recommended",
+]
+ESCALA = dict(zip(NIVELES_RECOMMEND, ["alta", "media", "baja"], strict=True))
+# No son grados de calidad: se excluyen del denominador de pct_alta.
+ESCALA.update({"Not fully tested": None, "Table grape": None})
 
 
 def _pct_alta(calidades: pd.Series) -> float | None:

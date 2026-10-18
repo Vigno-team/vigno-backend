@@ -3,7 +3,7 @@ import pytest
 
 from apps.clima.prediccion.calidad_vino import NIVELES_RECOMMEND, calidad_por_temporada
 
-MEJOR, _, MEDIO, _, PEOR = NIVELES_RECOMMEND
+MEJOR, MEDIO, PEOR = NIVELES_RECOMMEND
 
 
 def _cosechas():
@@ -51,3 +51,22 @@ def test_recommend_desconocido_falla():
     df.loc[0, "recommend"] = "Inventado"
     with pytest.raises(ValueError, match="Inventado"):
         calidad_por_temporada(df)
+
+
+@pytest.mark.parametrize("etiqueta", ["Not fully tested", "Table grape"])
+def test_etiqueta_sin_clasificacion_no_cuenta_como_baja(etiqueta):
+    df = _cosechas()
+    df.loc[3, "recommend"] = etiqueta
+    df.loc[4, "recommend"] = etiqueta
+    res = calidad_por_temporada(df).set_index(["fuente", "region", "anio"])
+    assert res.loc[("Amerine & Winkler", "I", 1935), "pct_alta"] == 66.7
+    assert pd.isna(res.loc[("Amerine & Winkler", "II", 1935), "pct_alta"])
+    assert res.loc[("Amerine & Winkler", "II", 1935), "motivo_nulo"]
+
+
+def test_escala_usa_las_etiquetas_originales():
+    assert NIVELES_RECOMMEND == [
+        "Particularly recommended",
+        "Limited recommendation",
+        "Not recommended",
+    ]

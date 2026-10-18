@@ -279,3 +279,23 @@ docker compose exec backend python manage.py exportar_json
 Queda en `data/cliente/vigno-datos-reales.json`. Tiene datos del cliente: se comparte
 por el Drive, no por el repo.
 ---
+
+### Clasificación del histórico de California (E1C-79)
+
+Fuente: Bai, Huiqing (2022), *data*, Figshare, CC BY 4.0.
+https://doi.org/10.6084/m9.figshare.19807777.v1
+
+`Recommend` de Subset1 describe la recomendación de los cultivares. Para el
+indicador del proyecto se adopta esta equivalencia: `Particularly recommended`
+→ alta, `Limited recommendation` → media y `Not recommended` → baja.
+`Not fully tested` y `Table grape` quedan sin clasificación y se excluyen del
+denominador de `pct_alta`, al igual que los datos faltantes. Sin evaluaciones,
+el porcentaje queda nulo con motivo. No es una puntuación de cata de cada vendimia.
+Las etiquetas desconocidas siguen produciendo un error para evitar clasificarlas
+silenciosamente. Napa solo publica °Brix, sin inventar calidad.
+
+Tras generar `data/ficticio/cosechas.csv` con E1C-78, ejecutar:
+
+```bash
+docker compose exec backend python manage.py clasificar_temporadas
+```
