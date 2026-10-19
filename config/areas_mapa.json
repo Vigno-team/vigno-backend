@@ -4,16 +4,6 @@
     {
       "type": "Feature",
       "properties": {
-        "codigo": "cp-villavicencio-01",
-        "nombre": "El Arenal",
-        "latitud": null,
-        "longitud": null
-      },
-      "geometry": null
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "codigo": "cp-san-clemente-01",
         "nombre": "San Clemente",
         "gid": 634572,
