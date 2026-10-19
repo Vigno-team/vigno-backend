@@ -147,3 +147,30 @@ class IndiceClimatico(models.Model):
 
     class Meta:
         unique_together = ("estacion", "temporada", "indice")
+
+
+class CapaSatelital(models.Model):
+    CAPAS = [("ndvi", "NDVI")]
+
+    estacion = models.ForeignKey(Estacion, on_delete=models.CASCADE, related_name="capas_satelitales")
+    capa = models.CharField(max_length=20, choices=CAPAS)
+    fecha_imagen = models.DateField()
+    limites = models.JSONField()
+    crs = models.CharField(max_length=32)
+    ancho = models.PositiveIntegerField()
+    alto = models.PositiveIntegerField()
+    resolucion_m = models.FloatField()
+    valores = models.JSONField()
+    porcentaje_validos = models.FloatField()
+    nubosidad_pct = models.FloatField(null=True, blank=True)
+    version = models.CharField(max_length=100)
+    generada_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("estacion", "capa", "fecha_imagen"),
+                name="clima_capa_satelital_estacion_capa_fecha_uniq",
+            )
+        ]
+        ordering = ("estacion", "capa", "-fecha_imagen")

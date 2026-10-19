@@ -5,7 +5,7 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.clima.areas_mapa import AreasMapaError, cargar_areas
+from apps.clima.areas_mapa import AreasMapaError, cargar_areas, cargar_geometria_predio
 from apps.clima.models import Estacion
 
 # Cuadrado de ~1 km cerca de Cauquenes, en [longitud, latitud].
@@ -39,6 +39,28 @@ def test_archivo_valido(tmp_path):
     assert areas[0].codigo == "prueba-01"
     assert (areas[0].latitud, areas[0].longitud) == (-35.525, -72.355)
     assert areas[0].estacion_dentro
+
+
+def test_config_real_carga_el_contorno_san_clemente():
+    from django.conf import settings
+
+    geometria = cargar_geometria_predio(
+        settings.BASE_DIR / "config" / "areas_mapa.json", "cp-san-clemente-01"
+    )
+
+    anillo = geometria["coordinates"][0]
+    assert geometria["type"] == "Polygon"
+    assert len(anillo) == 27
+    assert anillo[0] == anillo[-1]
+
+
+def test_contorno_faltante_se_informa_por_predio():
+    from django.conf import settings
+
+    with pytest.raises(AreasMapaError, match="cp-villavicencio-01.*geometry es null"):
+        cargar_geometria_predio(
+            settings.BASE_DIR / "config" / "areas_mapa.json", "cp-villavicencio-01"
+        )
 
 
 def test_estacion_fuera_del_contorno_no_es_error(tmp_path):

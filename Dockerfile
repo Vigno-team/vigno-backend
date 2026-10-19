@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libpq-dev \
         gcc \
+        libexpat1 \
         postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
