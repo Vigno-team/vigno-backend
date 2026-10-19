@@ -71,4 +71,4 @@ def predecir_ventana(modelo_rf: RandomForestRegressor, X_in: pd.DataFrame, anho_
 
 def extraer_justificacion(modelo_rf: RandomForestRegressor) -> dict:
     importancias = np.round(modelo_rf.feature_importances_, 3)
-    return dict(zip(FEATURES_PERMITIDAS, importancias))
+    return dict(zip(FEATURES_PERMITIDAS, importancias, strict=False))
