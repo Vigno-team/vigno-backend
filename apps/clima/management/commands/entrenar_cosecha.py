@@ -59,10 +59,10 @@ class Command(BaseCommand):
         justificacion = extraer_justificacion(modelo_rf)
 
         # Simula que queremos predecir la ventana para los registros más recientes
-        df_prediccion = df.dropna(
-            subset=["gst", "wi", "hi", "region", "color", "doy"]
-        ).tail(10).copy()
-        
+        df_prediccion = (
+            df.dropna(subset=["gst", "wi", "hi", "region", "color", "doy"]).tail(10).copy()
+        )
+
         for _, row in df_prediccion.iterrows():
             df_fila = pd.DataFrame([row])
             X_in, _ = preparar_datos(df_fila)
@@ -74,25 +74,29 @@ class Command(BaseCommand):
             anho_cosecha = int(row.get("anho_cosecha", datetime.now().year))
             ventana = predecir_ventana(modelo_rf, X_in, anho_cosecha)
 
-            resultados.append({
-                "temporada": str(row.get("temporada", f"{anho_cosecha-1}-{anho_cosecha}")),
-                "subzona": str(row.get("subzona", "Cauquenes")),
-                "cepa": str(row.get("cepa", "Cabernet Sauvignon")),
-                "color": str(row.get("color", "tinto")),
-                "region_winkler": str(row.get("region", "IV")),
-                "prediccion": ventana,
-                "datos_entrada": {
-                    "GST": float(row["gst"]),
-                    "Winkler": float(row["wi"]),
-                    "Huglin": float(row["hi"]),
-                    "region": str(row["region"]),
-                    "color": str(row["color"]),
-                },
-                "justificacion": justificacion,
-            })
+            resultados.append(
+                {
+                    "temporada": str(row.get("temporada", f"{anho_cosecha-1}-{anho_cosecha}")),
+                    "subzona": str(row.get("subzona", "Cauquenes")),
+                    "cepa": str(row.get("cepa", "Cabernet Sauvignon")),
+                    "color": str(row.get("color", "tinto")),
+                    "region_winkler": str(row.get("region", "IV")),
+                    "prediccion": ventana,
+                    "datos_entrada": {
+                        "GST": float(row["gst"]),
+                        "Winkler": float(row["wi"]),
+                        "Huglin": float(row["hi"]),
+                        "region": str(row["region"]),
+                        "color": str(row["color"]),
+                    },
+                    "justificacion": justificacion,
+                }
+            )
 
         # Guardar el JSON del contrato
         with open(ruta_json, "w", encoding="utf-8") as f:
             json.dump(resultados, f, indent=2, ensure_ascii=False)
 
-        self.stdout.write(self.style.SUCCESS(f"Contrato JSON exportado exitosamente en {ruta_json}"))
+        self.stdout.write(
+            self.style.SUCCESS(f"Contrato JSON exportado exitosamente en {ruta_json}")
+        )
