@@ -134,3 +134,32 @@ def cargar_areas(ruta: Path) -> list[AreaMapa]:
     if errores:
         raise AreasMapaError("\n".join(errores))
     return areas
+
+
+def cargar_geometria_predio(ruta: Path, codigo: str) -> dict:
+    """Carga un contorno sin exigir coordenadas de estación ni los demás predios."""
+    try:
+        datos = json.loads(Path(ruta).read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise AreasMapaError(f"No existe {ruta}.") from exc
+    except json.JSONDecodeError as exc:
+        raise AreasMapaError(f"{ruta} no es un JSON válido: {exc}.") from exc
+
+    if not isinstance(datos, dict) or datos.get("type") != "FeatureCollection":
+        raise AreasMapaError("El archivo debe ser un GeoJSON de tipo FeatureCollection.")
+    features = datos.get("features")
+    if not isinstance(features, list):
+        raise AreasMapaError("La FeatureCollection no tiene una lista de features.")
+
+    encontrados = [
+        feature for feature in features if (feature.get("properties") or {}).get("codigo") == codigo
+    ]
+    if not encontrados:
+        raise AreasMapaError(f"No existe el predio {codigo} en {ruta}.")
+    if len(encontrados) > 1:
+        raise AreasMapaError(f"El predio {codigo} aparece más de una vez en {ruta}.")
+    geometria = encontrados[0].get("geometry")
+    if geometria is None:
+        raise AreasMapaError(f"{codigo}: falta el contorno del predio (geometry es null).")
+    _anillos(geometria, codigo)
+    return geometria

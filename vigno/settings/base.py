@@ -97,6 +97,10 @@ MINIMO_DIAS_INCIDENCIA = config("MINIMO_DIAS_INCIDENCIA", default=5, cast=int)
 UMBRAL_LLUVIA_INTENSA_MM = config("UMBRAL_LLUVIA_INTENSA_MM", default=10.0, cast=float)
 FACTOR_MES_INUSUAL = config("FACTOR_MES_INUSUAL", default=2.0, cast=float)
 
+# Credenciales para Copernicus Data Space (se mantienen fuera del repositorio).
+CDSE_CLIENT_ID = config("CDSE_CLIENT_ID", default="")
+CDSE_CLIENT_SECRET = config("CDSE_CLIENT_SECRET", default="")
+
 # --- Archivos estaticos ---
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
