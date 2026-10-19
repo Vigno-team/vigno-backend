@@ -114,8 +114,7 @@ def _seleccionar_escena(geometria: dict, token: str, hoy: date) -> tuple[date, f
         json={
             "collections": [COLECCION],
             "datetime": (
-                f"{datetime.combine(desde, time.min, UTC).isoformat()}"
-                f"/{hasta_dia.isoformat()}"
+                f"{datetime.combine(desde, time.min, UTC).isoformat()}/{hasta_dia.isoformat()}"
             ),
             "intersects": geometria,
             "limit": 100,
@@ -143,11 +142,7 @@ def _seleccionar_escena(geometria: dict, token: str, hoy: date) -> tuple[date, f
 
 
 def _crs_utm(geometria: dict) -> str:
-    longitudes = [
-        punto[0]
-        for anillo in _anillos_geometria(geometria)
-        for punto in anillo
-    ]
+    longitudes = [punto[0] for anillo in _anillos_geometria(geometria) for punto in anillo]
     latitudes = [punto[1] for anillo in _anillos_geometria(geometria) for punto in anillo]
     longitud = sum(longitudes) / len(longitudes)
     latitud = sum(latitudes) / len(latitudes)
@@ -189,9 +184,7 @@ def _payload_process(geometria: dict, fecha: date, crs: str) -> dict:
         "output": {
             "resx": RESOLUCION_M,
             "resy": RESOLUCION_M,
-            "responses": [
-                {"identifier": "default", "format": {"type": "image/tiff"}}
-            ],
+            "responses": [{"identifier": "default", "format": {"type": "image/tiff"}}],
         },
     }
 

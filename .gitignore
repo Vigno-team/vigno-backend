@@ -71,3 +71,4 @@ config/areas_mapa.dev.json
 # Dataset ficticio (E1C-78): se comparte por Drive hasta confirmar la licencia
 data/ficticio/*.xlsx
 data/ficticio/*.zip
+notebooks/graficos_exportados/ 

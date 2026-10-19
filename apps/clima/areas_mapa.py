@@ -152,9 +152,7 @@ def cargar_geometria_predio(ruta: Path, codigo: str) -> dict:
         raise AreasMapaError("La FeatureCollection no tiene una lista de features.")
 
     encontrados = [
-        feature
-        for feature in features
-        if (feature.get("properties") or {}).get("codigo") == codigo
+        feature for feature in features if (feature.get("properties") or {}).get("codigo") == codigo
     ]
     if not encontrados:
         raise AreasMapaError(f"No existe el predio {codigo} en {ruta}.")

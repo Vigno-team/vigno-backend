@@ -45,9 +45,7 @@ def crear_geotiff(valores=None):
 def geometria_prueba():
     return {
         "type": "Polygon",
-        "coordinates": [
-            [[-71.47, -35.51], [-71.46, -35.51], [-71.46, -35.52], [-71.47, -35.51]]
-        ],
+        "coordinates": [[[-71.47, -35.51], [-71.46, -35.51], [-71.46, -35.52], [-71.47, -35.51]]],
     }
 
 
@@ -275,4 +273,4 @@ def test_process_falla_cuando_el_servidor_devuelve_error_http():
                 hoy=date(2026, 10, 18),
                 client_id="id-test",
                 client_secret="secret-test",
-            )
+            )
