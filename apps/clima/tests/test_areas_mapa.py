@@ -54,13 +54,13 @@ def test_config_real_carga_el_contorno_san_clemente():
     assert anillo[0] == anillo[-1]
 
 
-def test_contorno_faltante_se_informa_por_predio():
-    from django.conf import settings
+def test_contorno_faltante_se_informa_por_predio(tmp_path):
+    ruta = escribir(tmp_path, feature("sin-geom", geometry=None))
+    with pytest.raises(AreasMapaError, match="sin-geom.*geometry es null"):
+        cargar_geometria_predio(ruta, "sin-geom")
 
-    with pytest.raises(AreasMapaError, match="cp-villavicencio-01.*geometry es null"):
-        cargar_geometria_predio(
-            settings.BASE_DIR / "config" / "areas_mapa.json", "cp-villavicencio-01"
-        )
+    with pytest.raises(AreasMapaError, match="No existe el predio no-existe"):
+        cargar_geometria_predio(ruta, "no-existe")
 
 
 def test_estacion_fuera_del_contorno_no_es_error(tmp_path):

@@ -101,6 +101,8 @@ def test_geotiff_se_convierte_en_grilla_norte_a_sur_con_nodata():
     assert (grilla.ancho, grilla.alto) == (2, 2)
     assert grilla.resolucion_m == 10
     assert grilla.crs == "EPSG:32719"
+    assert len(grilla.limites_latlon) == 4
+    assert grilla.limites_latlon[0] < grilla.limites_latlon[2]
     assert grilla.valores[0][0] == pytest.approx(0.4)
     assert grilla.valores[0][1] is None
     assert grilla.valores[1][0] is None
@@ -167,6 +169,7 @@ def test_comando_persiste_grilla_de_san_clemente_y_actualiza_idempotente():
     grilla = GrillaNDVI(
         fecha_imagen=date(2026, 10, 17),
         limites=[300000, 6069980, 300020, 6070000],
+        limites_latlon=[-71.204886, -35.493616, -71.204661, -35.493432],
         crs="EPSG:32719",
         ancho=2,
         alto=2,
@@ -182,6 +185,7 @@ def test_comando_persiste_grilla_de_san_clemente_y_actualiza_idempotente():
     capa = CapaSatelital.objects.get(estacion=estacion, capa="ndvi")
     assert CapaSatelital.objects.filter(estacion=estacion).count() == 1
     assert capa.fecha_imagen == date(2026, 10, 17)
+    assert capa.limites_latlon == [-71.204886, -35.493616, -71.204661, -35.493432]
     assert capa.valores[0][0] == pytest.approx(0.4)
     assert capa.valores[1][1] == pytest.approx(-0.2)
     assert capa.porcentaje_validos == 50
@@ -191,7 +195,7 @@ def test_comando_persiste_grilla_de_san_clemente_y_actualiza_idempotente():
 def test_comando_predio_sin_contorno_falla_sin_llamar_api():
     estacion = Estacion.objects.get(codigo="cp-villavicencio-01")
     with patch("apps.clima.satelite.requests.post") as post:
-        with pytest.raises(CommandError, match="geometry es null"):
+        with pytest.raises(CommandError, match="No existe el predio cp-villavicencio-01"):
             call_command("actualizar_mapa_calor", estacion=estacion.codigo, capa="ndvi")
     post.assert_not_called()
 
@@ -203,10 +207,12 @@ def test_scl_enmascara_sombra_y_clases_de_nube():
 
 
 def test_token_falla_cuando_el_servidor_devuelve_error_http():
+    import requests
+
     mock_error = Mock()
-    mock_error.raise_for_status.side_effect = Exception("401 Unauthorized")
+    mock_error.raise_for_status.side_effect = requests.RequestException("401 Unauthorized")
     with patch("apps.clima.satelite.requests.post", return_value=mock_error):
-        with pytest.raises(Exception, match="401"):
+        with pytest.raises(ErrorSatelite, match="Error al autenticar"):
             _token("id-malo", "secret-malo")
 
 
@@ -218,7 +224,6 @@ def test_token_falla_cuando_no_hay_access_token_en_la_respuesta():
 
 
 def test_catalog_falla_cuando_no_hay_escenas_validas_en_el_rango():
-    # Catálogo devuelve features pero todas fuera del rango de 30 días
     mock = respuesta(
         json_data={
             "features": [
@@ -237,14 +242,18 @@ def test_catalog_falla_cuando_no_hay_escenas_validas_en_el_rango():
 
 
 def test_catalog_falla_cuando_la_respuesta_http_es_error():
+    import requests
+
     mock_error = Mock()
-    mock_error.raise_for_status.side_effect = Exception("500 Server Error")
+    mock_error.raise_for_status.side_effect = requests.RequestException("500 Server Error")
     with patch("apps.clima.satelite.requests.post", return_value=mock_error):
-        with pytest.raises(Exception, match="500"):
+        with pytest.raises(ErrorSatelite, match="Error al consultar el catálogo"):
             _seleccionar_escena(geometria_prueba(), "token-test", date(2026, 10, 18))
 
 
 def test_process_falla_cuando_el_servidor_devuelve_error_http():
+    import requests
+
     respuestas = [
         respuesta(json_data={"access_token": "token-test"}),
         respuesta(
@@ -261,16 +270,17 @@ def test_process_falla_cuando_el_servidor_devuelve_error_http():
         ),
         Mock(
             **{
-                "raise_for_status.side_effect": Exception("503 Service Unavailable"),
+                "raise_for_status.side_effect": requests.RequestException("503 Service Unavailable"),
                 "status_code": 503,
             }
         ),
     ]
     with patch("apps.clima.satelite.requests.post", side_effect=respuestas):
-        with pytest.raises(Exception, match="503"):
+        with pytest.raises(ErrorSatelite, match="Error al solicitar el GeoTIFF"):
             obtener_grilla_ndvi(
                 geometria_prueba(),
                 hoy=date(2026, 10, 18),
                 client_id="id-test",
                 client_secret="secret-test",
             )
+

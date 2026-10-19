@@ -18,6 +18,7 @@ class Migration(migrations.Migration):
                 ('capa', models.CharField(choices=[('ndvi', 'NDVI')], max_length=20)),
                 ('fecha_imagen', models.DateField()),
                 ('limites', models.JSONField()),
+                ('limites_latlon', models.JSONField(blank=True, null=True)),
                 ('crs', models.CharField(max_length=32)),
                 ('ancho', models.PositiveIntegerField()),
                 ('alto', models.PositiveIntegerField()),

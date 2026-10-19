@@ -155,7 +155,7 @@ def cargar_geometria_predio(ruta: Path, codigo: str) -> dict:
         feature for feature in features if (feature.get("properties") or {}).get("codigo") == codigo
     ]
     if not encontrados:
-        raise AreasMapaError(f"{codigo}: falta el contorno del predio (geometry es null).")
+        raise AreasMapaError(f"No existe el predio {codigo} en {ruta}.")
     if len(encontrados) > 1:
         raise AreasMapaError(f"El predio {codigo} aparece más de una vez en {ruta}.")
     geometria = encontrados[0].get("geometry")

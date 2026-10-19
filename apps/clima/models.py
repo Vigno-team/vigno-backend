@@ -158,6 +158,7 @@ class CapaSatelital(models.Model):
     capa = models.CharField(max_length=20, choices=CAPAS)
     fecha_imagen = models.DateField()
     limites = models.JSONField()
+    limites_latlon = models.JSONField(null=True, blank=True)
     crs = models.CharField(max_length=32)
     ancho = models.PositiveIntegerField()
     alto = models.PositiveIntegerField()

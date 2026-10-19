@@ -7,8 +7,9 @@ import rasterio
 import requests
 from django.conf import settings
 from django.utils import timezone
+from rasterio.features import geometry_mask
 from rasterio.io import MemoryFile
-from rasterio.warp import transform_geom
+from rasterio.warp import transform_bounds, transform_geom
 
 from apps.clima.models import CapaSatelital, Estacion
 
@@ -57,6 +58,7 @@ class ErrorSatelite(ValueError):
 class GrillaNDVI:
     fecha_imagen: date
     limites: list[float]
+    limites_latlon: list[float]
     crs: str
     ancho: int
     alto: int
@@ -68,16 +70,19 @@ class GrillaNDVI:
 
 
 def _token(client_id: str, client_secret: str) -> str:
-    response = requests.post(
-        TOKEN_URL,
-        data={
-            "grant_type": "client_credentials",
-            "client_id": client_id,
-            "client_secret": client_secret,
-        },
-        timeout=TIMEOUT_SEGUNDOS,
-    )
-    response.raise_for_status()
+    try:
+        response = requests.post(
+            TOKEN_URL,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+            timeout=TIMEOUT_SEGUNDOS,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise ErrorSatelite(f"Error al autenticar con Copernicus Data Space: {exc}.") from exc
     token = response.json().get("access_token")
     if not token:
         raise ErrorSatelite("La respuesta de autenticación no contiene access_token.")
@@ -108,20 +113,23 @@ def _nubosidad(feature: dict) -> float:
 def _seleccionar_escena(geometria: dict, token: str, hoy: date) -> tuple[date, float]:
     desde = hoy - timedelta(days=29)
     hasta_dia = datetime.combine(hoy, time(23, 59, 59), UTC)
-    response = requests.post(
-        CATALOG_URL,
-        headers={"Authorization": f"Bearer {token}"},
-        json={
-            "collections": [COLECCION],
-            "datetime": (
-                f"{datetime.combine(desde, time.min, UTC).isoformat()}/{hasta_dia.isoformat()}"
-            ),
-            "intersects": geometria,
-            "limit": 100,
-        },
-        timeout=TIMEOUT_SEGUNDOS,
-    )
-    response.raise_for_status()
+    try:
+        response = requests.post(
+            CATALOG_URL,
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "collections": [COLECCION],
+                "datetime": (
+                    f"{datetime.combine(desde, time.min, UTC).isoformat()}/{hasta_dia.isoformat()}"
+                ),
+                "intersects": geometria,
+                "limit": 100,
+            },
+            timeout=TIMEOUT_SEGUNDOS,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise ErrorSatelite(f"Error al consultar el catálogo de Copernicus: {exc}.") from exc
     features = response.json().get("features", [])
     candidatas = []
     for feature in features:
@@ -189,7 +197,9 @@ def _payload_process(geometria: dict, fecha: date, crs: str) -> dict:
     }
 
 
-def _leer_geotiff(contenido: bytes, fecha: date, nubosidad_pct: float) -> GrillaNDVI:
+def _leer_geotiff(
+    contenido: bytes, fecha: date, nubosidad_pct: float, geometria: dict | None = None
+) -> GrillaNDVI:
     try:
         with MemoryFile(contenido) as memoria:
             with memoria.open() as dataset:
@@ -198,11 +208,33 @@ def _leer_geotiff(contenido: bytes, fecha: date, nubosidad_pct: float) -> Grilla
                 raster = dataset.read(1).tolist()
                 mascara = dataset.read_masks(1).tolist()
                 nodata = dataset.nodata
+                transform = dataset.transform
+                if dataset.crs is None:
+                    raise ErrorSatelite("El GeoTIFF no contiene CRS.")
+
+                # Máscara de pertenencia al polígono del predio (si se proporciona)
+                mask_predio = None
+                if geometria is not None:
+                    geometria_utm = transform_geom("EPSG:4326", dataset.crs.to_string(), geometria)
+                    mask_predio = geometry_mask(
+                        [geometria_utm],
+                        out_shape=(dataset.height, dataset.width),
+                        transform=transform,
+                        invert=True,
+                    )
+
                 valores = []
-                validos = 0
-                for fila, fila_mascara in zip(raster, mascara, strict=True):
+                validos_predio = 0
+                total_predio = 0
+                for r, (fila, fila_mascara) in enumerate(zip(raster, mascara, strict=True)):
                     fila_valores = []
-                    for valor, mascara_valor in zip(fila, fila_mascara, strict=True):
+                    for c, (valor, mascara_valor) in enumerate(
+                        zip(fila, fila_mascara, strict=True)
+                    ):
+                        en_predio = mask_predio[r, c] if mask_predio is not None else True
+                        if en_predio:
+                            total_predio += 1
+
                         if (
                             not mascara_valor
                             or not math.isfinite(float(valor))
@@ -211,26 +243,41 @@ def _leer_geotiff(contenido: bytes, fecha: date, nubosidad_pct: float) -> Grilla
                             fila_valores.append(None)
                         else:
                             fila_valores.append(float(valor))
-                            validos += 1
+                            if en_predio:
+                                validos_predio += 1
                     valores.append(fila_valores)
-                total = dataset.width * dataset.height
-                transform = dataset.transform
-                if dataset.crs is None:
-                    raise ErrorSatelite("El GeoTIFF no contiene CRS.")
+
+                total_referencia = total_predio if mask_predio is not None else (dataset.width * dataset.height)
+                porcentaje_validos = (
+                    round(validos_predio / total_referencia * 100, 1) if total_referencia else 0.0
+                )
+
+                limites_utm = [
+                    float(dataset.bounds.left),
+                    float(dataset.bounds.bottom),
+                    float(dataset.bounds.right),
+                    float(dataset.bounds.top),
+                ]
+                min_lon, min_lat, max_lon, max_lat = transform_bounds(
+                    dataset.crs, "EPSG:4326", *dataset.bounds
+                )
+                limites_latlon = [
+                    round(min_lon, 6),
+                    round(min_lat, 6),
+                    round(max_lon, 6),
+                    round(max_lat, 6),
+                ]
+
                 return GrillaNDVI(
                     fecha_imagen=fecha,
-                    limites=[
-                        float(dataset.bounds.left),
-                        float(dataset.bounds.bottom),
-                        float(dataset.bounds.right),
-                        float(dataset.bounds.top),
-                    ],
+                    limites=limites_utm,
+                    limites_latlon=limites_latlon,
                     crs=dataset.crs.to_string(),
                     ancho=dataset.width,
                     alto=dataset.height,
                     resolucion_m=round(max(abs(transform.a), abs(transform.e)), 6),
                     valores=valores,
-                    porcentaje_validos=round(validos / total * 100, 1) if total else 0.0,
+                    porcentaje_validos=porcentaje_validos,
                     nubosidad_pct=nubosidad_pct,
                 )
     except (rasterio.errors.RasterioError, ValueError) as exc:
@@ -254,17 +301,20 @@ def obtener_grilla_ndvi(
     crs = _crs_utm(geometria)
     token = _token(client_id, client_secret)
     fecha, nubosidad = _seleccionar_escena(geometria, token, hoy)
-    response = requests.post(
-        PROCESS_URL,
-        headers={"Authorization": f"Bearer {token}", "Accept": "image/tiff"},
-        files={
-            "request": (None, json.dumps(_payload_process(geometria, fecha, crs))),
-            "evalscript": (None, EVALSCRIPT_NDVI),
-        },
-        timeout=TIMEOUT_SEGUNDOS,
-    )
-    response.raise_for_status()
-    return _leer_geotiff(response.content, fecha, nubosidad)
+    try:
+        response = requests.post(
+            PROCESS_URL,
+            headers={"Authorization": f"Bearer {token}", "Accept": "image/tiff"},
+            files={
+                "request": (None, json.dumps(_payload_process(geometria, fecha, crs))),
+                "evalscript": (None, EVALSCRIPT_NDVI),
+            },
+            timeout=TIMEOUT_SEGUNDOS,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise ErrorSatelite(f"Error al solicitar el GeoTIFF a Process API de Copernicus: {exc}.") from exc
+    return _leer_geotiff(response.content, fecha, nubosidad, geometria=geometria)
 
 
 def actualizar_capa_ndvi(estacion: Estacion, geometria: dict) -> CapaSatelital:
@@ -275,6 +325,7 @@ def actualizar_capa_ndvi(estacion: Estacion, geometria: dict) -> CapaSatelital:
         fecha_imagen=grilla.fecha_imagen,
         defaults={
             "limites": grilla.limites,
+            "limites_latlon": grilla.limites_latlon,
             "crs": grilla.crs,
             "ancho": grilla.ancho,
             "alto": grilla.alto,
