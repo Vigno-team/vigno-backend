@@ -4,22 +4,72 @@
     {
       "type": "Feature",
       "properties": {
-        "codigo": "cp-villavicencio-01",
-        "nombre": "El Arenal",
-        "latitud": null,
-        "longitud": null
-      },
-      "geometry": null
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "codigo": "cp-san-clemente-01",
         "nombre": "San Clemente",
-        "latitud": null,
-        "longitud": null
+        "rol": "153-67",
+        "latitud": -35.516667,
+        "longitud": -71.466667,
+        "nota": "Contorno del predio rol 153-67 ajustado a ojo sobre imagen satelital, error estimado 20-30 m. Estación en 35°31'S 71°28'O según planillas del cliente (precisión de 1 minuto)."
       },
-      "geometry": null
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.469972,
+              -35.513179
+            ],
+            [
+              -71.470324,
+              -35.513819
+            ],
+            [
+              -71.470716,
+              -35.513821
+            ],
+            [
+              -71.471851,
+              -35.516581
+            ],
+            [
+              -71.466136,
+              -35.519482
+            ],
+            [
+              -71.464156,
+              -35.514994
+            ],
+            [
+              -71.464499,
+              -35.514901
+            ],
+            [
+              -71.464275,
+              -35.514313
+            ],
+            [
+              -71.465129,
+              -35.514104
+            ],
+            [
+              -71.465096,
+              -35.513738
+            ],
+            [
+              -71.468872,
+              -35.512829
+            ],
+            [
+              -71.469195,
+              -35.51333
+            ],
+            [
+              -71.469972,
+              -35.513179
+            ]
+          ]
+        ]
+      }
     }
   ]
 }
