@@ -21,8 +21,8 @@
         "rol": "153-67",
         "comuna_codigo": "07109",
         "superficie_ha": 32.52,
-        "latitud": null,
-        "longitud": null
+        "latitud": -35.516667,
+        "longitud": -71.466667
       },
       "geometry": {
         "type": "Polygon",
