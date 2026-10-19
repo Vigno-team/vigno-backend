@@ -270,7 +270,9 @@ def test_process_falla_cuando_el_servidor_devuelve_error_http():
         ),
         Mock(
             **{
-                "raise_for_status.side_effect": requests.RequestException("503 Service Unavailable"),
+                "raise_for_status.side_effect": requests.RequestException(
+                    "503 Service Unavailable"
+                ),
                 "status_code": 503,
             }
         ),
@@ -283,4 +285,3 @@ def test_process_falla_cuando_el_servidor_devuelve_error_http():
                 client_id="id-test",
                 client_secret="secret-test",
             )
-

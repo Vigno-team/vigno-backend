@@ -247,7 +247,9 @@ def _leer_geotiff(
                                 validos_predio += 1
                     valores.append(fila_valores)
 
-                total_referencia = total_predio if mask_predio is not None else (dataset.width * dataset.height)
+                total_referencia = (
+                    total_predio if mask_predio is not None else (dataset.width * dataset.height)
+                )
                 porcentaje_validos = (
                     round(validos_predio / total_referencia * 100, 1) if total_referencia else 0.0
                 )
@@ -313,7 +315,9 @@ def obtener_grilla_ndvi(
         )
         response.raise_for_status()
     except requests.RequestException as exc:
-        raise ErrorSatelite(f"Error al solicitar el GeoTIFF a Process API de Copernicus: {exc}.") from exc
+        raise ErrorSatelite(
+            f"Error al solicitar el GeoTIFF a Process API de Copernicus: {exc}."
+        ) from exc
     return _leer_geotiff(response.content, fecha, nubosidad, geometria=geometria)
 
 
