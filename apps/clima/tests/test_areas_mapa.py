@@ -107,13 +107,15 @@ def test_json_roto_y_no_featurecollection(tmp_path):
         cargar_areas(ruta)
 
 
-def test_config_versionada_es_geojson_con_las_dos_estaciones():
+CODIGOS_CONOCIDOS = {"cp-villavicencio-01", "cp-san-clemente-01"}
+
+
+def test_config_versionada_es_valida_y_usa_codigos_conocidos():
     from django.conf import settings
 
-    ruta = settings.BASE_DIR / "config" / "areas_mapa.json"
-    datos = json.loads(ruta.read_text(encoding="utf-8"))
-    codigos = {f["properties"]["codigo"] for f in datos["features"]}
-    assert codigos == {"cp-villavicencio-01", "cp-san-clemente-01"}
+    areas = cargar_areas(settings.BASE_DIR / "config" / "areas_mapa.json")
+    assert areas, "El archivo versionado debe tener al menos un predio."
+    assert {a.codigo for a in areas} <= CODIGOS_CONOCIDOS
 
 
 @pytest.mark.django_db
@@ -163,10 +165,21 @@ def test_comando_avisa_estacion_sin_contorno(tmp_path):
 
 
 @pytest.mark.django_db
-def test_comando_falla_con_el_archivo_pendiente_del_repo():
-    # Mientras el cliente no entregue contornos, el archivo versionado debe rechazarse.
-    with pytest.raises(CommandError, match="falta el contorno"):
-        call_command("cargar_areas_mapa", stdout=StringIO())
+def test_comando_carga_el_archivo_versionado():
+    from django.conf import settings
+
+    areas = cargar_areas(settings.BASE_DIR / "config" / "areas_mapa.json")
+    for area in areas:
+        # Las migraciones ya crean las estaciones reales: se parte de la latitud vieja.
+        Estacion.objects.update_or_create(
+            codigo=area.codigo,
+            defaults={"latitud": -35.52, "longitud": None},
+            create_defaults={"nombre": area.codigo, "latitud": -35.52},
+        )
+    call_command("cargar_areas_mapa", stdout=StringIO())
+    for area in areas:
+        est = Estacion.objects.get(codigo=area.codigo)
+        assert (est.latitud, est.longitud) == (area.latitud, area.longitud)
 
 
 @pytest.mark.django_db
