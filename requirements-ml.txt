@@ -1,9 +1,9 @@
 -r requirements.txt
 
-# Dependencias del track de ciencia de datos.
-# Van aparte para que la imagen base de la API se construya rapido
-# y el equipo no espere 5 minutos cada vez que levanta el entorno.
-
+# --- Ciencia de Datos y Machine Learning ---
 numpy==2.1.2
+pandas==2.2.3
+scikit-learn==1.5.2
+joblib==1.4.2
 matplotlib==3.9.2
 jupyterlab==4.2.5

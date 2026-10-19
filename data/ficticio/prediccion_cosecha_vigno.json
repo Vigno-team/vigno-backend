@@ -1,0 +1,272 @@
+[
+  {
+    "temporada": "2025-2026",
+    "subzona": "Cauquenes",
+    "cepa": "Cabernet Sauvignon",
+    "color": "Red",
+    "region_winkler": "IV",
+    "prediccion": {
+      "centro": "2026-09-28",
+      "desde": "2026-09-25",
+      "hasta": "2026-10-01",
+      "incertidumbre_dias": 3
+    },
+    "datos_entrada": {
+      "GST": 19.9831775700935,
+      "Winkler": 2136.7,
+      "Huglin": 1923.02505,
+      "region": "IV",
+      "color": "Red"
+    },
+    "justificacion": {
+      "GST": 0.134,
+      "Winkler": 0.12,
+      "Huglin": 0.634,
+      "region": 0.076,
+      "color": 0.035
+    }
+  },
+  {
+    "temporada": "2025-2026",
+    "subzona": "Cauquenes",
+    "cepa": "Cabernet Sauvignon",
+    "color": "Red",
+    "region_winkler": "IV",
+    "prediccion": {
+      "centro": "2026-09-14",
+      "desde": "2026-09-12",
+      "hasta": "2026-09-16",
+      "incertidumbre_dias": 2
+    },
+    "datos_entrada": {
+      "GST": 20.3070093457944,
+      "Winkler": 2207.1,
+      "Huglin": 2027.276586,
+      "region": "IV",
+      "color": "Red"
+    },
+    "justificacion": {
+      "GST": 0.134,
+      "Winkler": 0.12,
+      "Huglin": 0.634,
+      "region": 0.076,
+      "color": 0.035
+    }
+  },
+  {
+    "temporada": "2025-2026",
+    "subzona": "Cauquenes",
+    "cepa": "Cabernet Sauvignon",
+    "color": "Red",
+    "region_winkler": "IV",
+    "prediccion": {
+      "centro": "2026-09-19",
+      "desde": "2026-09-16",
+      "hasta": "2026-09-22",
+      "incertidumbre_dias": 3
+    },
+    "datos_entrada": {
+      "GST": 20.2056074766355,
+      "Winkler": 2184.8,
+      "Huglin": 1980.525654,
+      "region": "IV",
+      "color": "Red"
+    },
+    "justificacion": {
+      "GST": 0.134,
+      "Winkler": 0.12,
+      "Huglin": 0.634,
+      "region": 0.076,
+      "color": 0.035
+    }
+  },
+  {
+    "temporada": "2025-2026",
+    "subzona": "Cauquenes",
+    "cepa": "Cabernet Sauvignon",
+    "color": "Red",
+    "region_winkler": "IV",
+    "prediccion": {
+      "centro": "2026-09-19",
+      "desde": "2026-09-16",
+      "hasta": "2026-09-22",
+      "incertidumbre_dias": 3
+    },
+    "datos_entrada": {
+      "GST": 20.2056074766355,
+      "Winkler": 2184.8,
+      "Huglin": 1980.525654,
+      "region": "IV",
+      "color": "Red"
+    },
+    "justificacion": {
+      "GST": 0.134,
+      "Winkler": 0.12,
+      "Huglin": 0.634,
+      "region": 0.076,
+      "color": 0.035
+    }
+  },
+  {
+    "temporada": "2025-2026",
+    "subzona": "Cauquenes",
+    "cepa": "Cabernet Sauvignon",
+    "color": "Red",
+    "region_winkler": "IV",
+    "prediccion": {
+      "centro": "2026-09-30",
+      "desde": "2026-09-28",
+      "hasta": "2026-10-03",
+      "incertidumbre_dias": 2
+    },
+    "datos_entrada": {
+      "GST": 19.3955607476636,
+      "Winkler": 2022.9,
+      "Huglin": 1868.313276,
+      "region": "IV",
+      "color": "Red"
+    },
+    "justificacion": {
+      "GST": 0.134,
+      "Winkler": 0.12,
+      "Huglin": 0.634,
+      "region": 0.076,
+      "color": 0.035
+    }
+  },
+  {
+    "temporada": "2025-2026",
+    "subzona": "Cauquenes",
+    "cepa": "Cabernet Sauvignon",
+    "color": "Red",
+    "region_winkler": "IV",
+    "prediccion": {
+      "centro": "2026-09-28",
+      "desde": "2026-09-25",
+      "hasta": "2026-10-01",
+      "incertidumbre_dias": 3
+    },
+    "datos_entrada": {
+      "GST": 19.9831775700935,
+      "Winkler": 2136.7,
+      "Huglin": 1923.02505,
+      "region": "IV",
+      "color": "Red"
+    },
+    "justificacion": {
+      "GST": 0.134,
+      "Winkler": 0.12,
+      "Huglin": 0.634,
+      "region": 0.076,
+      "color": 0.035
+    }
+  },
+  {
+    "temporada": "2025-2026",
+    "subzona": "Cauquenes",
+    "cepa": "Cabernet Sauvignon",
+    "color": "Red",
+    "region_winkler": "IV",
+    "prediccion": {
+      "centro": "2026-09-19",
+      "desde": "2026-09-16",
+      "hasta": "2026-09-22",
+      "incertidumbre_dias": 3
+    },
+    "datos_entrada": {
+      "GST": 20.2056074766355,
+      "Winkler": 2184.8,
+      "Huglin": 1980.525654,
+      "region": "IV",
+      "color": "Red"
+    },
+    "justificacion": {
+      "GST": 0.134,
+      "Winkler": 0.12,
+      "Huglin": 0.634,
+      "region": 0.076,
+      "color": 0.035
+    }
+  },
+  {
+    "temporada": "2025-2026",
+    "subzona": "Cauquenes",
+    "cepa": "Cabernet Sauvignon",
+    "color": "Red",
+    "region_winkler": "IV",
+    "prediccion": {
+      "centro": "2026-09-30",
+      "desde": "2026-09-28",
+      "hasta": "2026-10-03",
+      "incertidumbre_dias": 2
+    },
+    "datos_entrada": {
+      "GST": 19.3955607476636,
+      "Winkler": 2022.9,
+      "Huglin": 1868.313276,
+      "region": "IV",
+      "color": "Red"
+    },
+    "justificacion": {
+      "GST": 0.134,
+      "Winkler": 0.12,
+      "Huglin": 0.634,
+      "region": 0.076,
+      "color": 0.035
+    }
+  },
+  {
+    "temporada": "2025-2026",
+    "subzona": "Cauquenes",
+    "cepa": "Cabernet Sauvignon",
+    "color": "Red",
+    "region_winkler": "IV",
+    "prediccion": {
+      "centro": "2026-09-28",
+      "desde": "2026-09-25",
+      "hasta": "2026-10-01",
+      "incertidumbre_dias": 3
+    },
+    "datos_entrada": {
+      "GST": 19.9831775700935,
+      "Winkler": 2136.7,
+      "Huglin": 1923.02505,
+      "region": "IV",
+      "color": "Red"
+    },
+    "justificacion": {
+      "GST": 0.134,
+      "Winkler": 0.12,
+      "Huglin": 0.634,
+      "region": 0.076,
+      "color": 0.035
+    }
+  },
+  {
+    "temporada": "2025-2026",
+    "subzona": "Cauquenes",
+    "cepa": "Cabernet Sauvignon",
+    "color": "Red",
+    "region_winkler": "IV",
+    "prediccion": {
+      "centro": "2026-09-19",
+      "desde": "2026-09-16",
+      "hasta": "2026-09-22",
+      "incertidumbre_dias": 3
+    },
+    "datos_entrada": {
+      "GST": 20.2056074766355,
+      "Winkler": 2184.8,
+      "Huglin": 1980.525654,
+      "region": "IV",
+      "color": "Red"
+    },
+    "justificacion": {
+      "GST": 0.134,
+      "Winkler": 0.12,
+      "Huglin": 0.634,
+      "region": 0.076,
+      "color": 0.035
+    }
+  }
+]
