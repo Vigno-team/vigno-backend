@@ -370,3 +370,9 @@ Para que el frontend sepa qué ya responde con datos reales (fuera de la API, qu
 | `consolidacion`             | Datos guardados, falta armar el bloque | `columnas_descartadas` se guarda como texto                                                                                                                                                                       |
 | `mapa_calor`                | Publicado en el JSON de `exportar_json` | Sin endpoint. La capa se actualiza a mano con `actualizar_mapa_calor`. `ejemplo_mapa_calor.json` es sintético y no se usa como fuente de respuestas |
 \
+
+## JSON de Predicción Ficticia (Sprint 5)
+Archivo: `vigno-prediccion-ficticia.json`
+Contiene la estructura acordada para probar el frontend con datos ficticios del dataset de California.
+Este contrato asegura que el frontend pueda leer el formato unificado con las métricas del modelo y temporadas, sin mezclarse con `vigno-datos-reales.json`.
+Ver ejemplo de estructura en `ejemplo_prediccion_ficticia.json`.
