@@ -369,3 +369,4 @@ Para que el frontend sepa qué ya responde con datos reales (fuera de la API, qu
 | `resumen_diario`            | Implementado                           | Los días que el Excel no trae se omiten en vez de venir con `null` y motivo                                                                                                                                       |
 | `consolidacion`             | Datos guardados, falta armar el bloque | `columnas_descartadas` se guarda como texto                                                                                                                                                                       |
 | `mapa_calor`                | Publicado en el JSON de `exportar_json` | Sin endpoint. La capa se actualiza a mano con `actualizar_mapa_calor`. `ejemplo_mapa_calor.json` es sintético y no se usa como fuente de respuestas |
+\
