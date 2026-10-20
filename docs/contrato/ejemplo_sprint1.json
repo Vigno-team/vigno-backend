@@ -98,6 +98,8 @@
       "nombre": "El Arenal",
       "subzona": "cauquenes",
       "propietario": "Agropacal",
+      "latitud": -35.516667,
+      "longitud": -71.466667,
       "variables": [
         "tmax",
         "tmin",

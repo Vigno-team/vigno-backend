@@ -5,6 +5,8 @@
       "nombre": "Sintética Norte",
       "subzona": "sintetica-norte",
       "propietario": "Datos sintéticos",
+      "latitud": -35.52,
+      "longitud": null,
       "variables": [
         "tmax",
         "tmin",
@@ -27,6 +29,8 @@
       "nombre": "Sintética Sur",
       "subzona": "sintetica-sur",
       "propietario": "Datos sintéticos",
+      "latitud": null,
+      "longitud": null,
       "variables": [
         "tmax",
         "tmin",
@@ -4266,6 +4270,42 @@
         "resolucion_origen": "diaria",
         "version_calculo": "rachas-v1_35c_min5_temporada"
       }
+    }
+  ],
+  "mapa_calor": [
+    {
+      "estacion_id": "sint-norte-01",
+      "capa": "ndvi",
+      "fecha_imagen": null,
+      "limites": null,
+      "resolucion_m": null,
+      "ancho": null,
+      "alto": null,
+      "valores": null,
+      "escala": null,
+      "pct_validos": null,
+      "nubosidad_pct": null,
+      "fuente": null,
+      "atribucion": null,
+      "version_calculo": null,
+      "motivo_nulo": "El predio aún no tiene ubicación ni contorno cargados."
+    },
+    {
+      "estacion_id": "sint-sur-01",
+      "capa": "ndvi",
+      "fecha_imagen": null,
+      "limites": null,
+      "resolucion_m": null,
+      "ancho": null,
+      "alto": null,
+      "valores": null,
+      "escala": null,
+      "pct_validos": null,
+      "nubosidad_pct": null,
+      "fuente": null,
+      "atribucion": null,
+      "version_calculo": null,
+      "motivo_nulo": "El predio aún no tiene ubicación ni contorno cargados."
     }
   ]
 }

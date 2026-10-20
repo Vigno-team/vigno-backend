@@ -59,6 +59,7 @@ def test_exporta_los_bloques_del_contrato(tmp_path, estacion):
         "resumen_diario",
         "ficha_temporada",
         "rachas",
+        "mapa_calor",
     }
     assert [f["temporada"] for f in datos["ficha_temporada"]] == ["2023-2024", "2024-2025"]
     assert [r["temporada"] for r in datos["rachas"]] == ["2023-2024", "2024-2025"]
