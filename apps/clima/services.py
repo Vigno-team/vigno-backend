@@ -283,6 +283,8 @@ def estaciones() -> list[dict]:
                 "nombre": est.nombre,
                 "subzona": est.subzona,
                 "propietario": est.propietario,
+                "latitud": est.latitud,
+                "longitud": est.longitud,
                 "variables": variables,
                 "fecha_inicio": agg["inicio"].isoformat() if agg["inicio"] else None,
                 "fecha_fin": agg["fin"].isoformat() if agg["fin"] else None,

@@ -7,6 +7,7 @@
 | **Ya (Sprint 1)**       | Consolidación, estaciones, temporadas, completitud, resumen diario | Estado de los datos · Serie diaria de temperatura y lluvia · Mapa de completitud | `ejemplo_sprint1.json`    |
 | 3 de octubre (Sprint 2) | Winkler, Huglin, rachas, días críticos, lluvia invernal            | Ficha del año · Detalle de calor                                                 | `ejemplo_resultados.json` |
 | 7 de octubre (Sprint 3) | Clasificación de temporada y comparación entre años                | Comparación entre años                                                           | `ejemplo_resultados.json` |
+| 17–19 de octubre (Sprint 5) | Mapa de calor (NDVI por predio) y coordenadas de estaciones     | Mapa satelital con la capa del predio y un marcador por estación                 | `ejemplo_mapa_calor.json` |
 
 **Recomendación para el frontend:** construir primero las pantallas del Sprint 1 con `ejemplo_sprint1.json`. Responden la primera pregunta del cliente —_¿nuestros datos sirven?_— y son las únicas que pueden mostrar datos reales antes del 3 de octubre.
 
@@ -47,7 +48,7 @@ Hoy hay una estación por subzona. Si se agregan zonas, llegan como estaciones n
 
 Mientras la API no esté desplegada (D4.2), cada endpoint corresponde a una clave del archivo de ejemplo (`consolidacion`, `estaciones`, `temporadas`, `completitud_por_temporada`, `resumen_diario`, `ficha_temporada`, `rachas`, `comparacion`).
 
-El archivo con datos reales lo genera `python manage.py exportar_json` (E1C-48). Ahí `resumen_diario` trae un elemento por estación, y `ficha_temporada` y `rachas` uno por estación y temporada. Además incluye `generado` (fecha del archivo) y `temporada_en_curso`. Por ahora no incluye `consolidacion` ni `comparacion`.
+El archivo con datos reales lo genera `python manage.py exportar_json` (E1C-48). Ahí `resumen_diario` trae un elemento por estación, y `ficha_temporada` y `rachas` uno por estación y temporada. Además incluye `generado` (fecha del archivo) y `temporada_en_curso`. Por ahora no incluye `consolidacion` ni `comparacion`. Suma `mapa_calor` (§5.4): una entrada por estación, en el mismo orden que `estaciones`.
 
 ### Objeto `calidad_dato` (común)
 
@@ -104,10 +105,14 @@ Cada elemento de `archivos`:
 | `nombre`                     | texto          | Nombre visible                                                                    |
 | `subzona`                    | texto          | `cauquenes` \| `san-clemente`                                                     |
 | `propietario`                | texto o `null` | Dueño de la estación. `null` si no está confirmado                                |
+| `latitud`                    | número o `null` | Grados decimales (WGS84), negativo al sur. `null` si la estación no tiene ubicación |
+| `longitud`                   | número o `null` | Grados decimales (WGS84), negativo al oeste. `null` si la estación no tiene ubicación |
 | `variables`                  | lista de texto | Códigos de la §4.6 disponibles para la estación                                   |
 | `fecha_inicio` / `fecha_fin` | fecha          | Primer y último día **con dato**                                                  |
 | `temporadas_disponibles`     | número         | Temporadas con algún dato                                                         |
 | `calidad_dato`               | objeto         | Ver §3. `completitud_pct` es la de Tmáx y Tmín entre `fecha_inicio` y `fecha_fin` |
+
+**Marcador en el mapa:** se pone solo si `latitud` y `longitud` son distintas de `null`. Las coordenadas son aproximadas: vienen de la ubicación de las planillas del cliente, con precisión de 1 minuto (1 a 2 km), y no sirven para medir distancias. Una vez cargado `config/areas_mapa.json` con `cargar_areas_mapa`, San Clemente tiene las dos coordenadas. El Arenal no tiene ubicación: su `longitud` es `null` y su `latitud` es una aproximación heredada, así que no lleva marcador. El marcador muestra el último dato de la estación: el último elemento de `dias` de su `resumen_diario` (§4.5), que se une por `estacion_id`.
 
 **Próxima versión:** se agregará `observaciones` (lista de texto) con notas sobre la fuente, por ejemplo cuando una variable viene de otra estación. Hoy `variables` lista solo las 4 del resumen diario; humedad, radiación y viento se sumarán cuando se agreguen al resumen.
 
@@ -168,7 +173,7 @@ No disponibles con los datos actuales: valores horarios e intensidad horaria de 
 
 ---
 
-## 5. Bloques de los Sprints 2 y 3 — llegan después
+## 5. Bloques de los Sprints 2, 3 y 5 — llegan después
 
 ### 5.1 Ficha de temporada (`/temporadas/{temporada}`) — Sprint 2 (índices) y 3 (clasificación)
 
@@ -221,6 +226,83 @@ Las ventanas de una temporada en curso se evalúan hasta la fecha local actual. 
 | `promedio_historico` | objeto         | Promedio de cada métrica entre las temporadas confiables                                                                                                          |
 | `temporadas`         | lista          | Por temporada: `temporada`, `winkler`, `huglin`, `lluvia_invernal_mm`, `dias_sobre_35`, `clasificacion`, `diferencia_vs_promedio` (% por métrica), `calidad_dato` |
 | `advertencia`        | texto o `null` | Por ejemplo, cuando hay pocas temporadas para concluir                                                                                                            |
+
+### 5.4 Mapa de calor (`mapa_calor`) — Sprint 5
+
+Capa de NDVI (índice de vigor de la vegetación, sin unidad) de cada predio, para pintarla sobre un mapa satelital. Va como clave de primer nivel `mapa_calor` del archivo de `exportar_json`: una lista con **una entrada por estación**, en el mismo orden que `estaciones`, con la imagen más reciente que tenga celdas válidas (sin histórico). Todavía no tiene endpoint.
+
+**Estado:** `exportar_json` emite el bloque con las capas que guarda `actualizar_mapa_calor` (E1C-126). Hoy esa actualización es manual (`python manage.py actualizar_mapa_calor --estacion <codigo> --capa ndvi`), así que `fecha_imagen` muestra hasta cuándo llegó la última. Para construir sin esperar datos reales, el frontend puede usar `ejemplo_mapa_calor.json` (claves `estaciones` y `mapa_calor`): su grilla es **sintética**, pero la forma es la que emite el backend.
+
+| Campo             | Tipo                                                    | Descripción                                                                                                                                                                                                  |
+| ----------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `estacion_id`     | texto                                                   | Igual a `estaciones[].id` (§4.2)                                                                                                                                                                             |
+| `capa`            | texto                                                   | Hoy solo `"ndvi"`                                                                                                                                                                                            |
+| `fecha_imagen`    | fecha o `null`                                          | Día de captura de la escena Sentinel-2                                                                                                                                                                       |
+| `limites`         | `[[lat_sur, lon_oeste], [lat_norte, lon_este]]` o `null` | Caja que contiene la grilla, en grados decimales (WGS84). Orden **[lat, lon]**, el que pide `L.imageOverlay`. El contorno GeoJSON de `config/areas_mapa.json` va al revés, en [lon, lat]. Ver «Alineación»   |
+| `resolucion_m`    | número o `null`                                         | Tamaño de celda en metros (`10.0` con Sentinel-2)                                                                                                                                                            |
+| `ancho`, `alto`   | entero o `null`                                         | Columnas y filas de la grilla                                                                                                                                                                                |
+| `valores`         | lista de `alto` listas de `ancho` números o `null`      | Un valor de NDVI por celda. Ver «Grilla»                                                                                                                                                                     |
+| `escala`          | objeto o `null`                                         | `minimo` y `maximo` del rango de la leyenda (0 y 1) y `paleta` sugerida (lista de colores `#rrggbb`, de menor a mayor valor)                                                                                 |
+| `pct_validos`     | número 0–100 o `null`                                   | % de las celdas **dentro del predio** que tienen valor. Dice cuánto del predio se ve en la imagen                                                                                                            |
+| `nubosidad_pct`   | número 0–100 o `null`                                   | % de nubes de la **escena completa** de Sentinel-2 (decenas de km), no del predio. Es un dato de contexto, independiente de `pct_validos`: con una escena despejada una nube puede tapar justo el predio      |
+| `fuente`          | texto o `null`                                          | `"Sentinel-2 L2A (Copernicus Data Space)"`                                                                                                                                                                   |
+| `atribucion`      | texto o `null`                                          | `"Contains modified Copernicus Sentinel data AAAA"`, con AAAA = año de `fecha_imagen`. **El frontend debe mostrarla** siempre que muestre la capa                                                             |
+| `version_calculo` | texto o `null`                                          | Fórmula y parámetros usados, con el formato del resto del contrato. Hoy `"ndvi-sentinel-2-l2a-v1_scl-cloud-shadow_10m"`: NDVI = (B08 − B04) / (B08 + B04), sin valor en nube, sombra, nieve y píxeles sin dato |
+| `motivo_nulo`     | texto (opcional)                                        | **Solo** cuando no hay imagen útil. Texto en español, listo para mostrar                                                                                                                                     |
+
+#### Grilla
+
+- `valores[0]` es la fila del **borde norte** y `valores[i][0]` la columna del **borde oeste**: se lee de arriba abajo y de izquierda a derecha, como una imagen. `len(valores)` es `alto` y cada fila tiene `ancho` elementos.
+- `null` en una celda es **sin dato** (§1) y no distingue la causa: fuera del contorno del predio, nube, sombra o nieve. Se pinta transparente.
+- El NDVI va de −1 a 1 y los valores van redondeados a 3 decimales. Un predio de unas 30 ha pesa cerca de 35 KB.
+- `escala.minimo` y `escala.maximo` son un rango fijo de la capa (0 a 1), no el mínimo y máximo de esa imagen, para que los colores se puedan comparar entre fechas. Un valor puede quedar fuera del rango (el agua o el suelo desnudo dan NDVI negativo o cercano a 0): se pinta con el color de la punta.
+
+#### Alineación con el mapa (limitación conocida)
+
+La grilla se pide en UTM (hoy `EPSG:32719`, huso 19 sur): sus filas y columnas siguen la cuadrícula UTM, no el norte geográfico. `limites` es la caja en lat/lon que contiene esa grilla. A la latitud de San Clemente la cuadrícula queda girada cerca de 1,4° respecto del norte, de modo que al estirar la imagen sobre `limites` con `imageOverlay` cada punto puede quedar corrido hasta unos 15 a 20 m (1 o 2 celdas) en las esquinas y casi nada en el centro (estimado, no medido sobre una imagen real). Es del orden del error del contorno del predio (20–30 m) y no cambia la lectura del vigor, pero conviene tenerlo presente si se dibuja el contorno encima de la capa. La mejora está del lado del backend: pedir o reproyectar la grilla a lat/lon.
+
+#### Sin imagen útil
+
+La entrada mantiene su forma: trae `estacion_id`, `capa` y `motivo_nulo`, y **todos los demás campos en `null`**. Basta una condición: si `valores` es `null`, el frontend no pinta la capa y muestra `motivo_nulo`.
+
+Una imagen es útil si tiene al menos una celda válida dentro del predio (`pct_validos` mayor que 0); se entrega la más reciente que lo cumple. No hay otro umbral de calidad: el cálculo de E1C-126 ya elige la escena menos nublada de los últimos 30 días. Los motivos de hoy, con su texto:
+
+- «El predio aún no tiene ubicación ni contorno cargados.» Sin imagen y sin `longitud` (hoy El Arenal).
+- «Aún no hay una imagen satelital con datos válidos para este predio.» Con ubicación, pero sin ninguna capa guardada o con todas sin celdas válidas.
+- «La imagen guardada está incompleta; hay que volver a generarla.» La capa no trae sus límites geográficos.
+
+#### Calidad del dato
+
+A diferencia de los demás bloques, `mapa_calor` no lleva `calidad_dato` (§1 y §3): la cobertura de una imagen es espacial, no un porcentaje de días. La calidad se lee en `pct_validos` y `nubosidad_pct`; `version_calculo` sigue el mismo formato que en el resto del contrato.
+
+#### Uso sugerido
+
+Mapa base satelital con la grilla encima como imagen (`imageOverlay` de Leaflet), una leyenda con `escala` y, junto a ella, `fecha_imagen`, `pct_validos` y `atribucion`. Si `pct_validos` es bajo, conviene avisar que la imagen cubre solo una parte del predio. `leaflet.heat` está pensado para densidad de puntos, no para un valor continuo como el NDVI. La grilla se dibuja en un `canvas`:
+
+```js
+const { limites, ancho, alto, valores, escala } = entrada; // entrada con valores != null
+const lienzo = document.createElement("canvas");
+lienzo.width = ancho;
+lienzo.height = alto;
+const ctx = lienzo.getContext("2d");
+const imagen = ctx.createImageData(ancho, alto);
+valores.forEach((fila, y) =>
+  fila.forEach((v, x) => {
+    if (v === null) return; // sin dato: queda transparente
+    const [r, g, b] = colorDe(v, escala); // interpola la paleta entre minimo y maximo
+    imagen.data.set([r, g, b, 255], (y * ancho + x) * 4);
+  }),
+);
+ctx.putImageData(imagen, 0, 0);
+L.imageOverlay(lienzo.toDataURL(), limites, { opacity: 0.7 }).addTo(mapa);
+```
+
+`colorDe` es una función a escribir en el frontend. Si el mapa base es Esri World Imagery, hay que revisar sus términos de uso vigentes y mostrar su atribución, además de la de Copernicus.
+
+#### Por confirmar
+
+- _Con el frontend:_ la paleta definitiva, la opacidad de la capa y el mapa base.
+- _Del lado del backend:_ alineación de la grilla con el norte (ver «Alineación»), actualización periódica de la capa y, si sobra tiempo, el endpoint `GET /api/v1/mapa-calor?estacion={codigo}` (hoy el bloque solo viaja en el JSON de `exportar_json`).
 
 ---
 
@@ -281,8 +363,9 @@ Para que el frontend sepa qué ya responde con datos reales (fuera de la API, qu
 
 | Bloque                      | Estado                                 | Diferencias conocidas con este contrato                                                                                                                                                                           |
 | --------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `estaciones`                | Publicado en la API                    | El catálogo de El Arenal puede conservar `cp-villavicencio-01` / `villavicencio`; su corrección sigue pendiente. Leer el código de `/estaciones`. `fecha_inicio` y `fecha_fin` ahora toman los extremos con datos |
+| `estaciones`                | Publicado en la API                    | El catálogo de El Arenal puede conservar `cp-villavicencio-01` / `villavicencio`; su corrección sigue pendiente. Leer el código de `/estaciones`. `fecha_inicio` y `fecha_fin` ahora toman los extremos con datos. Suma `latitud` y `longitud` (E1C-127), `null` si la estación no tiene ubicación |
 | `temporadas`                | Implementado                           | —                                                                                                                                                                                                                 |
 | `completitud_por_temporada` | Implementado                           | —                                                                                                                                                                                                                 |
 | `resumen_diario`            | Implementado                           | Los días que el Excel no trae se omiten en vez de venir con `null` y motivo                                                                                                                                       |
 | `consolidacion`             | Datos guardados, falta armar el bloque | `columnas_descartadas` se guarda como texto                                                                                                                                                                       |
+| `mapa_calor`                | Publicado en el JSON de `exportar_json` | Sin endpoint. La capa se actualiza a mano con `actualizar_mapa_calor`. `ejemplo_mapa_calor.json` es sintético y no se usa como fuente de respuestas |

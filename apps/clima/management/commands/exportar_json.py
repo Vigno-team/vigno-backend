@@ -7,6 +7,7 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
 from apps.clima import resultados, serializers, services
+from apps.clima.mapa_calor import bloque_mapa_calor
 from apps.clima.models import Estacion, ResumenDiario
 from apps.clima.services import HAY_DATO
 from apps.clima.temporadas import temporada_de
@@ -52,6 +53,7 @@ def exportar() -> dict:
         "resumen_diario": resumen,
         "ficha_temporada": fichas,
         "rachas": rachas,
+        "mapa_calor": bloque_mapa_calor(),
     }
 
 
