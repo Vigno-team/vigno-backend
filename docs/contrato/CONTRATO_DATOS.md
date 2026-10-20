@@ -369,3 +369,52 @@ Para que el frontend sepa qué ya responde con datos reales (fuera de la API, qu
 | `resumen_diario`            | Implementado                           | Los días que el Excel no trae se omiten en vez de venir con `null` y motivo                                                                                                                                       |
 | `consolidacion`             | Datos guardados, falta armar el bloque | `columnas_descartadas` se guarda como texto                                                                                                                                                                       |
 | `mapa_calor`                | Publicado en el JSON de `exportar_json` | Sin endpoint. La capa se actualiza a mano con `actualizar_mapa_calor`. `ejemplo_mapa_calor.json` es sintético y no se usa como fuente de respuestas |
+
+
+## E1C-124 · JSON de predicción ficticia de California
+
+Este contrato es independiente de la ficha de temporadas de VIGNO. No cambia
+fechas de hemisferio ni agrega estaciones, temporadas, correlaciones, calidad
+o años análogos que el entrenamiento no haya calculado.
+
+```powershell
+docker compose exec backend python manage.py entrenar_cosecha
+docker compose exec backend python manage.py exportar_prediccion_ficticia
+```
+
+Entrada: `data/ficticio/prediccion_cosecha_california.json` de E1C-85.
+Salida: `data/ficticio/prediccion_ficticia.json`, ignorada por Git.
+No requiere scikit-learn para exportar un entrenamiento ya generado.
+Si falta la entrada, el comando termina con:
+`CommandError("Corre primero: python manage.py entrenar_cosecha")`.
+Una entrada inválida o incompleta también produce un error: no se inventan
+valores ni se sustituye por un ejemplo.
+
+| Campo de salida | Tipo | Origen y significado |
+| --- | --- | --- |
+| `generado` | string ISO 8601 con zona | `timezone.now().isoformat()` al exportar. |
+| `datos_ficticios` | boolean | `datos_ficticios` de la entrada; debe ser `true`. |
+| `fuente.cita` | string | `fuente` de la entrada, referencia de Bai et al. |
+| `fuente.url` | string | `dataset_url` de la entrada. |
+| `convencion_fechas` | string | Identifica fechas originales de California, sin desplazamiento. |
+| `modelo.version` | string | `version_modelo` del entrenamiento. |
+| `modelo.variables` | array de strings | `features`, exactamente las usadas por el modelo. |
+| `modelo.importancias` | objeto | `importancias_random_forest`, sin números prefijados. |
+| `modelo.regresion_lineal` | objeto | Intercepto, coeficientes y nota originales. |
+| `modelo.metricas` | objeto | Copia completa de `metricas`; MAE, RMSE y tamaño de muestra por método. |
+| `modelo.comparacion_base` | objeto | Copia de `comparacion_base`: `rf_mejora_mae` y `rf_mejora_rmse`. |
+| `modelo.validacion` | objeto | Años de entrenamiento/prueba, cantidades y exclusiones originales. |
+| `predicciones` | array de objetos | Todas las filas de prueba, sin modificar identidades ni fechas. |
+| `predicciones[].fuente/region/anio/cultivar/color` | string/string/integer/string/string | Identidad original del dataset de California. |
+| `predicciones[].doy_real/doy_estimado/diferencia_dias` | number | DOY y error firmado calculados por E1C-85. |
+| `predicciones[].fecha_real` | string YYYY-MM-DD | Fecha original del año de California. |
+| `predicciones[].prediccion` | objeto | Centro, extremos y dispersión 10–90 de árboles calculados por E1C-85. |
+
+Se conservan también los demás campos que produzca E1C-85 en cada fila,
+por ejemplo las predicciones de regresión lineal y promedio regional.
+Las métricas de Napa corresponden a E1C-87; este exportador no las simula.
+
+La salida se escribe en UTF-8 sin BOM. Los tests usan `tmp_path` y
+`settings.BASE_DIR`; nunca escriben en la carpeta real `data/cliente`.
+No se versiona un JSON con resultados inventados: el ejemplo para el frontend
+se obtiene ejecutando ambos comandos sobre el CSV local.
