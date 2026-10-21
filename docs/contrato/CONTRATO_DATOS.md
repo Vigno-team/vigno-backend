@@ -429,9 +429,9 @@ se obtiene ejecutando ambos comandos sobre el CSV local.
 - `ResumenDiario.confiable` conserva el criterio térmico existente: una
   precipitación marcada no cambia esa bandera. Una temperatura marcada sí
   la fuerza a false; esto no modifica los criterios de completitud por métrica.
-- E1C-70 debe ampliar la ruta existente `/api/v1/calidad/fallas`; E1C-71
-  ya aporta `fuera_de_rango`. No crear un endpoint alternativo. Mientras se
-  integran los otros orígenes, `tipos_incluidos` declara el alcance disponible.
+- `/api/v1/calidad/fallas` es la ruta del reporte de calidad. Actualmente
+  incluye `fuera_de_rango`; E1C-70 agrega rechazados, nulos y días sin
+  registro en esa misma ruta. `tipos_incluidos` indica los tipos disponibles.
 - E1C-68 debe asignar a toda estación nueva un `codigo` único, no nulo y no
   vacío y devolverlo en POST/GET estaciones. E1C-130 usa ese código en el
   parámetro `estacion`; no utiliza el nombre ni el id numérico. La creación
