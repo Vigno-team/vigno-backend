@@ -179,7 +179,8 @@ def derivar_resumenes_diarios(df_ingesta: pd.DataFrame) -> list[ResumenDiario]:
             if afectadas.intersection(("tmax", "tmin")):
                 registro.amplitud_termica = None
             registro.motivo_nulo = MOTIVO_RANGO
-            registro.confiable = False
+            if afectadas.intersection(("tmax", "tmin", "tmedia")):
+                registro.confiable = False
 
     ResumenDiario.objects.bulk_create(
         registros,

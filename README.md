@@ -333,8 +333,10 @@ no lo imputa y no confunde esta marca con `motivo_nulo`. Una recarga válida
 actualiza ambas marcas; se conserva la prevalencia del archivo más nuevo.
 
 Los resúmenes excluyen las mediciones marcadas. La variable afectada del
-día queda nula, con `motivo_nulo="Valor fuera de rango físico"` y el día
-no confiable; las variables independientes válidas se conservan. Una
+día queda nula, con `motivo_nulo="Valor fuera de rango físico"`. Solo las
+temperaturas marcadas cambian la confiabilidad térmica del día; una lluvia
+marcada conserva la confiabilidad que resulte de las temperaturas y su
+cobertura horaria. Las variables independientes válidas se conservan. Una
 temperatura media horaria marcada invalida el resumen térmico de ese día,
 aunque haya otras horas válidas. La lluvia marcada tampoco participa en
 los eventos horarios. Al recalcular, los índices derivados que ya no tienen
