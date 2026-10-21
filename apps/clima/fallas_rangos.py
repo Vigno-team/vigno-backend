@@ -85,12 +85,22 @@ def _fila(estacion, tipo, **datos):
 def reporte_fallas(estacion, temporada):
     inicio, fin = rango_temporada(temporada)
     mediciones = MedicionHoraria.objects.filter(estacion=estacion)
-    periodo = mediciones.aggregate(inicio=Min("timestamp"), fin=Max("timestamp"))
+    periodo = mediciones.filter(valor__isnull=False).aggregate(
+        inicio=Min("timestamp"), fin=Max("timestamp")
+    )
     dentro = mediciones.filter(timestamp__date__gte=inicio, timestamp__date__lte=fin)
     filas = fallas_fuera_de_rango(estacion, temporada)
     for fila in filas:
         fila["fila"] = None
-    for dato in dentro.filter(valor__isnull=True, fuera_de_rango=False).select_related("carga"):
+    nulos = dentro.filter(valor__isnull=True, fuera_de_rango=False)
+    if periodo["inicio"] is None:
+        nulos = nulos.none()
+    else:
+        nulos = nulos.filter(
+            timestamp__date__gte=timezone.localdate(periodo["inicio"]),
+            timestamp__date__lte=timezone.localdate(periodo["fin"]),
+        )
+    for dato in nulos.select_related("carga"):
         filas.append(
             _fila(
                 estacion,
@@ -121,9 +131,28 @@ def reporte_fallas(estacion, temporada):
                     )
                 )
             dia += timedelta(days=1)
-    for carga in RegistroCarga.objects.filter(estacion=estacion.nombre).order_by("pk"):
+    archivos_vistos = set()
+    cargas = RegistroCarga.objects.filter(
+        estacion=estacion.nombre, estado=RegistroCarga.ESTADO_OK
+    ).order_by("-fecha_carga", "-pk")
+    for carga in cargas:
+        # Una recarga corregida reemplaza el informe anterior del mismo año.
+        clave = (
+            ("anio", carga.temporada)
+            if carga.temporada
+            else ("archivo", Path(carga.archivo.replace("\\", "/")).name.casefold())
+        )
+        if clave in archivos_vistos:
+            continue
+        archivos_vistos.add(clave)
         for rechazo in carga.detalle_rechazos or []:
             original = rechazo.get("valor_original")
+            if rechazo.get("motivo") == "Fecha futura o sin datos posteriores":
+                continue
+            # Compatibilidad con las cargas anteriores a la separación de vacíos.
+            # El motivo nuevo conserva las fechas vacías que sí tienen datos.
+            if rechazo.get("motivo") == "Fecha inválida" and original == "NaT":
+                continue
             fecha = None
             if isinstance(original, str) and re.search(
                 r"(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4})", original

@@ -15,7 +15,7 @@ from apps.clima.models import Estacion, MedicionHoraria
 from apps.clima.rangos import cargar_rangos, motivo_fuera_de_rango
 from apps.ingesta.models import RegistroCarga
 
-MOTIVO_FECHA_INVALIDA = "Fecha inválida"
+MOTIVO_FECHA_INVALIDA = "Fecha vacía o inválida en una fila con datos"
 MOTIVO_FECHA_REPETIDA = "Fecha repetida en el archivo"
 MOTIVO_FECHA_FUTURA = "Fecha futura o sin datos posteriores"
 
@@ -27,6 +27,7 @@ class LimpiezaResult:
     rechazos: list[dict[str, Any]]
     columnas_abejas: list[str]
     filas_leidas: int
+    filas_vacias_ignoradas: int = 0
 
 
 @dataclass
@@ -140,6 +141,19 @@ class Command(BaseCommand):
         col_fecha = map_cols["timestamp"]
         columnas_variables = [c for k, c in map_cols.items() if k != "timestamp"]
 
+        # Espacios y celdas vacías de la plantilla no son mediciones rechazadas.
+        columnas_origen = [col_fecha, *columnas_variables]
+        vacias = (
+            df[columnas_origen]
+            .apply(
+                lambda columna: columna.isna()
+                | columna.map(lambda valor: isinstance(valor, str) and not valor.strip())
+            )
+            .all(axis=1)
+        )
+        filas_vacias_ignoradas = int(vacias.sum())
+        df = df.loc[~vacias].copy()
+
         fechas_originales = df[col_fecha].copy()
         crudo = df[columnas_variables].copy()
         rechazos = []
@@ -200,7 +214,9 @@ class Command(BaseCommand):
 
         rechazos.sort(key=lambda r: r["fila"])
 
-        return LimpiezaResult(df, crudo, rechazos, columnas_abejas, filas_leidas)
+        return LimpiezaResult(
+            df, crudo, rechazos, columnas_abejas, filas_leidas, filas_vacias_ignoradas
+        )
 
     def _clasificar_cambios(
         self,
@@ -318,6 +334,7 @@ class Command(BaseCommand):
             formato_detectado=formato_detectado,
             temporada=temporada,
             filas_leidas=r_limp.filas_leidas,
+            filas_vacias_ignoradas=r_limp.filas_vacias_ignoradas,
             filas_aceptadas=len(r_limp.df_limpio),
             filas_rechazadas=len(r_limp.rechazos),
             detalle_rechazos=r_limp.rechazos,
@@ -409,6 +426,7 @@ class Command(BaseCommand):
         out(self.style.SUCCESS("\n=== REPORTE DE INGESTA VIGNO ==="))
         out(f"Estación: {nombre_estacion} | Formato: {fmt} | Temporada: {temporada}")
         out(f"Filas leídas totales: {res_limpieza.filas_leidas}")
+        out(f"Filas vacías ignoradas: {res_limpieza.filas_vacias_ignoradas}")
         out(self.style.SUCCESS(f"Filas válidas procesadas: {len(res_limpieza.df_limpio)}"))
 
         if res_limpieza.rechazos:

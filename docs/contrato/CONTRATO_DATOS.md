@@ -459,7 +459,7 @@ GET `/api/v1/calidad/fallas?estacion=<codigo>&temporada=AAAA-AAAA`.
 | resumen.por_tipo | objeto | Conteo de cada uno de los cuatro tipos, incluso cero. |
 | resumen.por_variable | objeto | Conteos; sin_variable para un día sin registros. |
 
-Los huecos se limitan al período observado de la estación, intersectado con
+Los nulos y huecos se limitan al período con algún valor de la estación, intersectado con
 la temporada y hasta hoy. No insertan registros. Las fechas inválidas son null;
 se incluyen por el año del archivo cuando coincide con alguno de los dos años
 consultados (pueden aparecer en ambas temporadas). Sin fecha ni año no pueden
@@ -467,3 +467,19 @@ asignarse a una temporada. Un mismo día puede tener rechazos y sin_registro:
 son incidencias distintas. Los nulos conservan su motivo aunque el texto original
 de la celda ya no esté disponible. El CSV protege textos que puedan interpretarse
 como fórmulas. Los valores originales numéricos conservan su signo.
+
+
+La ingesta cuenta las filas sin fecha ni valores como `filas_vacias_ignoradas`
+en `RegistroCarga`; conserva el número original de fila de los rechazos reales.
+Una fecha vacía o inválida con datos sí se rechaza. El reporte toma únicamente
+la última carga exitosa por estación y año de archivo (si no hay año, por nombre
+de archivo). Una carga fallida no reemplaza el informe anterior. Las recargas
+no acumulan rechazos viejos; la bitácora completa permanece guardada.
+
+Se omiten del reporte los días futuros o posteriores al último dato. Para
+las bitácoras antiguas se omite también el motivo exacto `Fecha inválida` con
+valor `NaT`, identificado como relleno en los Excel del cliente. El motivo nuevo
+`Fecha vacía o inválida en una fila con datos` siempre se conserva, incluso
+si la fecha original está vacía. Se recomienda recargar los archivos antiguos
+para reconstruir sus contadores. Las mediciones nulas anteriores al primer
+valor de la estación no se muestran como fallas; no se borran de la base.

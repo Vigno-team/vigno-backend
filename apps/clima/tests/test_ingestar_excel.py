@@ -91,7 +91,7 @@ def test_ingesta_exitosa_y_reglas_negocio(excel_sintetico):
     assert "Abejas" in carga.columnas_descartadas
     assert carga.formato_detectado == "B_2023_2026"
     assert carga.estado == "OK"
-    assert carga.detalle_rechazos[0]["motivo"] == "Fecha inválida"
+    assert carga.detalle_rechazos[0]["motivo"] == "Fecha vacía o inválida en una fila con datos"
 
     # La celda vacía no botó el script y guardó el motivo correcto
     medicion_vacia = MedicionHoraria.objects.get(
