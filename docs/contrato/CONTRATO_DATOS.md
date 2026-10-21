@@ -418,3 +418,21 @@ La salida se escribe en UTF-8 sin BOM. Los tests usan `tmp_path` y
 `settings.BASE_DIR`; nunca escriben en la carpeta real `data/cliente`.
 No se versiona un JSON con resultados inventados: el ejemplo para el frontend
 se obtiene ejecutando ambos comandos sobre el CSV local.
+
+
+## Calidad del dato: integración E1C-71, E1C-70, E1C-68 y E1C-130
+
+- `resumen_diario.dias[].motivo_nulo` es opcional y también puede aparecer
+  en días con datos parciales. El frontend debe conservar los valores no
+  nulos y mostrar el motivo; no debe ocultar todo el día ni convertir nulos
+  en cero. Un motivo de lluvia no significa que las temperaturas sean inválidas.
+- `ResumenDiario.confiable` conserva el criterio térmico existente: una
+  precipitación marcada no cambia esa bandera. Una temperatura marcada sí
+  la fuerza a false; esto no modifica los criterios de completitud por métrica.
+- `/api/v1/calidad/fallas` es la ruta del reporte de calidad. Actualmente
+  incluye `fuera_de_rango`; E1C-70 agrega rechazados, nulos y días sin
+  registro en esa misma ruta. `tipos_incluidos` indica los tipos disponibles.
+- E1C-68 debe asignar a toda estación nueva un `codigo` único, no nulo y no
+  vacío y devolverlo en POST/GET estaciones. E1C-130 usa ese código en el
+  parámetro `estacion`; no utiliza el nombre ni el id numérico. La creación
+  de estaciones nuevas pertenece a E1C-68, no a este ajuste.

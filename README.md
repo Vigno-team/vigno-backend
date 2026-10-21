@@ -333,8 +333,10 @@ no lo imputa y no confunde esta marca con `motivo_nulo`. Una recarga válida
 actualiza ambas marcas; se conserva la prevalencia del archivo más nuevo.
 
 Los resúmenes excluyen las mediciones marcadas. La variable afectada del
-día queda nula, con `motivo_nulo="Valor fuera de rango físico"` y el día
-no confiable; las variables independientes válidas se conservan. Una
+día queda nula, con `motivo_nulo="Valor fuera de rango físico"`. Solo las
+temperaturas marcadas cambian la confiabilidad térmica del día; una lluvia
+marcada conserva la confiabilidad que resulte de las temperaturas y su
+cobertura horaria. Las variables independientes válidas se conservan. Una
 temperatura media horaria marcada invalida el resumen térmico de ese día,
 aunque haya otras horas válidas. La lluvia marcada tampoco participa en
 los eventos horarios. Al recalcular, los índices derivados que ya no tienen
@@ -369,9 +371,7 @@ El CSV usa encabezados en español y separador `;`. Los filtros son
 obligatorios; consulta inválida responde 400 y estación inexistente 404.
 El reporte sigue la política de solo lectura pública de la API de demo.
 
-**Integración con E1C-70:** este PR implementa únicamente el origen
-`fuera_de_rango`; no pretende completar los otros tres tipos del reporte.
-E1C-70 debe reutilizar `fallas_fuera_de_rango` de `apps/clima/fallas_rangos.py`
-y ampliar esta misma ruta con rechazados, nulos y días sin registro.
-Coordinar el merge de `ingestar_excel.py` con E1C-66, E1C-117 y E1C-132.
-La opción de incluir outliers voluntariamente queda fuera de este sprint.
+El reporte incluye por ahora los valores fuera de rango. En E1C-70 se
+agregarán las filas rechazadas, los nulos y los días sin registro en esta
+misma ruta. La consulta de valores marcados está en
+`apps/clima/fallas_rangos.py`.

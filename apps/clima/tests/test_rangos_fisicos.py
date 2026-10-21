@@ -241,3 +241,43 @@ def test_lluvia_horaria_marcada_sin_temperatura_tambien_genera_motivo(estacion):
     call_command("generar_resumenes")
     r = ResumenDiario.objects.get()
     assert r.precipitacion is None and r.motivo_nulo == MOTIVO_RANGO
+
+
+@pytest.mark.parametrize(
+    "frecuencia,horas,confiable", [("D", 1, True), ("H", 24, True), ("H", 2, False)]
+)
+def test_lluvia_invalida_conserva_confiabilidad_termica(estacion, frecuencia, horas, confiable):
+    from apps.clima.services import resumen_diario
+
+    for hora in range(horas):
+        for variable, valor in [
+            ("temperatura_maxima", 25),
+            ("temperatura_minima", 10),
+            ("temperatura_media", 18),
+            ("precipitacion", -1),
+        ]:
+            motivo = motivo_fuera_de_rango(variable, valor, frecuencia)
+            MedicionHoraria.objects.create(
+                estacion=estacion,
+                timestamp=datetime(
+                    2025,
+                    1,
+                    15,
+                    hora if frecuencia == "H" else 12,
+                    tzinfo=ZoneInfo("America/Santiago"),
+                ),
+                variable=variable,
+                frecuencia=frecuencia,
+                valor=valor,
+                fuera_de_rango=bool(motivo),
+                motivo_fuera_de_rango=motivo,
+            )
+    call_command("generar_resumenes")
+    resumen = ResumenDiario.objects.get()
+    assert resumen.confiable is confiable
+    assert resumen.precipitacion is None
+    assert (resumen.tmax, resumen.tmin, resumen.tmedia) == (25, 10, 18)
+    assert resumen.motivo_nulo == MOTIVO_RANGO
+    dia = resumen_diario(estacion, "2025-01-15", "2025-01-15")["dias"][0]
+    assert dia["motivo_nulo"] == MOTIVO_RANGO
+    assert dia["tmax"] == 25 and dia["precipitacion"] is None
