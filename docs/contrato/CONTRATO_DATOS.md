@@ -236,6 +236,7 @@ Capa de NDVI (índice de vigor de la vegetación, sin unidad) de cada predio, pa
 | Campo             | Tipo                                                    | Descripción                                                                                                                                                                                                  |
 | ----------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `estacion_id`     | texto                                                   | Igual a `estaciones[].id` (§4.2)                                                                                                                                                                             |
+| `nombre` | texto | Nombre actual de la estación, también cuando no hay imagen. |
 | `capa`            | texto                                                   | Hoy solo `"ndvi"`                                                                                                                                                                                            |
 | `fecha_imagen`    | fecha o `null`                                          | Día de captura de la escena Sentinel-2                                                                                                                                                                       |
 | `limites`         | `[[lat_sur, lon_oeste], [lat_norte, lon_este]]` o `null` | Caja que contiene la grilla, en grados decimales (WGS84). Orden **[lat, lon]**, el que pide `L.imageOverlay`. El contorno GeoJSON de `config/areas_mapa.json` va al revés, en [lon, lat]. Ver «Alineación»   |
@@ -263,7 +264,7 @@ La grilla se pide en UTM (hoy `EPSG:32719`, huso 19 sur): sus filas y columnas s
 
 #### Sin imagen útil
 
-La entrada mantiene su forma: trae `estacion_id`, `capa` y `motivo_nulo`, y **todos los demás campos en `null`**. Basta una condición: si `valores` es `null`, el frontend no pinta la capa y muestra `motivo_nulo`.
+La entrada mantiene su forma: trae `estacion_id`, `nombre`, `capa` y `motivo_nulo`, y **todos los demás campos en `null`**. Basta una condición: si `valores` es `null`, el frontend no pinta la capa y muestra `motivo_nulo`.
 
 Una imagen es útil si tiene al menos una celda válida dentro del predio (`pct_validos` mayor que 0); se entrega la más reciente que lo cumple. No hay otro umbral de calidad: el cálculo de E1C-126 ya elige la escena menos nublada de los últimos 30 días. Los motivos de hoy, con su texto:
 
