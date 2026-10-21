@@ -429,10 +429,41 @@ se obtiene ejecutando ambos comandos sobre el CSV local.
 - `ResumenDiario.confiable` conserva el criterio térmico existente: una
   precipitación marcada no cambia esa bandera. Una temperatura marcada sí
   la fuerza a false; esto no modifica los criterios de completitud por métrica.
-- `/api/v1/calidad/fallas` es la ruta del reporte de calidad. Actualmente
-  incluye `fuera_de_rango`; E1C-70 agrega rechazados, nulos y días sin
-  registro en esa misma ruta. `tipos_incluidos` indica los tipos disponibles.
+- `/api/v1/calidad/fallas` es la ruta del reporte de calidad. Incluye `rechazado`,
+  `nulo`, `sin_registro` y `fuera_de_rango` en esa misma ruta. `tipos_incluidos` indica los tipos disponibles.
 - E1C-68 debe asignar a toda estación nueva un `codigo` único, no nulo y no
   vacío y devolverlo en POST/GET estaciones. E1C-130 usa ese código en el
   parámetro `estacion`; no utiliza el nombre ni el id numérico. La creación
   de estaciones nuevas pertenece a E1C-68, no a este ajuste.
+
+
+### Reporte de fallas (E1C-70)
+
+GET `/api/v1/calidad/fallas?estacion=<codigo>&temporada=AAAA-AAAA`.
+`formato=csv` descarga las mismas filas con separador `;` y encabezados en español.
+
+| Campo | Tipo | Significado |
+| --- | --- | --- |
+| estacion, temporada | string | Filtros aplicados. |
+| tipos_incluidos | array | rechazado, nulo, sin_registro, fuera_de_rango. |
+| fallas[].medicion_id | integer/null | Identificador si existe una medición guardada. |
+| fallas[].estacion | string | Código de estación. |
+| fallas[].fecha, timestamp | string/null | Fecha local y timestamp cuando están disponibles. |
+| fallas[].variable, frecuencia | string/null | Variable canónica y D/H; sin_registro no representa una variable particular. |
+| fallas[].tipo, motivo | string | Tipo de falla y explicación. |
+| fallas[].valor_original | number/string/null | Valor conservado; no se reconstruyen celdas perdidas. |
+| fallas[].archivo, carga, fila | string/integer/integer o null | Archivo sin ruta local, carga y fila de rechazo. |
+| fallas[].corregido | boolean | false hasta integrar el modelo de correcciones manuales. |
+| fallas[].criterio_temporada | string | En rechazos: fecha_original o anio_archivo_fecha_desconocida. |
+| resumen.total | integer | Número de filas de fallas. |
+| resumen.por_tipo | objeto | Conteo de cada uno de los cuatro tipos, incluso cero. |
+| resumen.por_variable | objeto | Conteos; sin_variable para un día sin registros. |
+
+Los huecos se limitan al período observado de la estación, intersectado con
+la temporada y hasta hoy. No insertan registros. Las fechas inválidas son null;
+se incluyen por el año del archivo cuando coincide con alguno de los dos años
+consultados (pueden aparecer en ambas temporadas). Sin fecha ni año no pueden
+asignarse a una temporada. Un mismo día puede tener rechazos y sin_registro:
+son incidencias distintas. Los nulos conservan su motivo aunque el texto original
+de la celda ya no esté disponible. El CSV protege textos que puedan interpretarse
+como fórmulas. Los valores originales numéricos conservan su signo.

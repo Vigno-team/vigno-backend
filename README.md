@@ -363,15 +363,27 @@ GET /api/v1/calidad/fallas?estacion=<codigo>&temporada=2024-2025
 GET /api/v1/calidad/fallas?estacion=<codigo>&temporada=2024-2025&formato=csv
 ```
 
-El JSON devuelve `fallas`, un `resumen` por tipo y variable y
-`tipos_incluidos=["fuera_de_rango"]`. Cada fila contiene identificación de
-medición, estación, fecha local, timestamp, variable, frecuencia, tipo, motivo,
-valor original, nombre de archivo, carga y `corregido=false` (hasta E1C-131).
-El CSV usa encabezados en español y separador `;`. Los filtros son
-obligatorios; consulta inválida responde 400 y estación inexistente 404.
-El reporte sigue la política de solo lectura pública de la API de demo.
+El JSON devuelve `fallas`, un `resumen` por tipo y variable y los cuatro
+`tipos_incluidos`: `rechazado`, `nulo`, `sin_registro` y `fuera_de_rango`.
+Cada fila identifica estación, fecha local, variable, motivo, valor original
+disponible, archivo y carga. Los rechazos incluyen el número de fila del Excel.
+`corregido` permanece en false hasta que exista el registro de correcciones
+manuales de E1C-131. El CSV usa encabezados en español y separador `;`.
+Consulta inválida responde 400 y estación inexistente 404. Es una consulta
+de solo lectura, pública como el resto de la API de demo.
 
-El reporte incluye por ahora los valores fuera de rango. En E1C-70 se
-agregarán las filas rechazadas, los nulos y los días sin registro en esta
-misma ruta. La consulta de valores marcados está en
-`apps/clima/fallas_rangos.py`.
+Los días sin registro se buscan entre la primera y la última medición de la
+estación, dentro de la temporada solicitada y hasta hoy. Se devuelve una fila
+por día, con variable nula (`sin_variable` en el resumen); no se crean mediciones.
+Los valores ausentes siguen nulos: el pipeline no interpola, no rellena con
+promedios ni convierte faltantes en cero. La prueba de integridad recorre
+ingesta, resúmenes, índices, exportación y reporte con un Excel con huecos.
+
+Un rechazo sin fecha válida conserva `fecha=null`. Se incluye si el año del
+archivo coincide con alguno de los años de la temporada y se identifica con
+`criterio_temporada=anio_archivo_fecha_desconocida`. Puede aparecer en las dos
+temporadas que comparten ese año; no debe interpretarse como una fecha conocida.
+Los rechazos con fecha se filtran por esa fecha, no por el año del archivo.
+Si no hay fecha ni año de archivo, no es posible asignarlo a esta consulta.
+En nulos históricos el valor original no está almacenado por separado:
+`valor_original` queda null y `motivo` conserva la explicación de la ingesta.
