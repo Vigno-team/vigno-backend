@@ -15,6 +15,11 @@ def _guardar(estacion: Estacion, temporada: str, metrica: str):
             indice=NOMBRES_INDICE[metrica],
             defaults=resultado,
         )
+    else:
+        # No conservar un índice anterior si perdió todos sus datos válidos.
+        IndiceClimatico.objects.filter(
+            estacion=estacion, temporada=temporada, indice=NOMBRES_INDICE[metrica]
+        ).delete()
     return resultado["valor"]
 
 
