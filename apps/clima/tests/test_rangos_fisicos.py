@@ -89,7 +89,7 @@ def test_excel_conserva_original_excluye_resumen_y_publica_reporte(tmp_path, est
     assert respuesta.status_code == 200
     datos = respuesta.json()
     assert datos["resumen"]["total"] == 2
-    assert datos["tipos_incluidos"] == ["fuera_de_rango"]
+    assert set(datos["tipos_incluidos"]) == {"rechazado", "nulo", "sin_registro", "fuera_de_rango"}
     marca = next(f for f in datos["fallas"] if f["variable"] == "temperatura_maxima")
     assert marca["valor_original"] == 80
     assert marca["carga"] == tmax.carga_id

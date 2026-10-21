@@ -1,11 +1,15 @@
-"""Bloque fuera_de_rango de E1C-71, ampliable por el reporte de E1C-70."""
+"""Reporte de calidad sin modificar ni completar las mediciones de origen."""
 
 import csv
 import io
 import math
+import re
 from collections import Counter
+from datetime import timedelta
 from pathlib import Path
 
+import pandas as pd
+from django.db.models import Max, Min
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -17,6 +21,7 @@ from apps.clima.models import Estacion, MedicionHoraria
 from apps.clima.serializers import ConsultaTemporadaSerializer
 from apps.clima.temporadas import rango_temporada
 from apps.clima.views import ResultadosView
+from apps.ingesta.models import RegistroCarga
 
 
 def fallas_fuera_de_rango(estacion, temporada):
@@ -55,9 +60,140 @@ def fallas_fuera_de_rango(estacion, temporada):
     return filas
 
 
+TIPOS = ("rechazado", "nulo", "sin_registro", "fuera_de_rango")
+
+
+def _fila(estacion, tipo, **datos):
+    return {
+        "medicion_id": None,
+        "estacion": estacion.codigo,
+        "fecha": None,
+        "timestamp": None,
+        "variable": None,
+        "frecuencia": None,
+        "tipo": tipo,
+        "motivo": None,
+        "valor_original": None,
+        "archivo": None,
+        "carga": None,
+        "fila": None,
+        "corregido": False,
+        **datos,
+    }
+
+
+def reporte_fallas(estacion, temporada):
+    inicio, fin = rango_temporada(temporada)
+    mediciones = MedicionHoraria.objects.filter(estacion=estacion)
+    periodo = mediciones.filter(valor__isnull=False).aggregate(
+        inicio=Min("timestamp"), fin=Max("timestamp")
+    )
+    dentro = mediciones.filter(timestamp__date__gte=inicio, timestamp__date__lte=fin)
+    filas = fallas_fuera_de_rango(estacion, temporada)
+    for fila in filas:
+        fila["fila"] = None
+    nulos = dentro.filter(valor__isnull=True, fuera_de_rango=False)
+    if periodo["inicio"] is None:
+        nulos = nulos.none()
+    else:
+        nulos = nulos.filter(
+            timestamp__date__gte=timezone.localdate(periodo["inicio"]),
+            timestamp__date__lte=timezone.localdate(periodo["fin"]),
+        )
+    for dato in nulos.select_related("carga"):
+        filas.append(
+            _fila(
+                estacion,
+                "nulo",
+                medicion_id=dato.pk,
+                fecha=timezone.localdate(dato.timestamp).isoformat(),
+                timestamp=timezone.localtime(dato.timestamp).isoformat(),
+                variable=dato.variable,
+                frecuencia=dato.frecuencia,
+                motivo=dato.motivo_nulo or "Sin valor en origen",
+                archivo=Path(dato.carga.archivo.replace("\\", "/")).name if dato.carga else None,
+                carga=dato.carga_id,
+            )
+        )
+    if periodo["inicio"] is not None:
+        primero = max(inicio, timezone.localdate(periodo["inicio"]))
+        ultimo = min(fin, timezone.localdate(periodo["fin"]), timezone.localdate())
+        presentes = set(dentro.dates("timestamp", "day"))
+        dia = primero
+        while dia <= ultimo:
+            if dia not in presentes:
+                filas.append(
+                    _fila(
+                        estacion,
+                        "sin_registro",
+                        fecha=dia.isoformat(),
+                        motivo="Día sin mediciones dentro del período observado de la estación",
+                    )
+                )
+            dia += timedelta(days=1)
+    archivos_vistos = set()
+    cargas = RegistroCarga.objects.filter(
+        estacion=estacion.nombre, estado=RegistroCarga.ESTADO_OK
+    ).order_by("-fecha_carga", "-pk")
+    for carga in cargas:
+        # Una recarga corregida reemplaza el informe anterior del mismo año.
+        clave = (
+            ("anio", carga.temporada)
+            if carga.temporada
+            else ("archivo", Path(carga.archivo.replace("\\", "/")).name.casefold())
+        )
+        if clave in archivos_vistos:
+            continue
+        archivos_vistos.add(clave)
+        for rechazo in carga.detalle_rechazos or []:
+            original = rechazo.get("valor_original")
+            if rechazo.get("motivo") == "Fecha futura o sin datos posteriores":
+                continue
+            # Compatibilidad con las cargas anteriores a la separación de vacíos.
+            # El motivo nuevo conserva las fechas vacías que sí tienen datos.
+            if rechazo.get("motivo") == "Fecha inválida" and original == "NaT":
+                continue
+            fecha = None
+            if isinstance(original, str) and re.search(
+                r"(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4})", original
+            ):
+                fecha = pd.to_datetime(
+                    original, errors="coerce", dayfirst=not bool(re.match(r"\d{4}[-/]", original))
+                )
+                if not pd.isna(fecha) and fecha.tzinfo is not None:
+                    fecha = fecha.tz_convert(timezone.get_current_timezone())
+            fecha = None if fecha is None or pd.isna(fecha) else fecha.date()
+            if fecha is not None:
+                if not inicio <= fecha <= fin:
+                    continue
+                criterio = "fecha_original"
+            else:
+                # El año del archivo no identifica una temporada agrícola exacta.
+                if carga.temporada not in (inicio.year, fin.year):
+                    continue
+                criterio = "anio_archivo_fecha_desconocida"
+            filas.append(
+                _fila(
+                    estacion,
+                    "rechazado",
+                    fecha=fecha.isoformat() if fecha else None,
+                    variable="timestamp",
+                    motivo=rechazo.get("motivo"),
+                    valor_original=original,
+                    fila=rechazo.get("fila"),
+                    archivo=Path(carga.archivo.replace("\\", "/")).name,
+                    carga=carga.pk,
+                    criterio_temporada=criterio,
+                )
+            )
+    return sorted(
+        filas, key=lambda f: (f["fecha"] or "", f["tipo"], f["variable"] or "", f["carga"] or 0)
+    )
+
+
 class FallasRangosView(ResultadosView):
     @extend_schema(
-        summary="Valores fuera de rango físico (bloque E1C-71 del reporte de fallas)",
+        summary="Reporte de fallas de datos por estación y temporada",
         parameters=[
             OpenApiParameter("estacion", str, required=True),
             OpenApiParameter("temporada", str, required=True),
@@ -76,7 +212,7 @@ class FallasRangosView(ResultadosView):
         if formato not in ("json", "csv"):
             raise serializers.ValidationError({"formato": "Usa json o csv"})
         estacion = get_object_or_404(Estacion, codigo=datos["estacion"])
-        filas = fallas_fuera_de_rango(estacion, datos["temporada"])
+        filas = reporte_fallas(estacion, datos["temporada"])
         if formato == "csv":
             salida = io.StringIO()
             campos = [
@@ -89,6 +225,7 @@ class FallasRangosView(ResultadosView):
                 "valor_original",
                 "archivo",
                 "carga",
+                "fila",
                 "corregido",
             ]
             escritor = csv.writer(salida, delimiter=";")
@@ -103,6 +240,7 @@ class FallasRangosView(ResultadosView):
                     "Valor original",
                     "Archivo",
                     "Carga",
+                    "Fila",
                     "Corregido",
                 ]
             )
@@ -117,18 +255,18 @@ class FallasRangosView(ResultadosView):
                     valores.append(valor)
                 escritor.writerow(valores)
             respuesta = HttpResponse(salida.getvalue(), content_type="text/csv; charset=utf-8")
-            respuesta["Content-Disposition"] = 'attachment; filename="fallas-fuera-de-rango.csv"'
+            respuesta["Content-Disposition"] = 'attachment; filename="fallas-calidad.csv"'
             return respuesta
         return Response(
             {
                 "estacion": estacion.codigo,
                 "temporada": datos["temporada"],
-                "tipos_incluidos": ["fuera_de_rango"],
+                "tipos_incluidos": list(TIPOS),
                 "fallas": filas,
                 "resumen": {
                     "total": len(filas),
-                    "por_tipo": {"fuera_de_rango": len(filas)},
-                    "por_variable": dict(Counter(f["variable"] for f in filas)),
+                    "por_tipo": {tipo: sum(f["tipo"] == tipo for f in filas) for tipo in TIPOS},
+                    "por_variable": dict(Counter(f["variable"] or "sin_variable" for f in filas)),
                 },
             }
         )
