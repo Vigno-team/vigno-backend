@@ -318,3 +318,60 @@ a `Region_5` en Subset3. Obtiene el año de la fecha de cosecha en Subset1,
 convierte las regiones 1–5 a I–V y conserva las etiquetas originales de Recommend.
 También acepta tablas .xlsx ya normalizadas, pero no dos versiones del mismo
 Subset a la vez. No sustituye índices climáticos ausentes por cero.
+
+## Calidad del dato: rangos físicos (E1C-71)
+
+`config/rangos_variables.json` es el catálogo único: temperaturas máxima,
+mínima y media entre −15 y 50 °C; precipitación diaria entre 0 y 300 mm y
+horaria entre 0 y 100 mm. Los límites están incluidos. El validador
+`apps.clima.rangos.motivo_fuera_de_rango` acepta nombres canónicos y
+`tmax/tmin/tmedia`, y queda disponible para las correcciones de E1C-131.
+
+La ingesta conserva el número original en `MedicionHoraria.valor`, con
+`fuera_de_rango=True` y `motivo_fuera_de_rango`. No lo sustituye por cero,
+no lo imputa y no confunde esta marca con `motivo_nulo`. Una recarga válida
+actualiza ambas marcas; se conserva la prevalencia del archivo más nuevo.
+
+Los resúmenes excluyen las mediciones marcadas. La variable afectada del
+día queda nula, con `motivo_nulo="Valor fuera de rango físico"` y el día
+no confiable; las variables independientes válidas se conservan. Una
+temperatura media horaria marcada invalida el resumen térmico de ese día,
+aunque haya otras horas válidas. La lluvia marcada tampoco participa en
+los eventos horarios. Al recalcular, los índices derivados que ya no tienen
+datos se retiran para no conservar resultados obsoletos; las mediciones
+originales permanecen guardadas.
+
+Después de desplegar (y tras modificar el catálogo, para revalidar históricos):
+
+```powershell
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py validar_rangos
+docker compose exec backend python manage.py generar_resumenes
+docker compose exec backend python manage.py calcular_indices
+```
+
+`validar_rangos` es idempotente, actualiza solo marcas/motivos y admite
+`--estacion "San Clemente"`. Las nuevas cargas validan automáticamente;
+se regeneran resúmenes e índices después de cargar como en el flujo actual.
+
+Reporte disponible:
+
+```text
+GET /api/v1/calidad/fallas?estacion=<codigo>&temporada=2024-2025
+GET /api/v1/calidad/fallas?estacion=<codigo>&temporada=2024-2025&formato=csv
+```
+
+El JSON devuelve `fallas`, un `resumen` por tipo y variable y
+`tipos_incluidos=["fuera_de_rango"]`. Cada fila contiene identificación de
+medición, estación, fecha local, timestamp, variable, frecuencia, tipo, motivo,
+valor original, nombre de archivo, carga y `corregido=false` (hasta E1C-131).
+El CSV usa encabezados en español y separador `;`. Los filtros son
+obligatorios; consulta inválida responde 400 y estación inexistente 404.
+El reporte sigue la política de solo lectura pública de la API de demo.
+
+**Integración con E1C-70:** este PR implementa únicamente el origen
+`fuera_de_rango`; no pretende completar los otros tres tipos del reporte.
+E1C-70 debe reutilizar `fallas_fuera_de_rango` de `apps/clima/fallas_rangos.py`
+y ampliar esta misma ruta con rechazados, nulos y días sin registro.
+Coordinar el merge de `ingestar_excel.py` con E1C-66, E1C-117 y E1C-132.
+La opción de incluir outliers voluntariamente queda fuera de este sprint.

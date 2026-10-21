@@ -1,0 +1,9 @@
+{
+  "tmax": {"min": -15, "max": 50, "unidad": "°C"},
+  "tmin": {"min": -15, "max": 50, "unidad": "°C"},
+  "tmedia": {"min": -15, "max": 50, "unidad": "°C"},
+  "precipitacion": {
+    "D": {"min": 0, "max": 300, "unidad": "mm/día"},
+    "H": {"min": 0, "max": 100, "unidad": "mm/hora"}
+  }
+}

@@ -29,13 +29,23 @@ class Command(BaseCommand):
             return
 
         df = pd.DataFrame(
-            qs.values("estacion_id", "timestamp", "frecuencia", "variable", "valor", "motivo_nulo")
+            qs.values(
+                "estacion_id",
+                "timestamp",
+                "frecuencia",
+                "variable",
+                "valor",
+                "motivo_nulo",
+                "fuera_de_rango",
+            )
         )
 
         claves = ["estacion_id", "timestamp", "frecuencia"]
         valores = df.set_index(claves + ["variable"])["valor"].unstack("variable")
         motivos = df.groupby(claves)["motivo_nulo"].first()
-        ancho = valores.join(motivos).reset_index()
+        marcas = df.set_index(claves + ["variable"])["fuera_de_rango"].unstack("variable")
+        marcas = marcas.add_suffix("_fuera_de_rango")
+        ancho = valores.join(motivos).join(marcas).reset_index()
         ancho.columns.name = None
 
         registros = derivar_resumenes_diarios(ancho)

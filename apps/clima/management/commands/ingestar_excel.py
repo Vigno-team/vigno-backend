@@ -12,6 +12,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.clima.models import Estacion, MedicionHoraria
+from apps.clima.rangos import cargar_rangos, motivo_fuera_de_rango
 from apps.ingesta.models import RegistroCarga
 
 MOTIVO_FECHA_INVALIDA = "Fecha inválida"
@@ -212,6 +213,7 @@ class Command(BaseCommand):
     ) -> ClasificacionResult:
         col_fecha = map_cols["timestamp"]
         existentes = {}
+        catalogo = cargar_rangos()
 
         if len(df):
             filas_bd = MedicionHoraria.objects.filter(
@@ -219,8 +221,17 @@ class Command(BaseCommand):
                 frecuencia=frecuencia,
                 timestamp__gte=df[col_fecha].min().to_pydatetime(),
                 timestamp__lte=df[col_fecha].max().to_pydatetime(),
-            ).values_list("timestamp", "variable", "valor", "temporada")
-            existentes = {(ts, var): (val, temp) for ts, var, val, temp in filas_bd}
+            ).values_list(
+                "timestamp",
+                "variable",
+                "valor",
+                "temporada",
+                "fuera_de_rango",
+                "motivo_fuera_de_rango",
+            )
+            existentes = {
+                (ts, var): (val, temp, flag, razon) for ts, var, val, temp, flag, razon in filas_bd
+            }
 
         a_guardar = []
         insertados = actualizados = sin_cambio = omitidos = 0
@@ -244,15 +255,22 @@ class Command(BaseCommand):
                     valor_final = float(valor_nuevo)
                     motivo = None
 
+                motivo_rango = motivo_fuera_de_rango(
+                    variable_canonica, valor_final, frecuencia, catalogo
+                )
                 previo = existentes.get((timestamp_local, variable_canonica))
                 if previo is None:
                     insertados += 1
                 else:
-                    valor_previo, temporada_previa = previo
+                    valor_previo, temporada_previa, flag_previo, motivo_previo = previo
                     if temporada_previa is not None and temporada_previa > temporada:
                         omitidos += 1
                         continue
-                    if valor_previo == valor_final:
+                    if (
+                        valor_previo == valor_final
+                        and flag_previo == bool(motivo_rango)
+                        and motivo_previo == motivo_rango
+                    ):
                         sin_cambio += 1
                         continue
                     actualizados += 1
@@ -268,6 +286,8 @@ class Command(BaseCommand):
                         frecuencia=frecuencia,
                         valor=valor_final,
                         motivo_nulo=motivo,
+                        fuera_de_rango=bool(motivo_rango),
+                        motivo_fuera_de_rango=motivo_rango,
                         temporada=temporada,
                     )
                 )
@@ -314,7 +334,14 @@ class Command(BaseCommand):
                     batch_size=1000,
                     update_conflicts=True,
                     unique_fields=["estacion", "timestamp", "variable", "frecuencia"],
-                    update_fields=["valor", "motivo_nulo", "carga", "temporada"],
+                    update_fields=[
+                        "valor",
+                        "motivo_nulo",
+                        "carga",
+                        "temporada",
+                        "fuera_de_rango",
+                        "motivo_fuera_de_rango",
+                    ],
                 )
         except Exception as e:
             carga_obj.estado = RegistroCarga.ESTADO_FALLIDA

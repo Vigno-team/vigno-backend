@@ -70,13 +70,15 @@ def eventos_lluvia(
             timestamp__lt=fin_rango.to_pydatetime(),
         )
         .order_by("timestamp")
-        .values_list("timestamp", "valor")
+        .values_list("timestamp", "valor", "fuera_de_rango")
     )
     if not filas:
         data["observacion"] = "sin datos horarios de precipitación en el rango"
         return data
 
-    serie = pd.DataFrame(filas, columns=["timestamp", "valor"])
+    serie = pd.DataFrame(
+        [(ts, None if flag else valor) for ts, valor, flag in filas], columns=["timestamp", "valor"]
+    )
     serie["timestamp"] = pd.to_datetime(serie["timestamp"], utc=True).dt.tz_convert(tz)
     serie["fecha"] = serie["timestamp"].dt.date
     total_dia = serie.groupby("fecha")["valor"].sum(min_count=1)
