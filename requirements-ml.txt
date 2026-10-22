@@ -7,3 +7,5 @@
 numpy==2.1.2
 matplotlib==3.9.2
 jupyterlab==4.2.5
+scikit-learn==1.5.2
+joblib==1.4.2

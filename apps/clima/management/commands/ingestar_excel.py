@@ -12,9 +12,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.clima.models import Estacion, MedicionHoraria
+from apps.clima.rangos import cargar_rangos, motivo_fuera_de_rango
 from apps.ingesta.models import RegistroCarga
 
-MOTIVO_FECHA_INVALIDA = "Fecha inválida"
+MOTIVO_FECHA_INVALIDA = "Fecha vacía o inválida en una fila con datos"
 MOTIVO_FECHA_REPETIDA = "Fecha repetida en el archivo"
 MOTIVO_FECHA_FUTURA = "Fecha futura o sin datos posteriores"
 
@@ -26,6 +27,7 @@ class LimpiezaResult:
     rechazos: list[dict[str, Any]]
     columnas_abejas: list[str]
     filas_leidas: int
+    filas_vacias_ignoradas: int = 0
 
 
 @dataclass
@@ -139,6 +141,19 @@ class Command(BaseCommand):
         col_fecha = map_cols["timestamp"]
         columnas_variables = [c for k, c in map_cols.items() if k != "timestamp"]
 
+        # Espacios y celdas vacías de la plantilla no son mediciones rechazadas.
+        columnas_origen = [col_fecha, *columnas_variables]
+        vacias = (
+            df[columnas_origen]
+            .apply(
+                lambda columna: columna.isna()
+                | columna.map(lambda valor: isinstance(valor, str) and not valor.strip())
+            )
+            .all(axis=1)
+        )
+        filas_vacias_ignoradas = int(vacias.sum())
+        df = df.loc[~vacias].copy()
+
         fechas_originales = df[col_fecha].copy()
         crudo = df[columnas_variables].copy()
         rechazos = []
@@ -199,7 +214,9 @@ class Command(BaseCommand):
 
         rechazos.sort(key=lambda r: r["fila"])
 
-        return LimpiezaResult(df, crudo, rechazos, columnas_abejas, filas_leidas)
+        return LimpiezaResult(
+            df, crudo, rechazos, columnas_abejas, filas_leidas, filas_vacias_ignoradas
+        )
 
     def _clasificar_cambios(
         self,
@@ -212,6 +229,7 @@ class Command(BaseCommand):
     ) -> ClasificacionResult:
         col_fecha = map_cols["timestamp"]
         existentes = {}
+        catalogo = cargar_rangos()
 
         if len(df):
             filas_bd = MedicionHoraria.objects.filter(
@@ -219,8 +237,17 @@ class Command(BaseCommand):
                 frecuencia=frecuencia,
                 timestamp__gte=df[col_fecha].min().to_pydatetime(),
                 timestamp__lte=df[col_fecha].max().to_pydatetime(),
-            ).values_list("timestamp", "variable", "valor", "temporada")
-            existentes = {(ts, var): (val, temp) for ts, var, val, temp in filas_bd}
+            ).values_list(
+                "timestamp",
+                "variable",
+                "valor",
+                "temporada",
+                "fuera_de_rango",
+                "motivo_fuera_de_rango",
+            )
+            existentes = {
+                (ts, var): (val, temp, flag, razon) for ts, var, val, temp, flag, razon in filas_bd
+            }
 
         a_guardar = []
         insertados = actualizados = sin_cambio = omitidos = 0
@@ -244,15 +271,22 @@ class Command(BaseCommand):
                     valor_final = float(valor_nuevo)
                     motivo = None
 
+                motivo_rango = motivo_fuera_de_rango(
+                    variable_canonica, valor_final, frecuencia, catalogo
+                )
                 previo = existentes.get((timestamp_local, variable_canonica))
                 if previo is None:
                     insertados += 1
                 else:
-                    valor_previo, temporada_previa = previo
+                    valor_previo, temporada_previa, flag_previo, motivo_previo = previo
                     if temporada_previa is not None and temporada_previa > temporada:
                         omitidos += 1
                         continue
-                    if valor_previo == valor_final:
+                    if (
+                        valor_previo == valor_final
+                        and flag_previo == bool(motivo_rango)
+                        and motivo_previo == motivo_rango
+                    ):
                         sin_cambio += 1
                         continue
                     actualizados += 1
@@ -268,6 +302,8 @@ class Command(BaseCommand):
                         frecuencia=frecuencia,
                         valor=valor_final,
                         motivo_nulo=motivo,
+                        fuera_de_rango=bool(motivo_rango),
+                        motivo_fuera_de_rango=motivo_rango,
                         temporada=temporada,
                     )
                 )
@@ -298,6 +334,7 @@ class Command(BaseCommand):
             formato_detectado=formato_detectado,
             temporada=temporada,
             filas_leidas=r_limp.filas_leidas,
+            filas_vacias_ignoradas=r_limp.filas_vacias_ignoradas,
             filas_aceptadas=len(r_limp.df_limpio),
             filas_rechazadas=len(r_limp.rechazos),
             detalle_rechazos=r_limp.rechazos,
@@ -314,7 +351,14 @@ class Command(BaseCommand):
                     batch_size=1000,
                     update_conflicts=True,
                     unique_fields=["estacion", "timestamp", "variable", "frecuencia"],
-                    update_fields=["valor", "motivo_nulo", "carga", "temporada"],
+                    update_fields=[
+                        "valor",
+                        "motivo_nulo",
+                        "carga",
+                        "temporada",
+                        "fuera_de_rango",
+                        "motivo_fuera_de_rango",
+                    ],
                 )
         except Exception as e:
             carga_obj.estado = RegistroCarga.ESTADO_FALLIDA
@@ -382,6 +426,7 @@ class Command(BaseCommand):
         out(self.style.SUCCESS("\n=== REPORTE DE INGESTA VIGNO ==="))
         out(f"Estación: {nombre_estacion} | Formato: {fmt} | Temporada: {temporada}")
         out(f"Filas leídas totales: {res_limpieza.filas_leidas}")
+        out(f"Filas vacías ignoradas: {res_limpieza.filas_vacias_ignoradas}")
         out(self.style.SUCCESS(f"Filas válidas procesadas: {len(res_limpieza.df_limpio)}"))
 
         if res_limpieza.rechazos:

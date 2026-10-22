@@ -3,6 +3,7 @@ from django.db.models import Count, Max, Min, Q
 from django.utils import timezone
 
 from apps.clima.models import ConfiguracionCalidad, Estacion, ResumenDiario
+from apps.clima.rangos import MOTIVO_RANGO, VARIABLES
 from apps.clima.temporadas import rango_temporada, temporada_de
 
 HAY_DATO = (
@@ -39,6 +40,16 @@ def derivar_resumenes_diarios(df_ingesta: pd.DataFrame) -> list[ResumenDiario]:
 
     df = df_ingesta.copy()
     config = ConfiguracionCalidad.obtener_config()
+    # Mantener las marcas en el dataframe para invalidar la variable del día,
+    # incluso si hay otras horas válidas; nunca agregar un valor marcado.
+    for variable in VARIABLES:
+        marca = f"{variable}_fuera_de_rango"
+        if marca not in df:
+            df[marca] = False
+        df[marca] = df[marca].fillna(False).astype(bool)
+        if variable not in df:
+            df[variable] = float("nan")
+        df.loc[df[marca], variable] = float("nan")
 
     ts = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
     df["fecha"] = ts.dt.tz_convert(timezone.get_current_timezone_name()).dt.date
@@ -151,6 +162,26 @@ def derivar_resumenes_diarios(df_ingesta: pd.DataFrame) -> list[ResumenDiario]:
                 )
             )
 
+    grupos = df.groupby(["estacion_id", "fecha", "frecuencia"])
+    for registro in registros:
+        grupo = grupos.get_group((registro.estacion_id, registro.fecha, registro.origen))
+        afectadas = {
+            destino
+            for variable, destino in VARIABLES.items()
+            if grupo[f"{variable}_fuera_de_rango"].any()
+        }
+        # Una temperatura horaria inválida impide el resumen térmico completo.
+        if registro.origen == "H" and "tmedia" in afectadas:
+            afectadas.update(("tmax", "tmin"))
+        if afectadas:
+            for campo in afectadas:
+                setattr(registro, campo, None)
+            if afectadas.intersection(("tmax", "tmin")):
+                registro.amplitud_termica = None
+            registro.motivo_nulo = MOTIVO_RANGO
+            if afectadas.intersection(("tmax", "tmin", "tmedia")):
+                registro.confiable = False
+
     ResumenDiario.objects.bulk_create(
         registros,
         update_conflicts=True,
@@ -178,7 +209,7 @@ def resumen_diario(estacion: Estacion, desde: str, hasta: str) -> dict:
             "amplitud": d.amplitud_termica,
             "precipitacion": d.precipitacion,
         }
-        if d.tmax is None and d.tmin is None and d.tmedia is None and d.motivo_nulo:
+        if d.motivo_nulo:
             dia_dict["motivo_nulo"] = d.motivo_nulo
         data["dias"].append(dia_dict)
     return data
@@ -283,6 +314,8 @@ def estaciones() -> list[dict]:
                 "nombre": est.nombre,
                 "subzona": est.subzona,
                 "propietario": est.propietario,
+                "latitud": est.latitud,
+                "longitud": est.longitud,
                 "variables": variables,
                 "fecha_inicio": agg["inicio"].isoformat() if agg["inicio"] else None,
                 "fecha_fin": agg["fin"].isoformat() if agg["fin"] else None,

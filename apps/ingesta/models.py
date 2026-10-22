@@ -20,6 +20,7 @@ class RegistroCarga(models.Model):
     )
 
     filas_leidas = models.IntegerField(default=0)
+    filas_vacias_ignoradas = models.PositiveIntegerField(default=0)
     filas_aceptadas = models.IntegerField(default=0)
     filas_rechazadas = models.IntegerField(default=0)
 

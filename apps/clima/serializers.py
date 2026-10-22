@@ -157,6 +157,8 @@ class EstacionResultadoSerializer(serializers.Serializer):
     nombre = serializers.CharField()
     subzona = serializers.CharField(allow_null=True)
     propietario = serializers.CharField(allow_null=True)
+    latitud = serializers.FloatField(allow_null=True)
+    longitud = serializers.FloatField(allow_null=True)
     variables = serializers.ListField(child=serializers.CharField())
     fecha_inicio = serializers.DateField(allow_null=True)
     fecha_fin = serializers.DateField(allow_null=True)

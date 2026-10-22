@@ -318,3 +318,88 @@ a `Region_5` en Subset3. Obtiene el año de la fecha de cosecha en Subset1,
 convierte las regiones 1–5 a I–V y conserva las etiquetas originales de Recommend.
 También acepta tablas .xlsx ya normalizadas, pero no dos versiones del mismo
 Subset a la vez. No sustituye índices climáticos ausentes por cero.
+
+## Calidad del dato: rangos físicos (E1C-71)
+
+`config/rangos_variables.json` es el catálogo único: temperaturas máxima,
+mínima y media entre −15 y 50 °C; precipitación diaria entre 0 y 300 mm y
+horaria entre 0 y 100 mm. Los límites están incluidos. El validador
+`apps.clima.rangos.motivo_fuera_de_rango` acepta nombres canónicos y
+`tmax/tmin/tmedia`, y queda disponible para las correcciones de E1C-131.
+
+La ingesta conserva el número original en `MedicionHoraria.valor`, con
+`fuera_de_rango=True` y `motivo_fuera_de_rango`. No lo sustituye por cero,
+no lo imputa y no confunde esta marca con `motivo_nulo`. Una recarga válida
+actualiza ambas marcas; se conserva la prevalencia del archivo más nuevo.
+
+Los resúmenes excluyen las mediciones marcadas. La variable afectada del
+día queda nula, con `motivo_nulo="Valor fuera de rango físico"`. Solo las
+temperaturas marcadas cambian la confiabilidad térmica del día; una lluvia
+marcada conserva la confiabilidad que resulte de las temperaturas y su
+cobertura horaria. Las variables independientes válidas se conservan. Una
+temperatura media horaria marcada invalida el resumen térmico de ese día,
+aunque haya otras horas válidas. La lluvia marcada tampoco participa en
+los eventos horarios. Al recalcular, los índices derivados que ya no tienen
+datos se retiran para no conservar resultados obsoletos; las mediciones
+originales permanecen guardadas.
+
+Después de desplegar (y tras modificar el catálogo, para revalidar históricos):
+
+```powershell
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py validar_rangos
+docker compose exec backend python manage.py generar_resumenes
+docker compose exec backend python manage.py calcular_indices
+```
+
+`validar_rangos` es idempotente, actualiza solo marcas/motivos y admite
+`--estacion "San Clemente"`. Las nuevas cargas validan automáticamente;
+se regeneran resúmenes e índices después de cargar como en el flujo actual.
+
+Reporte disponible:
+
+```text
+GET /api/v1/calidad/fallas?estacion=<codigo>&temporada=2024-2025
+GET /api/v1/calidad/fallas?estacion=<codigo>&temporada=2024-2025&formato=csv
+```
+
+El JSON devuelve `fallas`, un `resumen` por tipo y variable y los cuatro
+`tipos_incluidos`: `rechazado`, `nulo`, `sin_registro` y `fuera_de_rango`.
+Cada fila identifica estación, fecha local, variable, motivo, valor original
+disponible, archivo y carga. Los rechazos incluyen el número de fila del Excel.
+`corregido` permanece en false hasta que exista el registro de correcciones
+manuales de E1C-131. El CSV usa encabezados en español y separador `;`.
+Consulta inválida responde 400 y estación inexistente 404. Es una consulta
+de solo lectura, pública como el resto de la API de demo.
+
+Los días sin registro se buscan entre el primer y el último día con algún valor de la
+estación, dentro de la temporada solicitada y hasta hoy. Se devuelve una fila
+por día, con variable nula (`sin_variable` en el resumen); no se crean mediciones.
+Los valores ausentes siguen nulos: el pipeline no interpola, no rellena con
+promedios ni convierte faltantes en cero. La prueba de integridad recorre
+ingesta, resúmenes, índices, exportación y reporte con un Excel con huecos.
+
+Un rechazo sin fecha válida conserva `fecha=null`. Se incluye si el año del
+archivo coincide con alguno de los años de la temporada y se identifica con
+`criterio_temporada=anio_archivo_fecha_desconocida`. Puede aparecer en las dos
+temporadas que comparten ese año; no debe interpretarse como una fecha conocida.
+Los rechazos con fecha se filtran por esa fecha, no por el año del archivo.
+Si no hay fecha ni año de archivo, no es posible asignarlo a esta consulta.
+En nulos históricos el valor original no está almacenado por separado:
+`valor_original` queda null y `motivo` conserva la explicación de la ingesta.
+
+
+La ingesta cuenta las filas sin fecha ni valores como `filas_vacias_ignoradas`
+en `RegistroCarga`; conserva el número original de fila de los rechazos reales.
+Una fecha vacía o inválida con datos sí se rechaza. El reporte toma únicamente
+la última carga exitosa por estación y año de archivo (si no hay año, por nombre
+de archivo). Una carga fallida no reemplaza el informe anterior. Las recargas
+no acumulan rechazos viejos; la bitácora completa permanece guardada.
+
+Se omiten del reporte los días futuros o posteriores al último dato. Para
+las bitácoras antiguas se omite también el motivo exacto `Fecha inválida` con
+valor `NaT`, identificado como relleno en los Excel del cliente. El motivo nuevo
+`Fecha vacía o inválida en una fila con datos` siempre se conserva, incluso
+si la fecha original está vacía. Se recomienda recargar los archivos antiguos
+para reconstruir sus contadores. Las mediciones nulas anteriores al primer
+valor de la estación no se muestran como fallas; no se borran de la base.

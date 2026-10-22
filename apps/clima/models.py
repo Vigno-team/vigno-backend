@@ -54,6 +54,9 @@ class MedicionHoraria(models.Model):
         max_length=255, null=True, blank=True, help_text="Razon por la cual el valor es nulo"
     )
 
+    fuera_de_rango = models.BooleanField(default=False, db_index=True)
+    motivo_fuera_de_rango = models.CharField(max_length=255, null=True, blank=True)
+
     temporada = models.PositiveSmallIntegerField(
         null=True, blank=True, help_text="Temporada del archivo de origen (ej: 2024)"
     )
