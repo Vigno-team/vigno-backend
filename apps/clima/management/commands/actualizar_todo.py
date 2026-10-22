@@ -126,8 +126,8 @@ class Command(BaseCommand):
         paso("actualizar_mapa_calor", lambda: self.mapa_calor(options))
 
         evaluacion = csv.with_name("prediccion_cosecha_california.json")
-        entrenado = paso("entrenar_cosecha", lambda: self.entrenar(csv, evaluacion))
-        paso("exportar_prediccion_ficticia", lambda: self.exportar_prediccion(csv, entrenado))
+        paso("entrenar_cosecha", lambda: self.entrenar(csv, evaluacion))
+        paso("exportar_prediccion_ficticia", lambda: self.exportar_prediccion(evaluacion))
 
         paso(
             "exportar_json",
@@ -197,10 +197,9 @@ class Command(BaseCommand):
         call_command("entrenar_cosecha")
         return ""
 
-    def exportar_prediccion(self, csv, entrenado) -> str:
-        if not csv.is_file() or not hay_sklearn():
-            raise Omitido("no se corrió entrenar_cosecha")
-        if not entrenado:
-            raise Omitido("falló entrenar_cosecha")
+    def exportar_prediccion(self, evaluacion) -> str:
+        # solo lee la evaluación: no necesita el CSV ni scikit-learn
+        if not evaluacion.is_file():
+            raise Omitido(f"no existe {evaluacion.relative_to(settings.BASE_DIR)}")
         call_command("exportar_prediccion_ficticia")
         return ""

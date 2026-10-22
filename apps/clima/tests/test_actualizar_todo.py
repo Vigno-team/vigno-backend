@@ -232,14 +232,27 @@ def test_reentrena_si_el_csv_es_mas_nuevo(entorno, llamadas):
     assert "entrenar_cosecha" in nombres(llamadas)
 
 
-def test_sin_csv_o_sin_sklearn_omite_la_prediccion(entorno, llamadas, monkeypatch):
+def test_sin_sklearn_omite_entrenar_pero_exporta_la_evaluacion(entorno, llamadas, monkeypatch):
     monkeypatch.setattr(actualizar_todo, "hay_sklearn", lambda: False)
+    (entorno / "data" / "ficticio" / "cosechas.csv").unlink()
+    (entorno / "data" / "ficticio" / "prediccion_cosecha_california.json").write_text("{}")
 
     correr()
 
     assert "entrenar_cosecha" not in nombres(llamadas)
-    assert "exportar_prediccion_ficticia" not in nombres(llamadas)
+    assert "exportar_prediccion_ficticia" in nombres(llamadas)
     assert leer_actualizacion(entorno)["ok"] is True
+
+
+def test_sin_evaluacion_omite_exportar_prediccion(entorno, llamadas, monkeypatch):
+    monkeypatch.setattr(actualizar_todo, "hay_sklearn", lambda: False)
+
+    correr()
+
+    assert "exportar_prediccion_ficticia" not in nombres(llamadas)
+    paso = leer_actualizacion(entorno)["pasos"][5]
+    assert paso["ok"] is True
+    assert paso["detalle"].startswith("omitido: no existe")
 
 
 def test_sin_csv_omite_clasificar_temporadas_y_termina_bien(entorno, llamadas):

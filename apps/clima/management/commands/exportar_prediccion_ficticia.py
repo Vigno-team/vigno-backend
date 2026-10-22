@@ -6,6 +6,8 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
+from apps.clima.archivos import escribir_json_atomico
+
 
 def _rechazar_no_finito(valor):
     raise ValueError(f"El JSON contiene un número no finito: {valor}")
@@ -91,9 +93,7 @@ class Command(BaseCommand):
             evaluacion = json.loads(
                 entrada.read_text(encoding="utf-8"), parse_constant=_rechazar_no_finito
             )
-            payload = construir_payload(evaluacion)
-            texto = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
-            salida.write_text(texto, encoding="utf-8")
+            escribir_json_atomico(salida, construir_payload(evaluacion))
         except (OSError, ValueError, TypeError) as error:
             raise CommandError(
                 f"No se pudo exportar la evaluación de California: {error}"
