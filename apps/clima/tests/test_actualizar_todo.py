@@ -68,7 +68,7 @@ def entorno(settings, tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def llamadas(monkeypatch):
+def llamadas(monkeypatch, settings):
     """Reemplaza call_command de los pasos; `fallar` define qué pasos lanzan error."""
     registro = Registro()
     registro.fallar = {}
@@ -77,6 +77,10 @@ def llamadas(monkeypatch):
         registro.append((nombre, args, kwargs))
         if nombre in registro.fallar:
             raise registro.fallar[nombre]
+        if nombre == "entrenar_cosecha":
+            # como el real: deja la evaluación que lee exportar_prediccion_ficticia
+            ficticio = settings.BASE_DIR / "data" / "ficticio"
+            (ficticio / "prediccion_cosecha_california.json").write_text("{}")
 
     monkeypatch.setattr(actualizar_todo, "call_command", falso)
     return registro
