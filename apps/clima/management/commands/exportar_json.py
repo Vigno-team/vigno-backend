@@ -1,18 +1,19 @@
-import json
 from pathlib import Path
 
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Max, Min
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
 from apps.clima import resultados, serializers, services
+from apps.clima.archivos import escribir_json_atomico
 from apps.clima.mapa_calor import bloque_mapa_calor
 from apps.clima.models import Estacion, ResumenDiario
 from apps.clima.services import HAY_DATO
 from apps.clima.temporadas import temporada_de
 
-SALIDA = "data/cliente/vigno-datos-reales.json"
+NOMBRE_SALIDA = "vigno-datos-reales.json"
 
 
 def exportar() -> dict:
@@ -61,7 +62,7 @@ class Command(BaseCommand):
     help = "E1C-48: exporta los resultados a un JSON con el formato del contrato para el frontend."
 
     def add_arguments(self, parser):
-        parser.add_argument("--salida", default=SALIDA)
+        parser.add_argument("--salida", default=str(settings.DATOS_DIR / NOMBRE_SALIDA))
         parser.add_argument("--sobrescribir", action="store_true")
 
     def handle(self, *args, **options):
@@ -70,10 +71,7 @@ class Command(BaseCommand):
             raise CommandError(f"{salida} ya existe, usa --sobrescribir para reemplazarlo.")
 
         datos = exportar()
-        salida.parent.mkdir(parents=True, exist_ok=True)
-        salida.write_text(
-            json.dumps(datos, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8"
-        )
+        escribir_json_atomico(salida, datos)
         self.stdout.write(
             f"{salida}: {len(datos['estaciones'])} estaciones, "
             f"{len(datos['ficha_temporada'])} fichas de temporada"

@@ -296,8 +296,68 @@ que devuelven los endpoints. Se genera después de `generar_resumenes` y `calcul
 docker compose exec backend python manage.py exportar_json
 ```
 
-Queda en `data/cliente/vigno-datos-reales.json`. Tiene datos del cliente: se comparte
-por el Drive, no por el repo.
+Queda en `DATOS_DIR/vigno-datos-reales.json` (por defecto `data/cliente/`). Tiene datos
+del cliente: se comparte por el Drive, no por el repo.
+
+### Actualizar todo (E1C-129)
+
+Un solo comando recalcula todo y deja listos los datos del frontend. Lo usan la carga
+de Excel por API (E1C-66) y las tareas programadas (E1C-65):
+
+```bash
+docker compose exec backend python manage.py actualizar_todo
+```
+
+Corre estos pasos en orden, para todas las estaciones:
+
+| Paso                           | Qué hace                                                                   | Crítico |
+| ------------------------------ | -------------------------------------------------------------------------- | ------- |
+| `generar_resumenes`            | Pasa las mediciones horarias a resúmenes diarios                           | Sí      |
+| `calcular_indices`             | Calcula Winkler y Huglin por temporada                                     | Sí      |
+| `clasificar_temporadas`        | Calidad del histórico de California. Se omite si falta `data/ficticio/cosechas.csv` | Sí, si hay CSV |
+| `actualizar_mapa_calor`        | Capa NDVI de Sentinel-2 por estación con contorno en `config/areas_mapa.json` | No   |
+| `entrenar_cosecha`             | Reentrena si existen `cosechas.csv` y scikit-learn, y el CSV es más nuevo que la evaluación | No |
+| `exportar_prediccion_ficticia` | Regenera `data/ficticio/prediccion_ficticia.json` si existe la evaluación  | No      |
+| `exportar_json`                | Escribe `DATOS_DIR/vigno-datos-reales.json`                                | Sí      |
+
+El mapa de calor solo se pide si están `CDSE_CLIENT_ID` y `CDSE_CLIENT_SECRET` en `.env`
+y la última imagen guardada tiene más de 5 días (Sentinel-2 pasa cada ~5 días). Opciones:
+
+- `--sin-satelite`: no consulta Copernicus.
+- `--forzar-satelite`: consulta aunque la imagen tenga menos de 5 días.
+
+**Si un paso falla**, se registra y se siguen corriendo los demás, para que una caída de
+Copernicus no deje al frontend sin datos. El comando termina con error solo si falla un
+paso crítico. Los pasos que no corresponden quedan como omitidos, sin error.
+
+Si se lanzan dos a la vez (la carga por API y el programador), el segundo espera a que
+termine el primero (`pg_advisory_lock`). Los JSON se escriben de forma atómica: la API
+lee el archivo anterior o el nuevo, nunca uno a medias.
+
+**Dónde quedan los archivos:** en la carpeta `DATOS_DIR` del `.env` (por defecto
+`data/cliente`; acepta una ruta relativa a la raíz del proyecto o absoluta):
+
+- `vigno-datos-reales.json`: los datos para el frontend.
+- `actualizacion.json`: el resultado de la última corrida. Lo lee
+  `GET /api/v1/actualizacion` (E1C-93) para que el frontend sepa que hay datos nuevos.
+  El formato está acordado con E1C-93: no cambiarlo sin avisar.
+
+```json
+{
+  "generado": "2026-10-22T14:03:11-03:00",
+  "ok": true,
+  "pasos": [
+    {"paso": "generar_resumenes", "ok": true, "segundos": 0.22, "detalle": ""},
+    {"paso": "actualizar_mapa_calor", "ok": false, "segundos": 60.1,
+     "detalle": "con error: cp-san-clemente-01: Error al solicitar el GeoTIFF..."},
+    {"paso": "entrenar_cosecha", "ok": true, "segundos": 0.0,
+     "detalle": "omitido: no existe data/ficticio/cosechas.csv"}
+  ]
+}
+```
+
+`ok` general es `false` solo si falló un paso crítico. Cada paso trae su propio `ok`, y
+los omitidos tienen `ok: true` con un `detalle` que empieza con `omitido:`.
 ---
 
 ### Histórico de California (E1C-78)
