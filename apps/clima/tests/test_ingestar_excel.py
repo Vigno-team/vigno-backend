@@ -238,3 +238,88 @@ def test_falla_si_columna_falta_o_formato_desconocido(tmp_path):
 
     with pytest.raises(CommandError, match="no calza con ningun formato"):
         ingestar(str(archivo))
+
+
+def crear_excel_horario(ruta, horas):
+    """Excel con el formato H_prueba de la "Estación horaria de prueba"."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "mensual"
+    for i in range(4):
+        ws.append([f"Basura {i}"])
+    ws.append(["FECHA Y HORA", "TEMPERATURA", "HUMEDAD RELATIVA", "PP"])
+    ws.append([None, "(°C)", "(%)", "(mm)"])
+    ws.append([])
+    for hora in horas:
+        ws.append([hora, 12.0, 80.0, 0.0])
+    wb.save(ruta)
+    return str(ruta)
+
+
+@pytest.mark.django_db
+def test_excel_horario_con_cambio_de_hora_rechaza_solo_las_horas_dudosas(tmp_path):
+    # En abril las 23:00 del sábado se repiten; en septiembre las 00:00 del domingo no existen.
+    archivo = crear_excel_horario(
+        tmp_path / "horario.xlsx",
+        [
+            "2025-04-05 22:00:00",
+            "2025-04-05 23:00:00",  # ambigua: viene una sola vez, no se sabe cuál es
+            "2025-04-06 00:00:00",
+            "2025-09-06 23:00:00",
+            "2025-09-07 00:00:00",  # inexistente
+            "2025-09-07 01:00:00",
+        ],
+    )
+
+    call_command(
+        "ingestar_excel", archivo=archivo, estacion="Estación horaria de prueba", temporada=2025
+    )
+
+    carga = RegistroCarga.objects.get()
+    assert carga.estado == "OK"
+    assert carga.formato_detectado == "H_prueba"
+    assert carga.filas_aceptadas == 4
+    assert [(r["fila"], r["motivo"]) for r in carga.detalle_rechazos] == [
+        (9, "Hora ambigua por cambio de horario"),
+        (12, "Hora ambigua por cambio de horario"),
+    ]
+
+    tz = ZoneInfo("America/Santiago")
+    guardadas = sorted(
+        {
+            m.timestamp.astimezone(tz).isoformat()
+            for m in MedicionHoraria.objects.filter(frecuencia="H")
+        }
+    )
+    assert guardadas == [
+        "2025-04-05T22:00:00-03:00",
+        "2025-04-06T00:00:00-04:00",
+        "2025-09-06T23:00:00-04:00",
+        "2025-09-07T01:00:00-03:00",
+    ]
+
+
+@pytest.mark.django_db
+def test_horas_dudosas_aparecen_como_rechazadas_en_el_reporte_de_fallas(tmp_path):
+    from rest_framework.test import APIClient
+
+    from apps.clima.models import Estacion
+
+    Estacion.objects.create(nombre="Estación horaria de prueba", codigo="horaria")
+    archivo = crear_excel_horario(
+        tmp_path / "horario.xlsx",
+        ["2025-04-05 22:00:00", "2025-04-05 23:00:00", "2025-04-06 00:00:00"],
+    )
+    call_command(
+        "ingestar_excel", archivo=archivo, estacion="Estación horaria de prueba", temporada=2025
+    )
+
+    reporte = (
+        APIClient()
+        .get("/api/v1/calidad/fallas", {"estacion": "horaria", "temporada": "2024-2025"})
+        .json()
+    )
+    rechazadas = [f for f in reporte["fallas"] if f["tipo"] == "rechazado"]
+    assert [(f["fecha"], f["fila"], f["motivo"]) for f in rechazadas] == [
+        ("2025-04-05", 9, "Hora ambigua por cambio de horario")
+    ]
