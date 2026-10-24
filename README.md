@@ -463,3 +463,110 @@ valor `NaT`, identificado como relleno en los Excel del cliente. El motivo nuevo
 si la fecha original está vacía. Se recomienda recargar los archivos antiguos
 para reconstruir sus contadores. Las mediciones nulas anteriores al primer
 valor de la estación no se muestran como fallas; no se borran de la base.
+
+
+## Levantar todo (E1C-65)
+
+Requiere Git y Docker Desktop con contenedores Linux y Compose 2.17 o posterior.
+El backend y el frontend deben quedar como carpetas hermanas:
+
+```powershell
+git clone https://github.com/Vigno-team/vigno-backend.git
+git clone --branch develop https://github.com/Vigno-team/vigno-fronted.git
+cd vigno-backend
+Copy-Item deploy/.env.example deploy/.env
+```
+
+Editar `deploy/.env`: poner claves distintas para `SECRET_KEY` y
+`POSTGRES_PASSWORD`. Para generar una clave se puede usar
+`python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+Este archivo local está ignorado por Git y por la construcción de imágenes.
+Las credenciales de Copernicus se agregan ahí; nunca en un commit.
+Si los repositorios están en otra ubicación, ajustar `FRONTEND_DIR` (relativa
+a `deploy/`, o absoluta). No reemplazar el `.env` usado para desarrollo.
+
+Desde la raíz del backend:
+
+```powershell
+docker compose -f deploy/docker-compose.yml up --build
+```
+
+Para dejarlo en segundo plano y esperar los healthchecks:
+
+```powershell
+docker compose -f deploy/docker-compose.yml up --build -d --wait --wait-timeout 600
+```
+
+| Dirección | Contenido |
+| --- | --- |
+| http://localhost | Frontend de la rama develop |
+| http://localhost/api/health/ | Estado de la API y conexión a PostgreSQL |
+| http://localhost/api/v1/datos | JSON actualizado por el servicio tareas |
+| http://localhost/api/docs/ | Documentación de la API |
+| http://localhost/admin/ | Admin de Django, con sus estáticos |
+
+`WEB_PORT` cambia el puerto publicado si el 80 está ocupado. Solo nginx publica
+un puerto; PostgreSQL y Gunicorn se comunican dentro de la red del despliegue.
+El Compose de la raíz sigue siendo exclusivamente de desarrollo y no cambia.
+Este despliegue utiliza otra base y otros volúmenes; los datos de desarrollo
+no aparecen automáticamente.
+
+El backend usa la etapa `production` del Dockerfile, sin pytest, Ruff ni Jupyter.
+Al arrancar aplica migraciones, carga las coordenadas de `areas_mapa.json`, ejecuta
+collectstatic y arranca Gunicorn con DEBUG=False. `ALLOWED_HOSTS` y
+`CSRF_TRUSTED_ORIGINS` se leen de `deploy/.env`; conservar localhost y 127.0.0.1
+para los healthchecks. La configuración entregada sirve HTTP en localhost.
+Si se publica con HTTPS, configurar el dominio, los orígenes HTTPS y ambas
+variables `SESSION_COOKIE_SECURE` y `CSRF_COOKIE_SECURE` en True.
+
+El servicio `tareas` usa la misma base de imagen y añade requirements-ml.txt.
+Ejecuta `actualizar_todo` al partir, espera a que termine y vuelve a ejecutarlo
+cada `INTERVALO_ACTUALIZACION_MIN` (360 por defecto), contado desde el fin de
+la corrida. Una falla se registra en el log, deja el servicio unhealthy y se
+reintenta en el siguiente intervalo; no hay ejecuciones simultáneas del programador.
+La falta de CSV ficticio o credenciales satelitales sigue las reglas de omisión
+de E1C-129; no se inventan resultados.
+
+Nginx envía `/api/` a Gunicorn. También envía `/data/climateData.json` a
+`/api/v1/datos`, de modo que el frontend actual recibe datos de la API y no
+el archivo de ejemplo incluido en su build. El JSON no se cachea. Si aún no
+existe o no es válido, la API responde 503 y Retry-After; no sirve datos ficticios
+como sustituto. El servicio web espera la primera actualización correcta.
+
+### Datos y operación
+
+La base nueva empieza sin mediciones: la pantalla puede mostrar estaciones
+sin datos hasta cargar los Excel. Colocar los archivos autorizados en `data/raw/`
+(ignorada por Git y montada de solo lectura) y ejecutar, por cada archivo:
+
+```powershell
+docker compose -f deploy/docker-compose.yml exec backend python manage.py ingestar_excel --archivo "/app/data/raw/San Clemente 2024.xlsx" --estacion "San Clemente" --temporada 2024
+docker compose -f deploy/docker-compose.yml exec tareas python manage.py actualizar_todo
+```
+
+Backend y tareas comparten los volúmenes `datos` (DATOS_DIR fijo en
+`/app/data/cliente`) y `ficticio` (`/app/data/ficticio`). Las salidas y los modelos
+persisten al recrear contenedores. Para cargar el histórico ficticio local:
+
+```powershell
+docker compose -f deploy/docker-compose.yml cp data/ficticio/cosechas.csv tareas:/app/data/ficticio/cosechas.csv
+docker compose -f deploy/docker-compose.yml exec tareas python manage.py actualizar_todo
+```
+
+Consultar estado y logs, o parar conservando la base:
+
+```powershell
+docker compose -f deploy/docker-compose.yml ps
+docker compose -f deploy/docker-compose.yml logs --tail=100 backend tareas
+docker compose -f deploy/docker-compose.yml exec backend python manage.py createsuperuser
+docker compose -f deploy/docker-compose.yml down
+```
+
+Después de cambiar credenciales o variables, recrear backend y tareas:
+`docker compose -f deploy/docker-compose.yml up -d --force-recreate backend tareas`.
+No usar `down -v` para una base que se quiera conservar: elimina los volúmenes.
+
+Esta entrega cubre disponibilidad y conexión en vivo del sprint 6. El respaldo
+diario con restauración y el monitoreo con alertas quedan pendientes; los
+healthchecks y los volúmenes persistentes no equivalen a un respaldo ni prueban
+el objetivo mensual de disponibilidad del 99 %.

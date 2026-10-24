@@ -1,0 +1,110 @@
+name: vigno-produccion
+
+x-entorno: &entorno
+  DJANGO_SETTINGS_MODULE: vigno.settings.production
+  DEBUG: "False"
+  SECRET_KEY: ${SECRET_KEY:?Configura SECRET_KEY en deploy/.env}
+  POSTGRES_DB: ${POSTGRES_DB:-vigno}
+  POSTGRES_USER: ${POSTGRES_USER:-vigno}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+  POSTGRES_HOST: db
+  POSTGRES_PORT: "5432"
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+  CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost,http://127.0.0.1}
+  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-False}
+  CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-False}
+  DATOS_DIR: /app/data/cliente
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vigno}
+      POSTGRES_USER: ${POSTGRES_USER:-vigno}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  backend:
+    build:
+      context: ..
+      target: production
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *entorno
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+    volumes:
+      - datos:/app/data/cliente
+      - ficticio:/app/data/ficticio
+      - staticfiles:/app/staticfiles
+      - ../data/raw:/app/data/raw:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+  tareas:
+    build:
+      context: ..
+      target: tareas
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *entorno
+      CDSE_CLIENT_ID: ${CDSE_CLIENT_ID:-}
+      CDSE_CLIENT_SECRET: ${CDSE_CLIENT_SECRET:-}
+      INTERVALO_ACTUALIZACION_MIN: ${INTERVALO_ACTUALIZACION_MIN:-360}
+    volumes:
+      - datos:/app/data/cliente
+      - ficticio:/app/data/ficticio
+      - modelos:/app/apps/ml/artifacts
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "deploy/tareas.py", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+    stop_grace_period: 30s
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+      additional_contexts:
+        frontend: ${FRONTEND_DIR:-../../vigno-fronted}
+      args:
+        VITE_API_BASE_URL: /api
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-80}:80"
+    volumes:
+      - staticfiles:/app/staticfiles:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      tareas:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+  datos:
+  ficticio:
+  modelos:
+  staticfiles:
