@@ -64,5 +64,21 @@
         }
       }
     }
+  },
+  "Estación horaria de prueba": {
+    "sheet_name": "mensual",
+    "skip_rows": 4,
+    "zona_horaria": "America/Santiago",
+    "formatos": {
+      "H_prueba": {
+        "frecuencia": "H",
+        "columnas": {
+          "timestamp": "FECHA Y HORA",
+          "temperatura_media": "TEMPERATURA|(°C)",
+          "humedad_media": "HUMEDAD RELATIVA|(%)",
+          "precipitacion": "PP|(mm)"
+        }
+      }
+    }
   }
 }

@@ -18,6 +18,7 @@ from apps.ingesta.models import RegistroCarga
 MOTIVO_FECHA_INVALIDA = "Fecha vacía o inválida en una fila con datos"
 MOTIVO_FECHA_REPETIDA = "Fecha repetida en el archivo"
 MOTIVO_FECHA_FUTURA = "Fecha futura o sin datos posteriores"
+MOTIVO_HORA_AMBIGUA = "Hora ambigua por cambio de horario"
 
 
 @dataclass
@@ -177,9 +178,18 @@ class Command(BaseCommand):
                 tz
             )
         else:
-            df[col_fecha] = df[col_fecha].dt.tz_localize(
-                tz, nonexistent="shift_forward", ambiguous="infer"
+            # La hora repetida de abril y la que no existe en septiembre no se pueden ubicar
+            # con certeza: se rechazan esas filas en vez de botar la carga completa.
+            df[col_fecha] = df[col_fecha].dt.tz_localize(tz, nonexistent="NaT", ambiguous="NaT")
+            dudosas = df[col_fecha].isna()
+            self._registrar_rechazos(
+                rechazos,
+                df.index[dudosas.to_numpy()],
+                fechas_originales,
+                MOTIVO_HORA_AMBIGUA,
+                offset_fila,
             )
+            df = df[~dudosas].copy()
 
         # 3. Fechas repetidas
         repetidas = df[col_fecha].duplicated(keep="first")
