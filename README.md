@@ -484,6 +484,8 @@ Este archivo local está ignorado por Git y por la construcción de imágenes.
 Las credenciales de Copernicus se agregan ahí; nunca en un commit.
 Si los repositorios están en otra ubicación, ajustar `FRONTEND_DIR` (relativa
 a `deploy/`, o absoluta). No reemplazar el `.env` usado para desarrollo.
+Si falla la descarga de paquetes de Debian, `DEBIAN_MIRROR` permite elegir
+otro [mirror oficial](https://www.debian.org/mirror/list), sin cambiar el Dockerfile.
 
 Desde la raíz del backend:
 
