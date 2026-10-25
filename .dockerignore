@@ -12,3 +12,7 @@ data/cliente
 .env
 *.md
 !README.md
+data/ficticio
+apps/ml/artifacts
+.env.*
+deploy/.env

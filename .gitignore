@@ -74,3 +74,6 @@ data/ficticio/*.zip
 
 # Salidas de los comandos del dataset ficticio
 data/ficticio/*.json
+
+# Variables locales de despliegue
+deploy/.env
