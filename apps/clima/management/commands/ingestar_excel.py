@@ -1,4 +1,3 @@
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -6,11 +5,11 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
+from apps.clima.mapeos import EstacionNoExiste, estacion_y_mapeo
 from apps.clima.models import Estacion, MedicionHoraria
 from apps.clima.rangos import cargar_rangos, motivo_fuera_de_rango
 from apps.ingesta.models import RegistroCarga
@@ -391,14 +390,13 @@ class Command(BaseCommand):
         if not Path(archivo_path).is_file():
             raise CommandError(f"El archivo {archivo_path} no existe.")
 
-        config_path = settings.BASE_DIR / "config" / "mapeos_estaciones.json"
-        with open(config_path, encoding="utf-8") as f:
-            mapeos = json.load(f)
-
-        if nombre_estacion not in mapeos:
-            raise CommandError(f"No hay mapeo configurado para la estacion '{nombre_estacion}'")
-
-        config = mapeos[nombre_estacion]
+        # La estación debe estar registrada (se crea con POST /api/v1/estaciones). Usa su mapeo
+        # propio o, si no tiene, la plantilla formato_estandar.
+        try:
+            estacion_obj, config = estacion_y_mapeo(nombre_estacion)
+        except EstacionNoExiste as e:
+            raise CommandError(str(e)) from e
+        nombre_estacion = estacion_obj.nombre
         nombre_hoja = config.get("sheet_name", 0)
         skip_rows = config["skip_rows"]
         # offset_fila: skip_rows + 4 es la fila 1-based en Excel (2 de encabezado, 1 de separacion, 1 porque es 1-based)
@@ -423,8 +421,6 @@ class Command(BaseCommand):
                 archivo_path, nombre_hoja, skip_rows, res_limpieza.df_limpio[col_fecha]
             )
         self.stdout.write(f"Temporada: {temporada} (fuente: {origen})")
-
-        estacion_obj, _ = Estacion.objects.get_or_create(nombre=nombre_estacion)
 
         res_clas = self._clasificar_cambios(
             res_limpieza.df_limpio, res_limpieza.crudo, map_cols, estacion_obj, frec, temporada

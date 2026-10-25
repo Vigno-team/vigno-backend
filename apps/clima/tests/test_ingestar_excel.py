@@ -7,7 +7,7 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.clima.models import MedicionHoraria
+from apps.clima.models import Estacion, MedicionHoraria
 from apps.ingesta.models import RegistroCarga
 
 ENCABEZADO_SUPERIOR = [
@@ -258,6 +258,7 @@ def crear_excel_horario(ruta, horas):
 
 @pytest.mark.django_db
 def test_excel_horario_con_cambio_de_hora_rechaza_solo_las_horas_dudosas(tmp_path):
+    Estacion.objects.create(nombre="Estación horaria de prueba", codigo="horaria")
     # En abril las 23:00 del sábado se repiten; en septiembre las 00:00 del domingo no existen.
     archivo = crear_excel_horario(
         tmp_path / "horario.xlsx",
@@ -302,8 +303,6 @@ def test_excel_horario_con_cambio_de_hora_rechaza_solo_las_horas_dudosas(tmp_pat
 @pytest.mark.django_db
 def test_horas_dudosas_aparecen_como_rechazadas_en_el_reporte_de_fallas(tmp_path):
     from rest_framework.test import APIClient
-
-    from apps.clima.models import Estacion
 
     Estacion.objects.create(nombre="Estación horaria de prueba", codigo="horaria")
     archivo = crear_excel_horario(
