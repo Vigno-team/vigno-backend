@@ -7,6 +7,10 @@ RUN sed -i "s|http://deb.debian.org/debian$|${DEBIAN_MIRROR}|" /etc/apt/sources.
     && apt-get update --error-on=any -o Acquire::Retries=3 \
     && apt-get install -y --no-install-recommends libpq5 libexpat1 \
     && rm -rf /var/lib/apt/lists/*
+# Permite usar una cache de paquetes durante la construccion.
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG PIP_TRUSTED_HOST
+ARG PIP_DEFAULT_TIMEOUT=120
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 RUN useradd --create-home --uid 10001 app \
