@@ -1,15 +1,16 @@
-"""API de solo lectura para E1C-46 y E1C-47, y health check del entorno."""
+"""API de solo lectura y health check del entorno."""
 
 from django.db import connection
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.clima import resultados, serializers, services
+from apps.clima import estaciones, resultados, serializers, services
 from apps.clima.models import Estacion
+from apps.ingesta.autenticacion import ApiKeyAuthentication
 
 
 class ResultadosView(APIView):
@@ -40,6 +41,15 @@ ERRORES = {400: serializers.ErrorConsultaSerializer, 404: serializers.ErrorDetal
 
 
 class EstacionesView(ResultadosView):
+    # GET sigue público (D4.1); solo POST pide la X-Api-Key de E1C-66.
+    authentication_classes = [ApiKeyAuthentication]
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_permissions(self):
+        # spectacular genera el esquema con una petición simulada que puede no traer método
+        escribe = getattr(getattr(self, "request", None), "method", None) == "POST"
+        return [IsAuthenticated()] if escribe else [AllowAny()]
+
     @extend_schema(
         summary="Estaciones disponibles y calidad de sus datos",
         operation_id="resultados_estaciones_listar",
@@ -49,6 +59,41 @@ class EstacionesView(ResultadosView):
     def get(self, request):
         return Response(
             serializers.EstacionResultadoSerializer(services.estaciones(), many=True).data
+        )
+
+    @extend_schema(
+        summary="Da de alta una estación nueva",
+        description=(
+            "Requiere la cabecera X-Api-Key. El nombre es único sin distinguir mayúsculas ni "
+            "tildes; si ya existe responde 409 con la estación existente. La estación queda con "
+            "un `id` (código) propio, que se usa en `estacion=` de las demás consultas. Una "
+            "estación sin mapeo propio carga sus Excel con el formato estándar."
+        ),
+        request=serializers.EstacionNuevaSerializer,
+        responses={
+            201: serializers.EstacionCreadaSerializer,
+            400: None,
+            401: serializers.ErrorDetalleSerializer,
+            409: serializers.EstacionRepetidaSerializer,
+        },
+        operation_id="estaciones_crear",
+        tags=["Estaciones"],
+    )
+    def post(self, request):
+        entrada = serializers.EstacionNuevaSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        try:
+            estacion = estaciones.crear_estacion(**entrada.validated_data)
+        except estaciones.NombreRepetido as repetida:
+            return Response(
+                {
+                    "detail": f"Ya existe la estación {repetida.existente.nombre}.",
+                    "estacion": serializers.EstacionCreadaSerializer(repetida.existente).data,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(
+            serializers.EstacionCreadaSerializer(estacion).data, status=status.HTTP_201_CREATED
         )
 
 
