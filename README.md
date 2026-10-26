@@ -572,3 +572,17 @@ Esta entrega cubre disponibilidad y conexión en vivo del sprint 6. El respaldo
 diario con restauración y el monitoreo con alertas quedan pendientes; los
 healthchecks y los volúmenes persistentes no equivalen a un respaldo ni prueban
 el objetivo mensual de disponibilidad del 99 %.
+
+
+## Correcciones manuales (E1C-131)
+
+`POST /api/v1/correcciones` guarda un valor con autor y motivo y recalcula con
+`actualizar_todo --sin-satelite`. La bitácora se consulta con GET en la misma ruta;
+`POST /api/v1/correcciones/<id>/revertir` recupera el dato anterior y recalcula.
+Las tres rutas requieren `X-Api-Key`, configurada como `INGESTA_API_KEY` en el `.env`.
+
+Aplicar `python manage.py migrate` antes de usarlas. El reporte de fallas conserva
+el problema original y marca las correcciones vigentes. Si falla el recálculo, la
+API responde 503 con el ID guardado para evitar repetir el cambio. El contrato,
+los ejemplos y la coordinación con la recarga de Excel están en
+[docs/E1C-131_CORRECCIONES.md](docs/E1C-131_CORRECCIONES.md).

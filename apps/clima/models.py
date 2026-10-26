@@ -54,6 +54,13 @@ class MedicionHoraria(models.Model):
         max_length=255, null=True, blank=True, help_text="Razon por la cual el valor es nulo"
     )
 
+    origen = models.CharField(
+        max_length=6,
+        choices=[("excel", "Excel"), ("manual", "Manual")],
+        default="excel",
+        db_index=True,
+    )
+
     fuera_de_rango = models.BooleanField(default=False, db_index=True)
     motivo_fuera_de_rango = models.CharField(max_length=255, null=True, blank=True)
 
@@ -180,3 +187,54 @@ class CapaSatelital(models.Model):
             )
         ]
         ordering = ("estacion", "capa", "-fecha_imagen")
+
+
+class CorreccionManual(models.Model):
+    VIGENTE = "vigente"
+    REVERTIDA = "revertida"
+    REEMPLAZADA = "reemplazada"
+    ESTADOS = [(VIGENTE, "Vigente"), (REVERTIDA, "Revertida"), (REEMPLAZADA, "Reemplazada")]
+
+    estacion = models.ForeignKey(Estacion, on_delete=models.PROTECT, related_name="correcciones")
+    timestamp = models.DateTimeField(
+        help_text="Hora local del dato; los diarios se guardan a las 12:00"
+    )
+    variable = models.CharField(max_length=50)
+    frecuencia = models.CharField(max_length=1, choices=MedicionHoraria.FRECUENCIA_CHOICES)
+    valor_anterior = models.FloatField(null=True, blank=True)
+    valor_nuevo = models.FloatField()
+    motivo = models.TextField()
+    autor = models.CharField(max_length=100)
+    creada_en = models.DateTimeField(auto_now_add=True)
+    estado = models.CharField(max_length=12, choices=ESTADOS, default=VIGENTE)
+    carga_origen = models.ForeignKey(
+        "ingesta.RegistroCarga",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="correcciones_manuales",
+    )
+    fila_origen = models.PositiveIntegerField(null=True, blank=True)
+    anterior = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="reemplazos",
+    )
+    # Permite distinguir un null original de una medición que no existía.
+    dato_anterior = models.JSONField(default=dict)
+    falla_original = models.JSONField(null=True, blank=True)
+    revertida_en = models.DateTimeField(null=True, blank=True)
+    revertida_por = models.CharField(max_length=100, blank=True, default="")
+    motivo_reversion = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-creada_en", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["estacion", "timestamp", "variable", "frecuencia"],
+                condition=models.Q(estado="vigente"),
+                name="correccion_vigente_por_medicion",
+            )
+        ]

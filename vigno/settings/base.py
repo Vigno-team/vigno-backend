@@ -104,6 +104,8 @@ CDSE_CLIENT_SECRET = config("CDSE_CLIENT_SECRET", default="")
 # Carpeta donde quedan los datos listos para el frontend (E1C-129).
 DATOS_DIR = BASE_DIR / config("DATOS_DIR", default="data/cliente")
 
+INGESTA_API_KEY = config("INGESTA_API_KEY", default="")
+
 # --- Archivos estaticos ---
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"

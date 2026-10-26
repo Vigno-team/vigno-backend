@@ -9,7 +9,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
-from django.db.models import Max, Min
+from django.db.models import Max, Min, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -186,9 +186,48 @@ def reporte_fallas(estacion, temporada):
                     criterio_temporada=criterio,
                 )
             )
+    filas = incluir_correcciones(filas, estacion, temporada)
     return sorted(
         filas, key=lambda f: (f["fecha"] or "", f["tipo"], f["variable"] or "", f["carga"] or 0)
     )
+
+
+def _clave_falla(fila):
+    if fila["tipo"] == "rechazado":
+        return ("rechazado", fila["carga"], fila["fila"])
+    if fila["tipo"] == "sin_registro":
+        return ("sin_registro", fila["fecha"])
+    return (fila["tipo"], fila["timestamp"], fila["variable"], fila["frecuencia"])
+
+
+def incluir_correcciones(filas, estacion, temporada):
+    """Conserva el problema original y marca solo la fila vinculada a la corrección."""
+    from apps.clima.models import CorreccionManual
+
+    inicio, fin = rango_temporada(temporada)
+    cargas_rechazadas = {f["carga"] for f in filas if f["tipo"] == "rechazado"}
+    vigentes = CorreccionManual.objects.filter(
+        Q(timestamp__date__gte=inicio, timestamp__date__lte=fin)
+        | Q(carga_origen_id__in=cargas_rechazadas, fila_origen__isnull=False),
+        estacion=estacion,
+        estado=CorreccionManual.VIGENTE,
+    ).order_by("pk")
+    por_clave = {_clave_falla(f): f for f in filas}
+    for correccion in vigentes:
+        original = correccion.falla_original
+        if not original:
+            continue
+        clave = _clave_falla(original)
+        fila = por_clave.get(clave)
+        if fila is None:
+            if not inicio <= timezone.localdate(correccion.timestamp) <= fin:
+                continue
+            fila = dict(original)
+            filas.append(fila)
+            por_clave[clave] = fila
+        fila["corregido"] = True
+        fila.setdefault("correcciones", []).append(correccion.pk)
+    return filas
 
 
 class FallasRangosView(ResultadosView):
