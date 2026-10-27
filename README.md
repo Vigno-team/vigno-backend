@@ -358,6 +358,78 @@ lee el archivo anterior o el nuevo, nunca uno a medias.
 
 `ok` general es `false` solo si falló un paso crítico. Cada paso trae su propio `ok`, y
 los omitidos tienen `ok: true` con un `detalle` que empieza con `omitido:`.
+
+### Carga de Excel por API (E1C-66)
+
+Un Excel de estación se sube desde la plataforma, se valida antes de guardar y el sistema
+se recalcula solo. Usa la misma lógica que `ingestar_excel` (`apps/ingesta/carga.py`) y
+los mapeos de `config/mapeos_estaciones.json` (la estación sin mapeo propio usa
+`formato_estandar`, E1C-68).
+
+| Endpoint                     | Qué hace                                                     |
+| ---------------------------- | ------------------------------------------------------------ |
+| `POST /api/v1/cargas`        | Valida, guarda y corre `actualizar_todo --sin-satelite`      |
+| `POST /api/v1/cargas?solo_validar=1` | Vista previa: lo que pasaría, sin guardar nada        |
+| `GET /api/v1/cargas`         | Las últimas 20 cargas                                        |
+| `GET /api/v1/cargas/<id>`    | Estado, filas y rechazos con su motivo                       |
+
+`POST /api/v1/cargas` pide la cabecera `X-Api-Key` con el valor de `INGESTA_API_KEY` (sin
+ella, 401). Es la misma clave de `POST /api/v1/estaciones`. Si la variable está vacía,
+nadie puede cargar. Los GET de cargas pasarán a pedir la clave cuando entre
+`ApiKeyPrivadaAuthentication` (PR #52, E1C-131); mientras, son públicos.
+
+**La clave** (provisoria hasta el login de E1C-64):
+
+- La genera quien levanta el servidor:
+  `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+- Va solo en `deploy/.env` (en local, en `.env`). Nunca en el repo, Jira, Drive ni chats.
+  Sin ella, `docker compose -f deploy/docker-compose.yml` no arranca.
+- Al usuario que sube los Excel se le entrega en persona, como una contraseña. La escribe
+  en la pantalla de carga (E1C-130); el frontend la guarda solo durante la sesión y la
+  manda en `X-Api-Key`. Nunca va en el código del frontend ni en variables `VITE_`.
+- Si se filtra, se cambia en `deploy/.env` y se reinicia el backend.
+
+```bash
+curl -H "X-Api-Key: $INGESTA_API_KEY" \
+  -F "archivo=@San Clemente 2024.xlsx" -F "estacion=cp-san-clemente-01" \
+  http://localhost:8000/api/v1/cargas
+```
+
+`estacion` acepta el código (el `id` de `/api/v1/estaciones`) o el nombre. `temporada`
+(año) es opcional: si no viene, se detecta del título o del nombre del archivo.
+
+**Respuestas:**
+
+- `201`: carga nueva. Trae el `id`, la estación, la temporada, `fecha_desde`/`fecha_hasta`,
+  los `conteos` (insertados, actualizados, sin cambio, omitidos y rechazados), los
+  `rechazos` con su motivo y el `recalculo` (lo que dejó `actualizacion.json`).
+- `200` con `"repetida": true`: ese mismo archivo (mismo SHA-256) ya se cargó bien en esa
+  estación; no se procesa de nuevo ni se recalcula.
+- `400`: falta el archivo o la estación, la estación no existe, la extensión no es
+  `.xls`/`.xlsx` o pesa más de 20 MB.
+- `422`: el archivo no sirve y no se guardó nada. Pasa si está dañado o protegido, si no
+  tiene la hoja `mensual`, si los encabezados no calzan con ningún formato (indica las
+  columnas que faltan respecto del más parecido), si más del 20 % de las fechas son
+  inválidas, si temperatura máxima, mínima o media vienen vacías o no numéricas en más
+  del 50 % de las filas, o si no queda ninguna fila válida.
+
+Los errores vienen como `{"valido": false, "errores": ["..."]}`, con motivos legibles. Los
+umbrales están en `config/validacion_cargas.json` para ajustarlos sin tocar código. Lo que
+no alcanza para rechazar el archivo se acepta, y las filas malas quedan en el reporte de
+fallas (E1C-70). Estas reglas de umbral solo las aplica la API; `ingestar_excel` mantiene
+su comportamiento.
+
+**Una celda vacía no borra un dato ya cargado.** Si un día ya tiene valor y la recarga
+trae esa celda vacía o con texto, se conserva el valor y se cuenta como "sin cambio". No
+es una falla (el dato sigue en la base), así que no aparece en `/api/v1/calidad/fallas`:
+queda en `RegistroCarga.celdas_vacias_conservadas` (fila, fecha y variable) y se muestra en
+la respuesta del POST, en `solo_validar` y en `GET /api/v1/cargas/<id>` con el aviso
+"Celda vacía: se conservó el valor anterior". Si no había un valor antes, queda como nulo
+y aparece en el reporte de fallas como siempre. Aplica a la API y a `ingestar_excel`.
+
+El archivo subido queda en `DATOS_DIR/cargas/<hash>.<ext>` (dentro de `data/cliente/`,
+ignorado por Git). La carga usa el mismo candado que `actualizar_todo`: si el programador
+está recalculando, la carga espera.
 ---
 
 ### Histórico de California (E1C-78)

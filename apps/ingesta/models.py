@@ -13,11 +13,20 @@ class RegistroCarga(models.Model):
         auto_now_add=True, help_text="Fecha y hora en que se corrio el script"
     )
     archivo = models.CharField(max_length=255, help_text="Ruta o nombre del Excel origen")
+    hash_archivo = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="SHA-256 del archivo: el mismo archivo no se procesa dos veces",
+    )
     estacion = models.CharField(max_length=100)
     formato_detectado = models.CharField(max_length=50, null=True, blank=True)
     temporada = models.PositiveSmallIntegerField(
         null=True, blank=True, help_text="Temporada del archivo (ej: 2024)"
     )
+    fecha_desde = models.DateField(null=True, blank=True)
+    fecha_hasta = models.DateField(null=True, blank=True)
 
     filas_leidas = models.IntegerField(default=0)
     filas_vacias_ignoradas = models.PositiveIntegerField(default=0)
@@ -26,6 +35,11 @@ class RegistroCarga(models.Model):
 
     detalle_rechazos = models.JSONField(
         null=True, blank=True, help_text="Lista de filas rechazadas: fila, valor original y motivo"
+    )
+    celdas_vacias_conservadas = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Celdas vacías que no borraron un valor ya cargado: fila, fecha y variable",
     )
     columnas_descartadas = models.CharField(
         max_length=255, null=True, blank=True, help_text="Constancia del descarte de Abejas"

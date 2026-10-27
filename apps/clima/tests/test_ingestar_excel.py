@@ -236,7 +236,7 @@ def test_falla_si_columna_falta_o_formato_desconocido(tmp_path):
     ws.append(["2025-09-07 00:00:00", 15.0])
     wb.save(archivo)
 
-    with pytest.raises(CommandError, match="no calza con ningun formato"):
+    with pytest.raises(CommandError, match="no calza con ningún formato"):
         ingestar(str(archivo))
 
 
