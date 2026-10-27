@@ -106,8 +106,6 @@ INGESTA_API_KEY = config("INGESTA_API_KEY", default="")
 # Carpeta donde quedan los datos listos para el frontend.
 DATOS_DIR = BASE_DIR / config("DATOS_DIR", default="data/cliente")
 
-INGESTA_API_KEY = config("INGESTA_API_KEY", default="")
-
 # --- Archivos estaticos ---
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
