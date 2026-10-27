@@ -42,6 +42,7 @@ services:
     environment:
       <<: *entorno
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      INGESTA_API_KEY: ${INGESTA_API_KEY:?Configura INGESTA_API_KEY en deploy/.env}
     volumes:
       - datos:/app/data/cliente
       - ficticio:/app/data/ficticio
