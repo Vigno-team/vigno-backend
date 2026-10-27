@@ -127,19 +127,19 @@ def derivar_resumenes_diarios(df_ingesta: pd.DataFrame) -> list[ResumenDiario]:
             esperadas = horas_del_dia(fecha)
             motivo = None
 
+            # La lluvia observada no depende de que haya temperaturas ese día.
+            precipitacion = (
+                _num(grupo["precipitacion"].sum(min_count=1)) if "precipitacion" in grupo else None
+            )
             if horas_validas > 0:
                 tmax = _num(_serie_temp(grupo, "temperatura_maxima").max())
                 tmin = _num(_serie_temp(grupo, "temperatura_minima").min())
                 tmedia = _num(serie_tmedia.mean())
                 amplitud = round(tmax - tmin, 2) if tmax is not None and tmin is not None else None
-                precipitacion = (
-                    _num(grupo["precipitacion"].sum(min_count=1))
-                    if "precipitacion" in grupo
-                    else None
-                )
+
                 es_confiable = horas_validas >= config.horas_minimas_dia
             else:
-                tmax = tmin = tmedia = amplitud = precipitacion = None
+                tmax = tmin = tmedia = amplitud = None
                 es_confiable = False
                 motivos = grupo["motivo_nulo"].dropna() if "motivo_nulo" in grupo else []
                 motivo = motivos.iloc[0] if len(motivos) else "Sin datos horarios"

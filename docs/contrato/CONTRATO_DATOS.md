@@ -485,3 +485,23 @@ valor `NaT`, identificado como relleno en los Excel del cliente. El motivo nuevo
 si la fecha original está vacía. Se recomienda recargar los archivos antiguos
 para reconstruir sus contadores. Las mediciones nulas anteriores al primer
 valor de la estación no se muestran como fallas; no se borran de la base.
+
+
+## Correcciones manuales · E1C-131
+
+| Método y ruta | Entrada | Respuesta correcta |
+| --- | --- | --- |
+| `POST /api/v1/correcciones` | estación (código), fecha, hora para H, variable, frecuencia, valor_nuevo, autor, motivo; carga_origen y fila_origen si procede | 201, `correccion` y `actualizacion.ok=true` |
+| `GET /api/v1/correcciones?estacion=<codigo>` | filtro opcional; paginación con `page` | 200, `count`, `next`, `previous`, `results` |
+| `POST /api/v1/correcciones/<id>/revertir` | autor, motivo | 200, corrección revertida y `actualizacion.ok=true` |
+
+Todas exigen `X-Api-Key`. La respuesta incluye ID, estación, fecha, hora, timestamp,
+variable, frecuencia, valor anterior/nuevo, autor, motivo, creación, estado,
+carga/fila de origen, corrección anterior y datos de reversión. No se añaden datos
+inventados al JSON de resultados. Tras 201/200 se puede volver a consultar
+`GET /api/v1/datos`. Ante 503 el cambio está guardado, pero el recálculo necesita
+reintento; no repetir el POST. El reporte de fallas identifica las correcciones
+vigentes con `corregido` y `correcciones` (lista de IDs).
+
+Ejemplos, reglas de fechas y campos en
+[E1C-131_CORRECCIONES.md](../E1C-131_CORRECCIONES.md).
