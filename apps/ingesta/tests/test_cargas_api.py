@@ -179,11 +179,6 @@ def test_post_sin_clave_o_con_clave_incorrecta_da_401(tmp_path, recalculos):
     assert recalculos == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Los GET pasan a pedir la clave con ApiKeyPrivadaAuthentication del PR #52 (E1C-131). "
-    "Cuando entre: cambiar las vistas y quitar este xfail.",
-)
 def test_get_de_cargas_sin_clave_da_401(api, tmp_path):
     creada = subir(api, tres_dias(tmp_path)).json()
 
