@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -20,7 +20,7 @@ from apps.clima.management.commands.actualizar_todo import candado
 from apps.clima.mapeos import EstacionNoExiste, estacion_y_mapeo
 from apps.clima.models import Estacion
 from apps.ingesta import carga
-from apps.ingesta.autenticacion import ApiKeyAuthentication
+from apps.ingesta.autenticacion import ApiKeyPrivadaAuthentication
 from apps.ingesta.models import RegistroCarga
 
 logger = logging.getLogger(__name__)
@@ -91,16 +91,10 @@ def _recalcular() -> dict:
         return {"ok": False, "generado": None, "pasos": []}
 
 
-# TODO(E1C-66): cuando entre el PR #52 (E1C-131), los GET pasan a ApiKeyPrivadaAuthentication
-# para que también pidan la clave. Mientras, ApiKeyAuthentication deja las lecturas públicas.
 class CargasView(APIView):
-    authentication_classes = [ApiKeyAuthentication]
+    authentication_classes = [ApiKeyPrivadaAuthentication]
+    permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
-
-    def get_permissions(self):
-        # spectacular genera el esquema con una petición simulada que puede no traer método
-        escribe = getattr(getattr(self, "request", None), "method", None) == "POST"
-        return [IsAuthenticated()] if escribe else [AllowAny()]
 
     @extend_schema(
         summary="Últimas cargas de Excel",
@@ -309,8 +303,8 @@ class CargasView(APIView):
 
 
 class CargaView(APIView):
-    authentication_classes = [ApiKeyAuthentication]
-    permission_classes = [AllowAny]  # ver el TODO de CargasView
+    authentication_classes = [ApiKeyPrivadaAuthentication]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         summary="Detalle de una carga: estado, filas y rechazos con su motivo",
