@@ -1,0 +1,7 @@
+{
+  "extensiones": [".xls", ".xlsx"],
+  "tamano_maximo_mb": 20,
+  "max_pct_fechas_invalidas": 20,
+  "max_pct_principales_vacias": 50,
+  "columnas_principales": ["temperatura_maxima", "temperatura_minima", "temperatura_media"]
+}

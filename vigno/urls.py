@@ -13,6 +13,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", HealthCheckView.as_view(), name="health-check"),
     path("api/v1/", include("apps.clima.urls")),
+    path("api/v1/", include("apps.ingesta.urls")),
     # Contrato de la API: el equipo de frontend genera su cliente desde aqui.
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

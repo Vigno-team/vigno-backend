@@ -2,9 +2,9 @@ import pandas as pd
 import pytest
 from rest_framework.test import APIClient
 
-from apps.clima.management.commands.ingestar_excel import Command
 from apps.clima.models import Estacion, MedicionHoraria
 from apps.clima.tests.test_ingestar_excel import crear_excel, fila, fila_vacia, ingestar
+from apps.ingesta import carga
 from apps.ingesta.models import RegistroCarga
 
 pytestmark = pytest.mark.django_db
@@ -51,7 +51,7 @@ def test_separaciones_vacias_se_cuentan_sin_rechazo_y_conservan_fila(tmp_path, e
 
 def test_plantilla_solo_vacia_se_limpia_sin_error():
     df = pd.DataFrame({"fecha": [None, "  "], "temp": [None, " "]})
-    resultado = Command()._limpiar_y_rechazar(
+    resultado = carga.limpiar_y_rechazar(
         df, {"timestamp": "fecha", "temperatura_media": "temp"}, "D", "America/Santiago", 8
     )
     assert resultado.df_limpio.empty
