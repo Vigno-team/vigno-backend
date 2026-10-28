@@ -96,7 +96,7 @@ revelar cosas que los sintéticos no. Antes de mergear un PR, quien lo hizo comp
 en su máquina:
 
 ```powershell
-# 1. Con tu rama actualizada pero SIN tu cambio (por ejemplo, en refactor):
+# 1. Con tu rama actualizada pero SIN tu cambio (por ejemplo, en main):
 docker compose exec backend python manage.py exportar_json --salida data/cliente/antes.json --sobrescribir
 
 # 2. Con tu cambio:
@@ -113,8 +113,9 @@ diferencias tienen que ser exactamente las que tu PR dice que produce.
 
 ## Lo que este test NO cubre
 
-- **`ingestar_excel`**: los datos se cargan directo en `MedicionHoraria`. La ingesta tiene sus
-  propios tests; las tareas de ingesta tendrán que agregar los suyos.
+- **La ingesta** (`ingestar_excel` y `POST /api/v1/cargas`): los datos se cargan directo en
+  `MedicionHoraria`. La ingesta tiene sus propios tests en `apps/clima/tests/test_ingestar_excel.py`
+  y `apps/ingesta/tests/test_cargas_api.py`.
 - **Datos horarios** (`eventos_lluvia`): no hay datos horarios en el sintético, igual que en los
   reales hoy. Cuando lleguen, hay que agregar una estación horaria al generador.
 - **Temporada en curso** (comparación "al mismo día"): todas las temporadas sintéticas están
