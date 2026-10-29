@@ -125,6 +125,7 @@ class CorreccionSerializer(serializers.ModelSerializer):
             "estado",
             "carga_origen",
             "fila_origen",
+            "reemplazada_por",
             "anterior",
             "revertida_en",
             "revertida_por",

@@ -148,10 +148,11 @@ actualizado si el comando falla.
 - **E1C-132:** `MedicionHoraria.origen` es `excel` o `manual`; las filas anteriores migran
   a `excel`. `CorreccionManual.timestamp`, `variable`, `frecuencia` y `estado="vigente"`
   identifican la corrección activa. `ResumenDiario.origen` mantiene su significado D/H.
-  La política de recargas de Excel que respeta o reemplaza correcciones corresponde a esa
-  tarea; este PR no modifica `ingestar_excel`. Hasta integrarla, no recargar un Excel sobre
-  mediciones corregidas: la ingesta actual puede sobrescribirlas. El endpoint de reversión
-  rechaza con 409 una medición cambiada por fuera.
+  Las recargas conservan el manual ante un vacío o valor imposible. Un valor válido de
+  un Excel aplicable lo reemplaza y registra la carga en `reemplazada_por`. La API no
+  reprocesa el mismo archivo (hash). La reversión de una corrección reemplazada responde
+  409. Los días y fichas publican la marca y el conteo de correcciones vigentes según el
+  [contrato de datos](contrato/CONTRATO_DATOS.md#correcciones-y-recargas--e1c-132).
 - **E1C-68 / E1C-66:** `apps/ingesta/autenticacion.py` y `INGESTA_API_KEY` son compartidos.
   El catálogo público conserva sus lecturas sin clave; las correcciones usan la subclase
   privada, que exige clave también al leer autores y motivos.

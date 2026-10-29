@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('clima', '0015_correcciones_manuales'),
+        ("clima", "0015_correcciones_manuales"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='resumendiario',
-            name='corregido_a_mano',
+            model_name="resumendiario",
+            name="corregido_a_mano",
             field=models.BooleanField(default=False),
         ),
     ]

@@ -2,6 +2,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.clima.management.commands.actualizar_todo import candado
 from apps.clima.mapeos import EstacionNoExiste, estacion_y_mapeo
 from apps.ingesta import carga
 
@@ -53,14 +54,16 @@ class Command(BaseCommand):
         self.stdout.write(f"Temporada: {prep.temporada} (fuente: {prep.origen_temporada})")
 
         res_limpieza = prep.limpieza
-        res_clas = carga.clasificar(prep)
         try:
-            carga.guardar(
-                prep,
-                res_clas,
-                archivo_path,
-                carga.hash_archivo(Path(archivo_path).read_bytes()),
-            )
+            # Igual que la API: una corrección no puede entrar entre comparar y guardar.
+            with candado():
+                res_clas = carga.clasificar(prep)
+                carga.guardar(
+                    prep,
+                    res_clas,
+                    archivo_path,
+                    carga.hash_archivo(Path(archivo_path).read_bytes()),
+                )
         except Exception as e:
             raise CommandError(f"Error al insertar en la base de datos: {e}") from e
 
