@@ -135,6 +135,7 @@ class FichaTemporadaSerializer(serializers.Serializer):
     calor = CalorSerializer()
     clasificacion = ClasificacionTemporadaSerializer(allow_null=True)
     dias_criticos = DiaCriticoSerializer(many=True)
+    dias_corregidos_a_mano = serializers.IntegerField(min_value=0)
 
 
 class RachaSerializer(serializers.Serializer):

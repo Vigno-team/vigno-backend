@@ -37,6 +37,7 @@ class Command(BaseCommand):
                 "valor",
                 "motivo_nulo",
                 "fuera_de_rango",
+                "origen",
             )
         )
 
@@ -45,7 +46,12 @@ class Command(BaseCommand):
         motivos = df.groupby(claves)["motivo_nulo"].first()
         marcas = df.set_index(claves + ["variable"])["fuera_de_rango"].unstack("variable")
         marcas = marcas.add_suffix("_fuera_de_rango")
-        ancho = valores.join(motivos).join(marcas).reset_index()
+        manual = (
+            df.assign(origen_manual=df["origen"].eq("manual"))
+            .groupby(claves)["origen_manual"]
+            .any()
+        )
+        ancho = valores.join(motivos).join(marcas).join(manual).reset_index()
         ancho.columns.name = None
 
         registros = derivar_resumenes_diarios(ancho)

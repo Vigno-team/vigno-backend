@@ -136,6 +136,7 @@ class ResumenDiario(models.Model):
     horas_esperadas = models.PositiveSmallIntegerField(null=True, blank=True)
     confiable = models.BooleanField(default=True)
     motivo_nulo = models.CharField(max_length=255, null=True, blank=True)
+    corregido_a_mano = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ("estacion", "fecha")
@@ -215,6 +216,13 @@ class CorreccionManual(models.Model):
         related_name="correcciones_manuales",
     )
     fila_origen = models.PositiveIntegerField(null=True, blank=True)
+    reemplazada_por = models.ForeignKey(
+        "ingesta.RegistroCarga",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="correcciones_reemplazadas",
+    )
     anterior = models.ForeignKey(
         "self",
         on_delete=models.PROTECT,

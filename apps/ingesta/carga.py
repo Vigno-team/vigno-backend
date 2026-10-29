@@ -16,7 +16,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from apps.clima.models import Estacion, MedicionHoraria
+from apps.clima.models import CorreccionManual, Estacion, MedicionHoraria
 from apps.clima.rangos import cargar_rangos, motivo_fuera_de_rango
 from apps.ingesta.models import RegistroCarga
 
@@ -418,9 +418,11 @@ def clasificar_cambios(
             "temporada",
             "fuera_de_rango",
             "motivo_fuera_de_rango",
+            "origen",
         )
         existentes = {
-            (ts, var): (val, temp, flag, razon) for ts, var, val, temp, flag, razon in filas_bd
+            (ts, var): (val, temp, flag, razon, origen)
+            for ts, var, val, temp, flag, razon, origen in filas_bd
         }
 
     a_guardar = []
@@ -453,7 +455,7 @@ def clasificar_cambios(
             if previo is None:
                 insertados += 1
             else:
-                valor_previo, temporada_previa, flag_previo, motivo_previo = previo
+                valor_previo, temporada_previa, flag_previo, motivo_previo, origen_previo = previo
                 if temporada_previa is not None and temporada_previa > temporada:
                     omitidos += 1
                     continue
@@ -468,10 +470,15 @@ def clasificar_cambios(
                         }
                     )
                     continue
+                # Un valor imposible no reemplaza una corrección vigente.
+                if origen_previo == "manual" and motivo_rango:
+                    sin_cambio += 1
+                    continue
                 if (
                     valor_previo == valor_final
                     and flag_previo == bool(motivo_rango)
                     and motivo_previo == motivo_rango
+                    and origen_previo == "excel"
                 ):
                     sin_cambio += 1
                     continue
@@ -491,6 +498,7 @@ def clasificar_cambios(
                     fuera_de_rango=bool(motivo_rango),
                     motivo_fuera_de_rango=motivo_rango,
                     temporada=temporada,
+                    origen="excel",
                 )
             )
 
@@ -566,7 +574,28 @@ def guardar(
                     "temporada",
                     "fuera_de_rango",
                     "motivo_fuera_de_rango",
+                    "origen",
                 ],
+            )
+            # La medición y su auditoría cambian juntas o ninguna cambia.
+            claves_reemplazadas = {
+                (m.estacion_id, m.timestamp, m.variable, m.frecuencia)
+                for m in r_clas.a_guardar
+                if m.valor is not None and not m.fuera_de_rango
+            }
+            vigentes = CorreccionManual.objects.filter(
+                estacion=prep.estacion,
+                estado=CorreccionManual.VIGENTE,
+                frecuencia=prep.frecuencia,
+                timestamp__date__range=(desde, hasta),
+            )
+            ids = [
+                c.pk
+                for c in vigentes
+                if (c.estacion_id, c.timestamp, c.variable, c.frecuencia) in claves_reemplazadas
+            ]
+            CorreccionManual.objects.filter(pk__in=ids).update(
+                estado=CorreccionManual.REEMPLAZADA, reemplazada_por=carga_obj
             )
     except Exception as e:
         carga_obj.estado = RegistroCarga.ESTADO_FALLIDA

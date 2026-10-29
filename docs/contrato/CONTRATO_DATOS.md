@@ -455,7 +455,7 @@ GET `/api/v1/calidad/fallas?estacion=<codigo>&temporada=AAAA-AAAA`.
 | fallas[].tipo, motivo | string | Tipo de falla y explicación. |
 | fallas[].valor_original | number/string/null | Valor conservado; no se reconstruyen celdas perdidas. |
 | fallas[].archivo, carga, fila | string/integer/integer o null | Archivo sin ruta local, carga y fila de rechazo. |
-| fallas[].corregido | boolean | false hasta integrar el modelo de correcciones manuales. |
+| fallas[].corregido | boolean | true cuando hay una corrección manual vigente para la falla. |
 | fallas[].criterio_temporada | string | En rechazos: fecha_original o anio_archivo_fecha_desconocida. |
 | resumen.total | integer | Número de filas de fallas. |
 | resumen.por_tipo | objeto | Conteo de cada uno de los cuatro tipos, incluso cero. |
@@ -505,3 +505,27 @@ vigentes con `corregido` y `correcciones` (lista de IDs).
 
 Ejemplos, reglas de fechas y campos en
 [E1C-131_CORRECCIONES.md](../E1C-131_CORRECCIONES.md).
+
+## Correcciones y recargas · E1C-132
+
+| Campo | Tipo | Significado |
+| --- | --- | --- |
+| `resumen_diario[].dias[].corregido_a_mano` | boolean | Hay al menos una medición de origen manual para esa estación y fecha local. Siempre se entrega, incluso cuando vale false. |
+| `ficha_temporada[].dias_corregidos_a_mano` | integer | Días distintos de la estación y temporada que tienen la marca manual; varias correcciones en un día cuentan una vez. También se entrega en `GET /api/v1/temporadas/<temporada>`. |
+| `correccion.reemplazada_por` | integer/null | ID de la carga de Excel que reemplazó la corrección. Se incluye también en `results[]` de la bitácora; null si ninguna carga la reemplazó. |
+
+Un Excel con una celda vacía, no numérica o fuera de rango no sobrescribe el valor
+manual. Un valor válido de una carga aplicable gana al manual, incluso si tiene el
+mismo número: el origen vuelve a `excel`, la corrección pasa a `reemplazada` y se
+registra la carga en la misma transacción. Se mantiene la prioridad del año del
+archivo: una carga de un año anterior no reemplaza un dato de un año posterior.
+
+La API reconoce la recarga del mismo archivo por su hash y no vuelve a escribirlo.
+El comando de ingesta vuelve a comparar sus celdas; si una celda contiene un valor
+válido, aplica la regla anterior. Las filas rechazadas no reemplazan mediciones.
+Tras regenerar los resúmenes, la marca vuelve a false si ya no quedan mediciones
+manuales en el día. La reversión a una corrección anterior conserva la marca.
+
+Para E1C-130, el frontend puede mostrar «Corregido a mano» usando el booleano del
+día y el conteo en la ficha. `ResumenDiario.origen` sigue indicando frecuencia D/H;
+no debe usarse para determinar si hubo una corrección.

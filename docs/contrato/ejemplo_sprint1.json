@@ -320,7 +320,8 @@
         "tmin": 11.4,
         "tmedia": 21.6,
         "amplitud": 20.7,
-        "precipitacion": 0.0
+        "precipitacion": 0.0,
+        "corregido_a_mano": false
       },
       {
         "fecha": "2025-01-26",
@@ -328,7 +329,8 @@
         "tmin": 13.2,
         "tmedia": 24.1,
         "amplitud": 22.6,
-        "precipitacion": 0.0
+        "precipitacion": 0.0,
+        "corregido_a_mano": false
       },
       {
         "fecha": "2025-01-27",
@@ -336,7 +338,8 @@
         "tmin": 15.0,
         "tmedia": 25.9,
         "amplitud": 22.4,
-        "precipitacion": 0.0
+        "precipitacion": 0.0,
+        "corregido_a_mano": false
       },
       {
         "fecha": "2025-01-28",
@@ -344,7 +347,8 @@
         "tmin": 14.1,
         "tmedia": 25.2,
         "amplitud": 22.1,
-        "precipitacion": 0.0
+        "precipitacion": 0.0,
+        "corregido_a_mano": false
       },
       {
         "fecha": "2025-01-29",
@@ -353,7 +357,8 @@
         "tmedia": null,
         "amplitud": null,
         "precipitacion": null,
-        "motivo_nulo": "Dato en blanco en origen"
+        "motivo_nulo": "Dato en blanco en origen",
+        "corregido_a_mano": false
       },
       {
         "fecha": "2025-01-30",
@@ -361,7 +366,8 @@
         "tmin": 12.8,
         "tmedia": 22.7,
         "amplitud": 20.2,
-        "precipitacion": 1.4
+        "precipitacion": 1.4,
+        "corregido_a_mano": false
       },
       {
         "fecha": "2025-01-31",
@@ -369,7 +375,8 @@
         "tmin": 12.1,
         "tmedia": 21.0,
         "amplitud": 18.5,
-        "precipitacion": 0.2
+        "precipitacion": 0.2,
+        "corregido_a_mano": false
       }
     ]
   }

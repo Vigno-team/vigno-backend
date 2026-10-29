@@ -205,4 +205,7 @@ def ficha_temporada(estacion, temporada):
         "calor": calor,
         "clasificacion": _clasificacion(estacion, temporada),
         "dias_criticos": obtener_dias_criticos(estacion, temporada, limite=10),
+        "dias_corregidos_a_mano": ResumenDiario.objects.filter(
+            estacion=estacion, temporada=temporada, corregido_a_mano=True
+        ).count(),
     }

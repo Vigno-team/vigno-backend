@@ -54,6 +54,10 @@ def derivar_resumenes_diarios(df_ingesta: pd.DataFrame) -> list[ResumenDiario]:
     ts = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
     df["fecha"] = ts.dt.tz_convert(timezone.get_current_timezone_name()).dt.date
     df = df.dropna(subset=["fecha", "frecuencia"])
+    if "origen_manual" not in df:
+        df["origen_manual"] = False
+    df["origen_manual"] = df["origen_manual"].fillna(False).astype(bool)
+    manuales = df.groupby(["estacion_id", "fecha"])["origen_manual"].any()
 
     campos_update = [
         "temporada",
@@ -67,6 +71,7 @@ def derivar_resumenes_diarios(df_ingesta: pd.DataFrame) -> list[ResumenDiario]:
         "horas_esperadas",
         "confiable",
         "motivo_nulo",
+        "corregido_a_mano",
     ]
 
     df_horario = df[df["frecuencia"] == "H"]
@@ -113,6 +118,7 @@ def derivar_resumenes_diarios(df_ingesta: pd.DataFrame) -> list[ResumenDiario]:
                 tmedia=tmedia,
                 amplitud_termica=amplitud,
                 precipitacion=precipitacion,
+                corregido_a_mano=bool(manuales.get((row["estacion_id"], row["fecha"]), False)),
                 origen="D",
                 confiable=confiable,
                 motivo_nulo=motivo,
@@ -154,6 +160,7 @@ def derivar_resumenes_diarios(df_ingesta: pd.DataFrame) -> list[ResumenDiario]:
                     tmedia=tmedia,
                     amplitud_termica=amplitud,
                     precipitacion=precipitacion,
+                    corregido_a_mano=bool(manuales.get((est_id, fecha), False)),
                     origen="H",
                     horas_validas=horas_validas,
                     horas_esperadas=esperadas,
@@ -208,6 +215,7 @@ def resumen_diario(estacion: Estacion, desde: str, hasta: str) -> dict:
             "tmedia": d.tmedia,
             "amplitud": d.amplitud_termica,
             "precipitacion": d.precipitacion,
+            "corregido_a_mano": d.corregido_a_mano,
         }
         if d.motivo_nulo:
             dia_dict["motivo_nulo"] = d.motivo_nulo

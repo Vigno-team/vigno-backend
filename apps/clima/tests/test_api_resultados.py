@@ -57,7 +57,9 @@ def test_ficha_entrega_resultados_del_pipeline_y_respeta_contrato(client, estaci
         "calor",
         "clasificacion",
         "dias_criticos",
+        "dias_corregidos_a_mano",
     }
+    assert data["dias_corregidos_a_mano"] == 0
     assert data["estacion_id"] == "prueba-01"
     assert data["periodo"] == {"inicio": "2024-10-01", "fin": "2025-04-30"}
     assert data["indices"]["winkler"]["valor"] == 2120
