@@ -118,6 +118,8 @@ class ConfiguracionCalidad(models.Model):
 
 
 class ResumenDiario(models.Model):
+    corregido_a_mano = models.BooleanField(default=False)
+
     # Cambiado a ForeignKey y nuevos campos (Punto 2.1)
     estacion = models.ForeignKey(Estacion, on_delete=models.CASCADE, db_index=True)
     fecha = models.DateField(db_index=True)
