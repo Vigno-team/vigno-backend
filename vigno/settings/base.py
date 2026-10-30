@@ -137,4 +137,4 @@ CORS_ALLOWED_ORIGINS = config(
     cast=Csv(),
 )
 CORS_EXPOSE_HEADERS = ["ETag"]
-CORS_ALLOW_HEADERS = [*default_headers, "if-none-match"]
+CORS_ALLOW_HEADERS = [*default_headers, "if-none-match", "x-api-key"]

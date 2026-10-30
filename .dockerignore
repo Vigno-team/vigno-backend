@@ -16,3 +16,4 @@ data/ficticio
 apps/ml/artifacts
 .env.*
 deploy/.env
+deploy/.env.*
