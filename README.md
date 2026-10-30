@@ -285,7 +285,9 @@ modifique la forma de una respuesta necesita aviso al PO del otro equipo antes d
 | Ruta | Método | Clave | Qué devuelve |
 | --- | --- | --- | --- |
 | `/api/health/` | GET | No | Estado de la API y de la base |
-| `/api/v1/datos` | GET | No | JSON completo para el frontend (503 si aún no se generó) |
+| `/api/v1/datos` | GET | No | JSON completo; si falta, lo exporta desde la base y lo guarda. ETag y 304 si no cambió |
+| `/api/v1/prediccion-ficticia` | GET | No | JSON de E1C-124; 404 con motivo si no existe |
+| `/api/v1/actualizacion` | GET | No | Última ejecución de E1C-129, o `{"generado": null}` si aún no ha corrido |
 | `/api/v1/estaciones` | GET | No | Estaciones y calidad de sus datos |
 | `/api/v1/estaciones` | POST | Sí | Da de alta una localidad nueva |
 | `/api/v1/temporadas` | GET | No | Temporadas con datos, de la más antigua a la más reciente |
@@ -301,8 +303,7 @@ modifique la forma de una respuesta necesita aviso al PO del otro equipo antes d
 (por ejemplo `cp-san-clemente-01`). Las rutas de lectura sin clave son públicas, según el
 contrato de la demo.
 
-Pendientes de E1C-93: `GET /api/v1/actualizacion` (para que el frontend sepa cuándo hay datos
-nuevos) y `GET /api/v1/prediccion-ficticia`. Todavía no existen.
+Los tres endpoints de E1C-93 están documentados en `/api/docs/` y `/api/schema/`.
 
 ### La clave `X-Api-Key`
 
@@ -329,12 +330,30 @@ clasificación térmica e hídrica de la temporada (E1C-18). No ejecuta la inges
 índices: lee lo que dejaron `generar_resumenes` y `calcular_indices`. Ver
 [la guía de E1C-17](docs/E1C-17_RESULTADOS.md) para probar los endpoints y las reglas de calidad.
 
-### JSON para el frontend
+### JSON para el frontend (E1C-93)
 
 `GET /api/v1/datos` sirve `DATOS_DIR/vigno-datos-reales.json`, que deja `actualizar_todo`
-(paso `exportar_json`). Tiene los mismos bloques que los endpoints de resultados. Si el archivo
-aún no existe o no es válido, responde 503 con `Retry-After`; no sirve datos de ejemplo. La
-respuesta no se cachea (`Cache-Control: no-store`).
+(paso `exportar_json`). Si falta, llama a `exportar()` y lo guarda atómicamente, bajo el mismo
+candado de PostgreSQL que el actualizador. Lee los resultados existentes; no ingesta datos ni
+entrena modelos. Un archivo corrupto o un fallo de lectura/publicación responde 503 con
+`Retry-After: 30`, sin sobrescribir el archivo corrupto.
+
+La respuesta lleva `ETag` y `Cache-Control: no-cache`: el navegador puede guardar el JSON,
+pero debe revalidarlo. Al enviar `If-None-Match` con el ETag anterior, recibe 304 sin cuerpo
+si no cambió. El ETag considera `generado` y el contenido, para detectar también dos
+exportaciones distintas dentro del mismo segundo.
+
+El frontend carga `/datos` al abrir y consulta `/api/v1/actualizacion` cada 60 segundos.
+Si cambia `generado`, vuelve a pedir `/datos`. El estado contiene los mismos campos que
+`actualizacion.json` (`generado`, `ok`, `pasos`); si no existe, devuelve `{"generado": null}`.
+Una corrida fallida conserva `ok: false` y su detalle; no equivale a una publicación exitosa.
+
+`GET /api/v1/prediccion-ficticia` entrega `data/ficticio/prediccion_ficticia.json` sin entrenar.
+Si falta, responde 404 con `{"motivo_nulo": "Aún no se ha entrenado el modelo de California."}`.
+El estado y la predicción también usan `Cache-Control: no-cache`; los errores, `no-store`.
+
+`CORS_ALLOWED_ORIGINS` se configura en `.env` (o `deploy/.env`), por ejemplo
+`http://localhost:5173`. CORS permite `If-None-Match` y expone `ETag` al JavaScript de Vite.
 
 El archivo tiene datos del cliente: no se sube al repo. Se puede generar a mano con
 `python manage.py exportar_json --sobrescribir`.
@@ -468,7 +487,7 @@ lee el archivo anterior o el nuevo, nunca uno a medias.
 `data/cliente`; acepta una ruta relativa a la raíz del proyecto o absoluta):
 
 - `vigno-datos-reales.json`: los datos para el frontend, que sirve `GET /api/v1/datos`.
-- `actualizacion.json`: el resultado de la última corrida. Lo va a leer
+- `actualizacion.json`: el resultado de la última corrida. Lo sirve
   `GET /api/v1/actualizacion` (E1C-93) para que el frontend sepa que hay datos nuevos.
   El formato está acordado con E1C-93: no cambiarlo sin avisar.
 
@@ -710,9 +729,9 @@ de E1C-129; no se inventan resultados.
 Nginx envía `/api/` a Gunicorn. También envía `/data/climateData.json` a
 `/api/v1/datos`, de modo que el frontend actual recibe datos de la API y no
 el archivo de ejemplo incluido en su build. El frontend se construye con
-`VITE_API_BASE_URL=/api`. El JSON no se cachea. Si aún no existe o no es válido,
-la API responde 503 y Retry-After; no sirve datos ficticios como sustituto. El
-servicio web espera la primera actualización correcta.
+`VITE_API_BASE_URL=/api`. El JSON se revalida mediante ETag. Si falta, la API lo
+exporta desde los resultados de la base; si no puede publicarlo o el archivo es inválido,
+responde 503 y Retry-After. El servicio web espera la primera actualización correcta.
 
 ### Datos y operación
 
