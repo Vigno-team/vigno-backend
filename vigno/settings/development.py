@@ -6,8 +6,7 @@ DEBUG = True
 
 INTERNAL_IPS = ["127.0.0.1"]
 
-# En local se permite cualquier origen para no bloquear al equipo de frontend.
-CORS_ALLOW_ALL_ORIGINS = True
+# Los orígenes de Vite se configuran en CORS_ALLOWED_ORIGINS del .env.
 
 LOGGING = {
     "version": 1,

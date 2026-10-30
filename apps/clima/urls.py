@@ -4,7 +4,7 @@ from django.urls import path
 
 from apps.clima import views
 from apps.clima.correcciones_api import CorreccionesView, RevertirCorreccionView
-from apps.clima.datos_frontend import DatosFrontendView
+from apps.clima.datos_frontend import ActualizacionView, DatosFrontendView, PrediccionFicticiaView
 from apps.clima.fallas_rangos import FallasRangosView
 
 app_name = "clima"
@@ -17,6 +17,8 @@ urlpatterns = [
         name="revertir-correccion",
     ),
     path("datos", DatosFrontendView.as_view(), name="datos-frontend"),
+    path("prediccion-ficticia", PrediccionFicticiaView.as_view(), name="prediccion-ficticia"),
+    path("actualizacion", ActualizacionView.as_view(), name="actualizacion"),
     path("calidad/fallas", FallasRangosView.as_view(), name="fallas-calidad"),
     path("estaciones", views.EstacionesView.as_view(), name="estaciones"),
     path("temporadas", views.TemporadasView.as_view(), name="temporadas"),

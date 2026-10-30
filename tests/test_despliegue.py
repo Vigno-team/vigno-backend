@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 from deploy.tareas import intervalo_segundos, saludable
 
 
-def test_api_entrega_archivo_actual_y_no_cachea(settings, tmp_path):
+def test_api_entrega_archivo_actual_y_exige_revalidacion(settings, tmp_path):
     settings.DATOS_DIR = tmp_path
     ruta = tmp_path / "vigno-datos-reales.json"
     cliente = APIClient()
@@ -15,12 +15,13 @@ def test_api_entrega_archivo_actual_y_no_cachea(settings, tmp_path):
         respuesta = cliente.get("/api/v1/datos")
         assert respuesta.status_code == 200
         assert respuesta.json()["version"] == valor
-        assert respuesta["Cache-Control"] == "no-store"
+        assert respuesta["Cache-Control"] == "no-cache"
+        assert respuesta["ETag"]
     assert cliente.post("/api/v1/datos", {}).status_code == 405
 
 
-@pytest.mark.parametrize("contenido", [None, "incompleto{", "[]"])
-def test_api_datos_ausentes_o_invalidos_es_503(settings, tmp_path, contenido):
+@pytest.mark.parametrize("contenido", ["incompleto{", "[]"])
+def test_api_datos_invalidos_es_503(settings, tmp_path, contenido):
     settings.DATOS_DIR = tmp_path
     if contenido is not None:
         (tmp_path / "vigno-datos-reales.json").write_text(contenido)
