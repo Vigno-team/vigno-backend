@@ -77,3 +77,5 @@ data/ficticio/*.json
 
 # Variables locales de despliegue
 deploy/.env
+deploy/.env.*
+!deploy/.env.example
