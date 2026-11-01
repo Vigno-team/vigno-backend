@@ -559,3 +559,74 @@ manuales en el día. La reversión a una corrección anterior conserva la marca.
 Para E1C-130, el frontend puede mostrar «Corregido a mano» usando el booleano del
 día y el conteo en la ficha. `ResumenDiario.origen` sigue indicando frecuencia D/H;
 no debe usarse para determinar si hubo una corrección.
+
+## Conexión en vivo · E1C-130
+
+En `vigno-fronted`, `VITE_API_BASE_URL` termina en `/api`: `/api` en el despliegue
+con nginx y `http://localhost:8000/api` al desarrollar con Vite. La carga inicial
+consulta `/v1/datos`; después consulta `/v1/actualizacion` cada 60 segundos y solo
+vuelve a pedir los datos si cambió `generado`. Las cargas y correcciones confirmadas
+provocan un refresco inmediato. Un 304 conserva los datos que ya están en pantalla.
+Si la conexión falla, se muestran un aviso y los últimos datos recibidos.
+
+`generado: null` significa que el programador aún no publicó un estado; no impide
+consultar `/datos`. El 404 de `/prediccion-ficticia` se muestra con su `motivo_nulo`.
+La predicción conserva las etiquetas y fechas de California y siempre se presenta
+como demostración con datos ficticios, separada de las estaciones de VIGNO.
+Los archivos compartidos por Drive quedan solo como respaldo, no como fuente de la interfaz.
+
+### Carga de archivos
+
+| Operación | Clave | Comportamiento |
+| --- | --- | --- |
+| `GET /api/v1/estaciones` | No | Catálogo dinámico; `id` es el código usado en las demás rutas. |
+| `POST /api/v1/estaciones` | Sí | `nombre`, `latitud`, `longitud`, `subzona` opcional. 201 devuelve la estación; 409 devuelve `estacion` existente; 400 explica los campos inválidos. |
+| `POST /api/v1/cargas?solo_validar=1` | Sí | Multipart con `archivo` y `estacion`; valida sin guardar mediciones. |
+| `POST /api/v1/cargas` | Sí | Mismo multipart. Guarda, recalcula y devuelve el detalle. Un archivo ya cargado responde 200 con `repetida: true`, sin duplicarlo. |
+| `GET /api/v1/cargas` | Sí | Lista de cargas con archivo, estación, fechas, estado, filas y conteos. |
+
+La clave se envía únicamente en `X-Api-Key`. El usuario la escribe y se conserva
+en `sessionStorage`; el botón «Olvidar clave» la elimina. No se configura mediante
+variables `VITE_` ni se incluye en el repositorio. CORS admite `x-api-key` y
+`content-type` desde los orígenes configurados, además de la revalidación del ETag.
+Sin clave válida, las operaciones protegidas responden 401.
+
+La vista previa válida incluye `valido`, `solo_validar`, `estacion`, `temporada`,
+`origen_temporada`, `formato`, `fecha_desde`, `fecha_hasta`, `filas`
+(`leidas`, `aceptadas`, `rechazadas`, `vacias_ignoradas`), `conteos`,
+`rechazos[]` (`fila`, `valor_original`, `motivo`), `advertencias` y
+`celdas_vacias_conservadas[]` (`fila`, `fecha`, `variable`, `aviso`).
+La confirmación añade `id`, `fecha_carga`, `estado`, `repetida` y `recalculo`.
+`recalculo.ok: false` significa que la carga quedó guardada pero necesita atención;
+no se debe repetir automáticamente el envío.
+
+El navegador rechaza extensiones diferentes de `.xls`/`.xlsx` y tamaños mayores
+de 20 MB. El servidor también verifica el contenido: hoja ilegible o Excel dañado,
+encabezados inesperados o duplicados, año no identificable, formato no compatible,
+ausencia de filas utilizables o temperaturas vacías. Devuelve `valido: false` y
+`errores[]`; la interfaz no ofrece confirmar. Los rechazos por fila incluyen fecha
+vacía/inválida, repetida, futura y hora ambigua por cambio de horario.
+Un número mal escrito se conserva como nulo con motivo, y un valor físicamente
+imposible queda marcado fuera de rango. No se inventan valores.
+
+### Datos con falla y correcciones
+
+`GET /api/v1/calidad/fallas?estacion=<codigo>&temporada=<AAAA-AAAA>` devuelve
+`estacion`, `temporada`, `tipos_incluidos`, `resumen` (`total`, `por_tipo`,
+`por_variable`) y `fallas[]`. Cada falla incluye `fecha`, `timestamp`, `variable`,
+`frecuencia`, `tipo`, `motivo`, `valor_original`, `archivo`, `carga`, `fila`,
+`corregido` y, cuando corresponde, `correcciones`. Los tipos son `rechazado`,
+`nulo`, `sin_registro` y `fuera_de_rango`. `&formato=csv` descarga el mismo reporte
+en español con separador `;`. Ambas consultas son públicas.
+
+El formulario de corrección envía `estacion`, `fecha`, `variable`, `frecuencia`,
+`valor_nuevo`, `autor` y `motivo` a `POST /api/v1/correcciones` con la clave.
+Incluye `hora` solo para frecuencia H y `carga_origen` + `fila_origen` cuando
+se corrige una fila rechazada. La fecha o variable desconocida la identifica la
+persona; no se deduce de otro dato. El backend valida rango físico, período y fechas futuras.
+
+Tras 201 se actualizan reporte y dashboard. Si un 503 devuelve `correccion`,
+la corrección ya se guardó y solo falló el recálculo: se informa sin volver a enviarla.
+Los gráficos diarios marcan las fechas con `corregido_a_mano`; los promedios
+mensuales indican si incluyen alguna corrección. La tabla de días corregidos
+muestra sus valores actuales y la marca «Corregido a mano».

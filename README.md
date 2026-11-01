@@ -858,3 +858,113 @@ pre-commit install
 
 Para desarrollar y escribir tests se usa el generador de datos sintéticos de
 `data/synthetic/` (ver [su README](data/synthetic/README.md)).
+
+## Demo en vivo · E1C-130
+
+Requiere los endpoints de E1C-93 y el frontend con E1C-130 integrado en `develop`.
+Durante la revisión se probaron las ramas `feat/E1C-93-endpoints-dashboard`
+y `feat/E1C-130-conexion-en-vivo`; no se debe fusionar la integración antes de E1C-93.
+La interfaz ya no lee un archivo copiado: consulta la API al abrir y cada 60 segundos
+comprueba si cambió la publicación. Una carga o corrección refresca el dashboard al terminar.
+
+### Preparar una demo separada
+
+Desde `vigno-backend`, con `vigno-fronted` clonado al lado:
+
+```powershell
+Copy-Item deploy/.env.example deploy/.env.demo
+```
+
+Completar `SECRET_KEY`, `POSTGRES_PASSWORD`, `INGESTA_API_KEY` y, para obtener
+una imagen nueva, las credenciales de Copernicus en `deploy/.env.demo`.
+Usar `CSRF_TRUSTED_ORIGINS=http://localhost:18130` y comprobar `FRONTEND_DIR`.
+No sobrescribir el archivo si ya existe. Este archivo está ignorado por Git y Docker.
+
+```powershell
+$demo = @('--env-file', 'deploy/.env.demo', '-f', 'deploy/docker-compose.yml', '-f', 'deploy/docker-compose.demo.yml', '-p', 'vigno-e130-qa')
+docker compose @demo up -d --build
+```
+
+La demo queda en `http://localhost:18130`, con PostgreSQL 16 y volúmenes separados.
+La prueba automatizada exige esa URL y ese proyecto para no modificar producción.
+Para empezar de cero, usar un proyecto de demo que aún no tenga volúmenes.
+
+1. Tener los Excel en `data/raw/` (no se suben al repositorio). Cargar inicialmente
+   San Clemente y El Arenal desde **Cargar datos**, con su clave y vista previa.
+   Para reproducir la ejecución registrada, se usaron los archivos de 2025 y 2026
+   de ambas estaciones; también se pueden ingresar con `ingestar_excel`:
+
+   ```powershell
+   docker compose @demo exec backend python manage.py ingestar_excel --archivo '/app/data/raw/San Clemente 2025.xlsx' --estacion 'San Clemente'
+   docker compose @demo exec backend python manage.py ingestar_excel --archivo '/app/data/raw/San Clemente 2026.xlsx' --estacion 'San Clemente'
+   docker compose @demo exec backend python manage.py ingestar_excel --archivo '/app/data/raw/El Arenal 2025.xlsx' --estacion 'El Arenal'
+   docker compose @demo exec backend python manage.py ingestar_excel --archivo '/app/data/raw/El Arenal 2026.xlsx' --estacion 'El Arenal'
+   docker compose @demo exec backend python manage.py actualizar_todo --sin-satelite
+   ```
+
+2. Tener la capa NDVI de San Clemente y la predicción ficticia de California.
+   Para obtener una capa nueva, ejecutar `actualizar_todo --forzar-satelite` en
+   `tareas` con las credenciales configuradas. Para entrenar, copiar `cosechas.csv`
+   de E1C-78 al volumen compartido y ejecutar el pipeline en `tareas`:
+
+   ```powershell
+   docker compose @demo cp data/ficticio/cosechas.csv tareas:/app/data/ficticio/cosechas.csv
+   docker compose @demo exec tareas python manage.py actualizar_todo --forzar-satelite
+   ```
+
+   También se puede reutilizar el `prediccion_ficticia.json` ya generado por E1C-124
+   mediante `docker compose @demo cp data/ficticio/prediccion_ficticia.json backend:/app/data/ficticio/prediccion_ficticia.json`.
+   La validación de esta entrega reutilizó esa salida del modelo y la capa real de
+   Copernicus del 14-10-2026; comprobó su visualización, no una nueva descarga OAuth
+   ni un nuevo entrenamiento. No se sustituyeron por números inventados.
+
+3. Generar los archivos sintéticos para los casos de calidad y copiarlos al frontend:
+
+   ```powershell
+   docker compose @demo exec backend python scripts/e130_excel_prueba.py /tmp/e130-excel
+   docker compose @demo cp backend:/tmp/e130-excel ../vigno-fronted/tests/.generated
+   ```
+
+   `tests/.generated` debe contener directamente los archivos. Si ya existe,
+   copiar `backend:/tmp/e130-excel/.` a esa carpeta. Las fallas se ubican en octubre
+   de 2024, antes de los Excel reales de 2025/2026, para probar un nulo nuevo y no la
+   regla que conserva un valor ya cargado. Los archivos de prueba no se suben.
+
+4. En `vigno-fronted`, ejecutar:
+
+   ```powershell
+   npm ci
+   npm test
+   $env:E2E_API_KEY = Read-Host 'Clave de la demo (INGESTA_API_KEY)'
+   npm run test:e2e
+   Remove-Item Env:E2E_API_KEY
+   ```
+
+   Usa Microsoft Edge instalado. Para otro navegador compatible, configurar
+   `E2E_BROWSER`. La suite escribe únicamente en la demo y detiene sus tareas en
+   el cuarto caso. Al terminar, desde el backend: `docker compose @demo start tareas`.
+   Los reportes, capturas y trazas de Playwright quedan ignorados; pueden contener
+   la clave de la demo y datos, por lo que no se adjuntan al repositorio.
+
+### Resultado de la validación (30-10-2026)
+
+Compose levantado con volúmenes nuevos, API sin mocks y navegador Edge.
+Los nueve casos pasaron juntos en 23,8 segundos:
+
+| Caso | Cómo comprobarlo en pantalla | Resultado |
+| --- | --- | --- |
+| 1. Datos reales | Abrir Resumen y elegir San Clemente o El Arenal. | Ambas estaciones y sus series llegan desde `/api/v1/datos`. |
+| 2. Carga y repetición | Cargar `valido_2025.xlsx`, confirmar y repetir. | Refresco inmediato en menos de 60 s; la segunda carga no añade registros de carga. |
+| 3. Satélite y predicción | Elegir San Clemente en Mapa Satelital y abrir Predicción de cosecha. | NDVI real visible; 194 predicciones con sus etiquetas de California y aviso ficticio. |
+| 4. Tareas detenidas | Detener `tareas`, esperar un sondeo y navegar. | Se conserva el último JSON y el dashboard sigue funcionando. |
+| 5. Fallas | Cargar `fallas_2024.xlsx`; filtrar San Clemente, temporada `2024-2025`. | Fecha inválida, nulo y fuera de rango visibles en tabla y CSV. |
+| 6. Corrección | Corregir la media del 10-10-2024 a 30, con autor y fuente; volver a cargar el archivo. | Cambian índices y valores; hay marcas en históricos y resumen; la recarga conserva la corrección. |
+| 7. Rechazos completos | Intentar PDF, Excel dañado, columnas ajenas y temperaturas vacías. | Motivos visibles, sin confirmación ni cambios en datos o bitácora. |
+| 8. Localidad nueva | Crear una localidad con coordenadas y cargar `valido_2025.xlsx`. | Aparece en API, selectores, gráficos y mapa sin modificar configuración. |
+| 9. Celdas vacías | En la localidad nueva cargar `blancos_2025.xlsx`. | La vista previa avisa; se conservan valores y no aparecen nuevas fallas. |
+
+También pasaron 591 tests del backend (1 módulo omitido por no instalar ML en la
+imagen de desarrollo), Ruff y formato. En frontend pasan 7 tests unitarios y la
+compilación de producción. El lint general conserva 17 errores y 4 advertencias
+preexistentes de `develop`, comprobados contra esa rama; los módulos nuevos pasan
+lint. El PR de frontend identifica esa deuda sin desactivar reglas.
