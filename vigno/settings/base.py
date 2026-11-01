@@ -5,6 +5,7 @@ Los valores especificos de cada entorno viven en development.py y production.py.
 
 from pathlib import Path
 
+from corsheaders.defaults import default_headers
 from decouple import Csv, config
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -135,3 +136,5 @@ CORS_ALLOWED_ORIGINS = config(
     default="http://localhost:5173",
     cast=Csv(),
 )
+CORS_EXPOSE_HEADERS = ["ETag"]
+CORS_ALLOW_HEADERS = [*default_headers, "if-none-match", "x-api-key"]

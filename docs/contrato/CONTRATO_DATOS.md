@@ -506,6 +506,36 @@ vigentes con `corregido` y `correcciones` (lista de IDs).
 Ejemplos, reglas de fechas y campos en
 [E1C-131_CORRECCIONES.md](../E1C-131_CORRECCIONES.md).
 
+## Dashboard diario · E1C-93
+
+Las rutas son públicas y admiten GET y HEAD. Están en `/api/docs/` y `/api/schema/`.
+
+| Ruta | Respuesta |
+| --- | --- |
+| `/api/v1/datos` | 200 con el contrato completo de `DATOS_DIR/vigno-datos-reales.json`. Si falta el archivo, lo genera con `exportar()` y lo guarda atómicamente. |
+| `/api/v1/prediccion-ficticia` | 200 con el contenido de `data/ficticio/prediccion_ficticia.json` (E1C-124). Si falta, 404 con `{"motivo_nulo": "Aún no se ha entrenado el modelo de California."}`. |
+| `/api/v1/actualizacion` | 200 con `DATOS_DIR/actualizacion.json` (E1C-129), o `{"generado": null}` si no existe. |
+
+`/datos` incluye `ETag` y `Cache-Control: no-cache`. Se devuelve 304 sin cuerpo si
+`If-None-Match` coincide. Se admiten validadores débiles, una lista de validadores y `*`.
+El ETag se deriva del objeto JSON completo, incluido `generado`; no depende únicamente
+del segundo de publicación. Cambios numéricos dentro del mismo segundo también lo invalidan.
+
+El frontend debe cargar `/datos` al abrir y consultar `/actualizacion` cada 60 segundos.
+Si cambia su `generado`, vuelve a pedir `/datos` con el ETag recibido anteriormente.
+Ambos campos `generado` pertenecen a sus respectivas exportaciones; no se exige que sus
+timestamps sean iguales. `actualizacion.ok: false` informa un fallo de la última corrida,
+aunque siga disponible el JSON anterior. Ningún GET ejecuta el pipeline o el entrenamiento.
+
+`actualizacion.json` conserva `generado`, `ok` y `pasos[]`, cuyos elementos llevan `paso`,
+`ok`, `segundos` y `detalle`. `/actualizacion` y `/prediccion-ficticia` también llevan
+`Cache-Control: no-cache`. Los archivos inválidos o ilegibles responden 503 con `detalle`,
+`Retry-After: 30` y `Cache-Control: no-store`; no se sustituyen por datos inventados ni se
+presentan como si nunca se hubiera ejecutado el proceso. El 404 de predicción usa `no-store`.
+
+CORS toma los orígenes permitidos de `CORS_ALLOWED_ORIGINS`, admite `If-None-Match` y
+expone `ETag`. En desarrollo se incluye `http://localhost:5173`.
+
 ## Correcciones y recargas · E1C-132
 
 | Campo | Tipo | Significado |
