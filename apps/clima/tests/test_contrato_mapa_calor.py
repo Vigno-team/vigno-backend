@@ -29,7 +29,7 @@ EJEMPLO = json.loads(
     ).read_text(encoding="utf-8")
 )
 
-IDENTIFICACION = {"estacion_id", "capa"}
+IDENTIFICACION = {"estacion_id", "nombre", "capa"}
 CLAVES = IDENTIFICACION | set(CAMPOS_DE_IMAGEN)
 COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -44,6 +44,7 @@ def es_entero(x) -> bool:
 
 def validar_entrada(entrada: dict) -> None:
     """Lanza AssertionError (o AreasMapaError) si la entrada no cumple el contrato."""
+    assert isinstance(entrada["nombre"], str) and entrada["nombre"]
     if "motivo_nulo" in entrada:
         assert set(entrada) == CLAVES | {"motivo_nulo"}
         assert isinstance(entrada["motivo_nulo"], str) and entrada["motivo_nulo"]
@@ -183,8 +184,8 @@ def test_la_nubosidad_de_la_escena_no_depende_del_porcentaje_valido():
 # entrada_mapa_calor
 
 
-def estacion(codigo="cp-prueba-01", longitud=-71.466667):
-    return SimpleNamespace(codigo=codigo, longitud=longitud)
+def estacion(codigo="cp-prueba-01", longitud=-71.466667, nombre="Predio de prueba"):
+    return SimpleNamespace(codigo=codigo, longitud=longitud, nombre=nombre)
 
 
 def capa(**cambios):
@@ -267,7 +268,9 @@ def test_una_capa_sin_limites_geograficos_no_se_pinta():
 
 def test_el_ejemplo_es_lo_que_emite_el_codigo():
     sin_predio = next(e for e in EJEMPLO["mapa_calor"] if "motivo_nulo" in e)
-    emitido = entrada_mapa_calor(estacion(sin_predio["estacion_id"], longitud=None), None)
+    emitido = entrada_mapa_calor(
+        estacion(sin_predio["estacion_id"], longitud=None, nombre=sin_predio["nombre"]), None
+    )
     assert sin_predio == emitido
 
     con_predio = con_imagen()

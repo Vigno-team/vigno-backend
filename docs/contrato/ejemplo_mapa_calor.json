@@ -53,6 +53,7 @@
   "mapa_calor": [
     {
       "estacion_id": "cp-villavicencio-01",
+      "nombre": "El Arenal",
       "capa": "ndvi",
       "fecha_imagen": null,
       "limites": null,
@@ -70,6 +71,7 @@
     },
     {
       "estacion_id": "cp-san-clemente-01",
+      "nombre": "San Clemente",
       "capa": "ndvi",
       "fecha_imagen": "2026-10-14",
       "limites": [

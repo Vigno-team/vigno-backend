@@ -68,7 +68,9 @@ def test_una_entrada_por_estacion_en_el_mismo_orden_y_con_la_forma_del_contrato(
     datos = exportar(tmp_path)
 
     assert [e["estacion_id"] for e in datos["mapa_calor"]] == [e["id"] for e in datos["estaciones"]]
+    nombres = {e["id"]: e["nombre"] for e in datos["estaciones"]}
     for item in datos["mapa_calor"]:
+        assert item["nombre"] == nombres[item["estacion_id"]]
         validar_entrada(item)
     assert datos["mapa_calor"] == json.loads(json.dumps(bloque_mapa_calor()))
 

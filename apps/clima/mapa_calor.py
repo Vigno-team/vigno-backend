@@ -35,7 +35,7 @@ CAMPOS_DE_IMAGEN = (
 
 
 def _sin_imagen(estacion, motivo: str) -> dict:
-    entrada = {"estacion_id": estacion.codigo, "capa": CAPA}
+    entrada = {"estacion_id": estacion.codigo, "nombre": estacion.nombre, "capa": CAPA}
     entrada.update(dict.fromkeys(CAMPOS_DE_IMAGEN))
     entrada["motivo_nulo"] = motivo
     return entrada
@@ -53,6 +53,7 @@ def entrada_mapa_calor(estacion, capa) -> dict:
     oeste, sur, este, norte = capa.limites_latlon
     return {
         "estacion_id": estacion.codigo,
+        "nombre": estacion.nombre,
         "capa": capa.capa,
         "fecha_imagen": capa.fecha_imagen.isoformat(),
         "limites": [[sur, oeste], [norte, este]],
