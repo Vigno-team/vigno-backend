@@ -4275,6 +4275,7 @@
   "mapa_calor": [
     {
       "estacion_id": "sint-norte-01",
+      "nombre": "Sintética Norte",
       "capa": "ndvi",
       "fecha_imagen": null,
       "limites": null,
@@ -4292,6 +4293,7 @@
     },
     {
       "estacion_id": "sint-sur-01",
+      "nombre": "Sintética Sur",
       "capa": "ndvi",
       "fecha_imagen": null,
       "limites": null,
