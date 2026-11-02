@@ -63,14 +63,15 @@ El contenedor aplica las migraciones al partir. Cuando termine, verifica que tod
 Si `/api/health/` devuelve `"status": "ok"`, tu entorno está listo. La base parte vacía: para
 ver datos hay que [cargar los Excel del cliente](#cargar-los-datos-del-cliente).
 
-Para crear un usuario del admin:
+Para crear la primera cuenta (administrador), pon `DJANGO_SUPERUSER_EMAIL` y
+`DJANGO_SUPERUSER_PASSWORD` en tu `.env` y vuelve a levantar el backend, o usa:
 
 ```bash
 docker compose exec backend python manage.py createsuperuser
 ```
 
-Para probar las rutas que escriben datos (cargas, alta de estaciones y correcciones), pon un
-valor en `INGESTA_API_KEY` dentro de tu `.env`. Si queda vacía, esas rutas responden 401.
+Se entra con el **correo**, así que ponle uno. Las rutas que escriben datos (cargas, alta de
+estaciones y correcciones) piden token: ver [Cuentas y login](#cuentas-y-login-e1c-64).
 
 ---
 
@@ -241,7 +242,9 @@ Se leen del `.env` (ver `.env.example`). El despliegue usa su propio `deploy/.en
 | `SECRET_KEY`, `DEBUG`, `DJANGO_SETTINGS_MODULE`, `ALLOWED_HOSTS` | Configuración de Django |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` | Conexión a PostgreSQL (`POSTGRES_HOST=db` con Docker, `localhost` sin Docker) |
 | `CORS_ALLOWED_ORIGINS` | Orígenes del frontend que pueden llamar a la API |
-| `INGESTA_API_KEY` | Clave de la cabecera `X-Api-Key` para cargas, estaciones y correcciones. Vacía, nadie puede escribir |
+| `API_LECTURA_PUBLICA` | `True` deja las lecturas del dashboard sin token mientras el frontend no lo mande. Si no se define, todo pide token |
+| `DJANGO_SUPERUSER_EMAIL`, `DJANGO_SUPERUSER_PASSWORD` | Primer administrador: se crea al levantar el backend si no existe. Nunca cambia la clave de una cuenta existente |
+| `NUM_PROXIES` | Proxies delante del backend, para el límite de intentos del login: `0` en desarrollo, `1` detrás de nginx |
 | `DATOS_DIR` | Carpeta donde quedan el JSON del frontend, `actualizacion.json` y los Excel subidos (por defecto `data/cliente`) |
 | `CDSE_CLIENT_ID`, `CDSE_CLIENT_SECRET` | Credenciales de Copernicus Data Space para el mapa de calor. Sin ellas, ese paso se omite |
 
@@ -260,7 +263,7 @@ apps/
                         mapa de calor, API de resultados y health check
     prediccion/         modelo de ventana de cosecha y análisis del dataset de California
   ingesta/              carga de Excel (carga.py), API de cargas, bitácora RegistroCarga
-                        y la clave X-Api-Key (autenticacion.py)
+  cuentas/              login con correo, tokens JWT, cambio de clave y primer administrador
 config/                 mapeos de estaciones, rangos físicos, umbrales de validación y áreas del mapa
 deploy/                 despliegue completo: compose, nginx, frontend y servicio de tareas
 docs/                   guías por tema y contrato de datos con el frontend
@@ -282,46 +285,79 @@ documentación navegable en `/api/docs/`. El contrato de datos con el frontend e
 [docs/contrato/CONTRATO_DATOS.md](docs/contrato/CONTRATO_DATOS.md). Cualquier cambio que
 modifique la forma de una respuesta necesita aviso al PO del otro equipo antes de mergearse.
 
-| Ruta | Método | Clave | Qué devuelve |
+| Ruta | Método | Token | Qué devuelve |
 | --- | --- | --- | --- |
 | `/api/health/` | GET | No | Estado de la API y de la base |
-| `/api/v1/datos` | GET | No | JSON completo; si falta, lo exporta desde la base y lo guarda. ETag y 304 si no cambió |
-| `/api/v1/prediccion-ficticia` | GET | No | JSON de E1C-124; 404 con motivo si no existe |
-| `/api/v1/actualizacion` | GET | No | Última ejecución de E1C-129, o `{"generado": null}` si aún no ha corrido |
-| `/api/v1/estaciones` | GET | No | Estaciones y calidad de sus datos |
+| `/api/v1/auth/token` | POST | No | Login con correo y clave: tokens y datos de la cuenta |
+| `/api/v1/auth/refresh` | POST | No | Cambia el refresco por tokens nuevos |
+| `/api/v1/auth/logout` | POST | Sí | Cierra la sesión: el refresco deja de servir |
+| `/api/v1/auth/yo` | GET | Sí | Datos de la cuenta del token |
+| `/api/v1/auth/cambiar-clave` | POST | Sí | Cambia la clave y cierra las demás sesiones |
+| `/api/v1/datos` | GET | Lectura | JSON completo; si falta, lo exporta desde la base y lo guarda. ETag y 304 si no cambió |
+| `/api/v1/prediccion-ficticia` | GET | Lectura | JSON de E1C-124; 404 con motivo si no existe |
+| `/api/v1/actualizacion` | GET | Lectura | Última ejecución de E1C-129, o `{"generado": null}` si aún no ha corrido |
+| `/api/v1/estaciones` | GET | Lectura | Estaciones y calidad de sus datos |
 | `/api/v1/estaciones` | POST | Sí | Da de alta una localidad nueva |
-| `/api/v1/temporadas` | GET | No | Temporadas con datos, de la más antigua a la más reciente |
-| `/api/v1/temporadas/{temporada}?estacion={codigo}` | GET | No | Ficha de una estación y temporada |
-| `/api/v1/rachas/{temporada}?estacion={codigo}` | GET | No | Rachas de calor de la temporada |
-| `/api/v1/calidad/fallas?estacion={codigo}&temporada={temporada}` | GET | No | Reporte de datos con falla (`&formato=csv` para CSV) |
+| `/api/v1/temporadas` | GET | Lectura | Temporadas con datos, de la más antigua a la más reciente |
+| `/api/v1/temporadas/{temporada}?estacion={codigo}` | GET | Lectura | Ficha de una estación y temporada |
+| `/api/v1/rachas/{temporada}?estacion={codigo}` | GET | Lectura | Rachas de calor de la temporada |
+| `/api/v1/calidad/fallas?estacion={codigo}&temporada={temporada}` | GET | Lectura | Reporte de datos con falla (`&formato=csv` para CSV) |
 | `/api/v1/cargas` | POST | Sí | Sube un Excel, lo valida, lo guarda y recalcula |
 | `/api/v1/cargas`, `/api/v1/cargas/{id}` | GET | Sí | Historial y detalle de las cargas |
 | `/api/v1/correcciones` | GET, POST | Sí | Bitácora de correcciones y nueva corrección manual |
 | `/api/v1/correcciones/{id}/revertir` | POST | Sí | Revierte una corrección |
 
 `{temporada}` va como `2024-2025` y `{codigo}` es el `id` que devuelve `/api/v1/estaciones`
-(por ejemplo `cp-san-clemente-01`). Las rutas de lectura sin clave son públicas, según el
-contrato de la demo.
+(por ejemplo `cp-san-clemente-01`). Las marcadas **Lectura** piden token, salvo que
+`API_LECTURA_PUBLICA=True` (los compose de desarrollo y de la demo la dejan así hasta que el
+frontend mande el token). Cargas, correcciones y la cuenta siempre piden token.
 
 Los tres endpoints de E1C-93 están documentados en `/api/docs/` y `/api/schema/`.
 
-### La clave `X-Api-Key`
+### Cuentas y login (E1C-64)
 
-Las rutas marcadas con clave piden la cabecera `X-Api-Key` con el valor de `INGESTA_API_KEY`.
-Sin ella, o con otra, responden 401. Es una sola clave para todo el backend y es provisoria
-hasta el login de E1C-64.
+Se entra con **correo y clave**; cada petición lleva el token en la cabecera
+`Authorization: Bearer <access>`. En `/api/docs/` el botón **Authorize** recibe el token.
 
-- La genera quien levanta el servidor:
-  `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
-- Va solo en `deploy/.env` (en local, en `.env`). Nunca en el repo, Jira, Drive ni chats.
-  Sin ella, `docker compose -f deploy/docker-compose.yml` no arranca.
-- Al usuario que sube los Excel se le entrega en persona, como una contraseña. La escribe
-  en la pantalla de carga; el frontend la guarda solo durante la sesión y la manda en
-  `X-Api-Key`. Nunca va en el código del frontend ni en variables `VITE_`.
-- Si se filtra, se cambia en `deploy/.env` y se reinicia el backend.
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/token \
+  -H "Content-Type: application/json" -d '{"email": "tu@correo.cl", "password": "..."}'
+# {"access": "...", "refresh": "...", "usuario": {"id", "nombre", "email", "rol"}}
+```
 
-En el código: `ApiKeyAuthentication` (`apps/ingesta/autenticacion.py`) pide la clave solo para
-escribir; `ApiKeyPrivadaAuthentication` la pide también para leer (cargas y correcciones).
+- **Acceso**: dura 15 minutos. **Refresco**: 8 horas; `POST /api/v1/auth/refresh` con
+  `{"refresh"}` entrega un par nuevo y el refresco usado deja de servir (rota en cada uso).
+- **Cerrar sesión**: `POST /api/v1/auth/logout` con `{"refresh"}` (y el token de acceso).
+  Ese refresco queda en la lista negra.
+- **Cambiar la clave**: `POST /api/v1/auth/cambiar-clave` con `{"clave_actual",
+  "clave_nueva"}`. La nueva se valida con las reglas de Django (8+ caracteres, no común, no
+  solo números, no parecida al correo). Cierra todas las sesiones de la cuenta, incluidos
+  los tokens de acceso ya emitidos, y devuelve tokens nuevos.
+- **`rol`**: `administrador` para el superusuario; para el resto, el grupo `editor` o `lector`
+  (los crea E1C-94) o `null` si no tiene. Sale de `rol_de` en `apps/cuentas/roles.py`.
+
+Seguridad:
+
+- No hay registro público: las cuentas las crea un administrador. El primero sale de
+  `createsuperuser` o de `DJANGO_SUPERUSER_EMAIL`/`DJANGO_SUPERUSER_PASSWORD`
+  (`crear_admin_inicial`, que corre al levantar el contenedor y rechaza claves débiles).
+- El correo es único sin distinguir mayúsculas (índice en la base). Una cuenta sin correo no
+  puede entrar por la API.
+- "El correo no existe", "clave incorrecta" y "cuenta desactivada" dan la misma respuesta
+  (401) y tardan lo mismo, para no revelar qué correos tienen cuenta.
+- Máximo 5 intentos de login por minuto por IP (429 después), y 5 cambios de clave por
+  minuto por cuenta. Detrás de nginx la IP real sale de `X-Forwarded-For` con
+  `NUM_PROXIES=1`; sin proxy delante tiene que ser `0`, o cualquiera elegiría su IP escribiendo
+  esa cabecera. En el despliegue el contador vive en la base (`createcachetable`), para que
+  los workers de gunicorn lo compartan.
+- Los tokens se firman con `SECRET_KEY`: en el despliegue debe tener 50+ caracteres
+  aleatorios o el backend no arranca. Si se filtra, cambiarla invalida todos los tokens.
+- En un servidor real la API tiene que ir por HTTPS: el token viaja en cada petición.
+- La clave compartida `X-Api-Key` se retiró: una clave dentro del build del frontend queda
+  a la vista de cualquiera.
+
+En el código: `apps/cuentas/` (serializers, vistas y `permisos.LecturaPublicaOAutenticado`);
+la configuración está en `REST_FRAMEWORK` y `SIMPLE_JWT` de `vigno/settings/base.py`.
 
 ### Resultados por temporada (E1C-17)
 
@@ -386,10 +422,10 @@ los mapeos de `config/mapeos_estaciones.json`.
 | `GET /api/v1/cargas`                 | Las últimas 20 cargas                                   |
 | `GET /api/v1/cargas/<id>`            | Estado, filas y rechazos con su motivo                  |
 
-Las cuatro piden la clave.
+Las cuatro piden token, también al leer: muestran archivos y filas rechazadas.
 
 ```bash
-curl -H "X-Api-Key: $INGESTA_API_KEY" \
+curl -H "Authorization: Bearer $ACCESS" \
   -F "archivo=@San Clemente 2024.xlsx" -F "estacion=cp-san-clemente-01" \
   http://localhost:8000/api/v1/cargas
 ```
@@ -668,9 +704,11 @@ cd vigno-backend
 Copy-Item deploy/.env.example deploy/.env
 ```
 
-Editar `deploy/.env`: poner claves distintas para `SECRET_KEY`, `POSTGRES_PASSWORD` e
-`INGESTA_API_KEY`. Sin `INGESTA_API_KEY` el despliegue no arranca. Para generar una clave
-se puede usar `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+Editar `deploy/.env`: poner claves distintas para `SECRET_KEY` (50+ caracteres, o el
+backend no arranca) y `POSTGRES_PASSWORD`, y el correo y la clave del primer administrador
+en `DJANGO_SUPERUSER_EMAIL` y `DJANGO_SUPERUSER_PASSWORD` (después de levantar se puede
+borrar la clave del archivo). Para generar una clave se puede usar
+`python -c "import secrets; print(secrets.token_urlsafe(50))"`.
 Este archivo local está ignorado por Git y por la construcción de imágenes.
 Las credenciales de Copernicus se agregan ahí; nunca en un commit.
 Si los repositorios están en otra ubicación, ajustar `FRONTEND_DIR` (relativa
@@ -738,8 +776,8 @@ responde 503 y Retry-After. El servicio web espera la primera actualización cor
 La base nueva empieza sin mediciones: la pantalla puede mostrar estaciones
 sin datos hasta cargar los Excel. Hay dos formas de cargarlos:
 
-- Desde la plataforma o con `POST /api/v1/cargas`, usando la `INGESTA_API_KEY` de
-  `deploy/.env`. Valida el archivo y recalcula solo.
+- Desde la plataforma o con `POST /api/v1/cargas`, con el token de una cuenta. Valida el
+  archivo y recalcula solo.
 - Con los archivos en `data/raw/` (ignorada por Git y montada de solo lectura), por cada
   archivo:
 
@@ -875,7 +913,8 @@ Desde `vigno-backend`, con `vigno-fronted` clonado al lado:
 Copy-Item deploy/.env.example deploy/.env.demo
 ```
 
-Completar `SECRET_KEY`, `POSTGRES_PASSWORD`, `INGESTA_API_KEY` y, para obtener
+Completar `SECRET_KEY` (50+ caracteres), `POSTGRES_PASSWORD`, `DJANGO_SUPERUSER_EMAIL`,
+`DJANGO_SUPERUSER_PASSWORD` y, para obtener
 una imagen nueva, las credenciales de Copernicus en `deploy/.env.demo`.
 Usar `CSRF_TRUSTED_ORIGINS=http://localhost:18130` y comprobar `FRONTEND_DIR`.
 No sobrescribir el archivo si ya existe. Este archivo está ignorado por Git y Docker.
@@ -935,6 +974,8 @@ Para empezar de cero, usar un proyecto de demo que aún no tenga volúmenes.
    ```powershell
    npm ci
    npm test
+   # Desde E1C-64 el backend ya no acepta X-Api-Key: la suite del frontend tiene que
+   # entrar con una cuenta (login) antes de volver a correr contra este backend.
    $env:E2E_API_KEY = Read-Host 'Clave de la demo (INGESTA_API_KEY)'
    npm run test:e2e
    Remove-Item Env:E2E_API_KEY

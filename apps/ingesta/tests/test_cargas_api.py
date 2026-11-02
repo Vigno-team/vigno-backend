@@ -16,13 +16,11 @@ from apps.ingesta.models import RegistroCarga
 pytestmark = pytest.mark.django_db
 
 URL = "/api/v1/cargas"
-CLAVE = "clave-de-prueba"
 ESTACION = "cp-san-clemente-01"
 
 
 @pytest.fixture(autouse=True)
 def entorno(settings, tmp_path):
-    settings.INGESTA_API_KEY = CLAVE
     settings.DATOS_DIR = tmp_path / "datos"
 
 
@@ -43,8 +41,8 @@ def recalculos(monkeypatch, settings):
 
 
 @pytest.fixture
-def api():
-    return APIClient(HTTP_X_API_KEY=CLAVE)
+def api(cliente_con_token):
+    return cliente_con_token
 
 
 def subir(cliente, ruta, query="", **datos):
@@ -109,6 +107,7 @@ def test_carga_valida_guarda_recalcula_y_responde_el_resumen(api, tmp_path, reca
 
     registro = RegistroCarga.objects.get()
     assert registro.archivo == "san_clemente_2025.xlsx"
+    assert registro.usuario == "analista@vigno.cl"  # sale del token
     assert (settings.DATOS_DIR / "cargas" / f"{registro.hash_archivo}.xlsx").is_file()
 
 
@@ -170,16 +169,18 @@ def test_archivo_demasiado_grande_da_400(api, tmp_path, monkeypatch):
     assert "el máximo es 0.001 MB" in respuesta.json()["errores"][0]
 
 
-def test_post_sin_clave_o_con_clave_incorrecta_da_401(tmp_path, recalculos):
+def test_post_sin_token_o_con_token_invalido_da_401(tmp_path, recalculos):
     ruta = tres_dias(tmp_path)
 
     assert subir(APIClient(), ruta).status_code == 401
-    assert subir(APIClient(HTTP_X_API_KEY="otra"), ruta).status_code == 401
+    assert subir(APIClient(HTTP_AUTHORIZATION="Bearer no-es-un-token"), ruta).status_code == 401
     assert RegistroCarga.objects.count() == 0
     assert recalculos == []
 
 
-def test_get_de_cargas_sin_clave_da_401(api, tmp_path):
+def test_get_de_cargas_sin_token_da_401_aunque_la_lectura_sea_publica(api, tmp_path, settings):
+    # Muestran archivos y filas rechazadas: no entran en API_LECTURA_PUBLICA.
+    settings.API_LECTURA_PUBLICA = True
     creada = subir(api, tres_dias(tmp_path)).json()
 
     assert APIClient().get(URL).status_code == 401

@@ -2,6 +2,9 @@
 Django==5.0.9
 gunicorn==26.2.0
 djangorestframework==3.15.2
+# Tokens JWT del login (E1C-64); PyJWT fijo porque firma y verifica los tokens
+djangorestframework-simplejwt==5.5.1
+PyJWT==2.15.1
 django-cors-headers==4.4.0
 
 # --- Base de datos ---
