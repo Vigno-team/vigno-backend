@@ -6,6 +6,10 @@ import sys
 
 
 def main():
+    subprocess.run(
+        [sys.executable, "manage.py", "check", "--deploy", "--fail-level", "WARNING"],
+        check=True,
+    )
     subprocess.run([sys.executable, "manage.py", "migrate", "--noinput"], check=True)
     subprocess.run([sys.executable, "manage.py", "cargar_areas_mapa"], check=True)
     subprocess.run([sys.executable, "manage.py", "collectstatic", "--noinput"], check=True)
@@ -14,6 +18,7 @@ def main():
         [
             "gunicorn",
             "vigno.wsgi:application",
+            "--no-control-socket",
             "--bind",
             "0.0.0.0:8000",
             "--workers",

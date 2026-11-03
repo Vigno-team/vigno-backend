@@ -79,3 +79,4 @@ data/ficticio/*.json
 deploy/.env
 deploy/.env.*
 !deploy/.env.example
+deploy/certs/

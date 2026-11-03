@@ -1,5 +1,6 @@
 """Rutas raiz del proyecto VIGNO."""
 
+from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import (
@@ -10,15 +11,20 @@ from drf_spectacular.views import (
 from apps.clima.views import HealthCheckView
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
     path("api/health/", HealthCheckView.as_view(), name="health-check"),
     path("api/v1/", include("apps.clima.urls")),
     path("api/v1/", include("apps.ingesta.urls")),
-    # Contrato de la API: el equipo de frontend genera su cliente desde aqui.
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path(
-        "api/docs/",
-        SpectacularSwaggerView.as_view(url_name="schema"),
-        name="swagger-ui",
-    ),
 ]
+
+if settings.ADMIN_HABILITADO:
+    urlpatterns.append(path("admin/", admin.site.urls))
+
+if settings.DOCS_HABILITADOS:
+    urlpatterns += [
+        path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+        path(
+            "api/docs/",
+            SpectacularSwaggerView.as_view(url_name="schema"),
+            name="swagger-ui",
+        ),
+    ]

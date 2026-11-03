@@ -51,3 +51,9 @@ class EsquemaApiKey(OpenApiAuthenticationExtension):
 
     def get_security_definition(self, auto_schema):
         return {"type": "apiKey", "in": "header", "name": CABECERA}
+
+
+class EsquemaApiKeyPrivada(EsquemaApiKey):
+    target_class = "apps.ingesta.autenticacion.ApiKeyPrivadaAuthentication"
+    priority = 1
+    name = "ingestaApiKeyPrivada"

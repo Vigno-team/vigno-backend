@@ -12,6 +12,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=False, cast=bool)
+ADMIN_HABILITADO = config("ADMIN_HABILITADO", default=True, cast=bool)
+DOCS_HABILITADOS = config("DOCS_HABILITADOS", default=True, cast=bool)
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
 
 # --- Aplicaciones ---
