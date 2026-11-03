@@ -112,7 +112,7 @@ Cada elemento de `archivos`:
 | `temporadas_disponibles`     | número         | Temporadas con algún dato                                                         |
 | `calidad_dato`               | objeto         | Ver §3. `completitud_pct` es la de Tmáx y Tmín entre `fecha_inicio` y `fecha_fin` |
 
-**Alta de una estación (E1C-68):** `POST /api/v1/estaciones` con la cabecera `X-Api-Key`. Cuerpo: `nombre` (único sin distinguir mayúsculas ni tildes), `latitud` y `longitud` (dentro de Chile) y, opcionales, `subzona` y `propietario`. Responde `201` con la estación (`id`, `nombre`, `subzona`, `propietario`, `latitud`, `longitud`); `409` con `{"detail", "estacion"}` si el nombre ya existe (`estacion` es la existente); `400` si faltan datos o las coordenadas no sirven; `401` sin clave o con una incorrecta. El `id` es el código que se usa en `estacion=`. Una estación nueva aparece vacía (`variables: []`, fechas `null`) hasta que se le cargue un Excel; sin mapeo propio usa el formato estándar (`formato_estandar` en `config/mapeos_estaciones.json`).
+**Alta de una estación (E1C-68):** `POST /api/v1/estaciones` con token (`Authorization: Bearer`, ver §Autenticación). Cuerpo: `nombre` (único sin distinguir mayúsculas ni tildes), `latitud` y `longitud` (dentro de Chile) y, opcionales, `subzona` y `propietario`. Responde `201` con la estación (`id`, `nombre`, `subzona`, `propietario`, `latitud`, `longitud`); `409` con `{"detail", "estacion"}` si el nombre ya existe (`estacion` es la existente); `400` si faltan datos o las coordenadas no sirven; `401` sin token o con uno inválido. El `id` es el código que se usa en `estacion=`. Una estación nueva aparece vacía (`variables: []`, fechas `null`) hasta que se le cargue un Excel; sin mapeo propio usa el formato estándar (`formato_estandar` en `config/mapeos_estaciones.json`).
 
 **Marcador en el mapa:** se pone solo si `latitud` y `longitud` son distintas de `null`. Las coordenadas son aproximadas: vienen de la ubicación de las planillas del cliente, con precisión de 1 minuto (1 a 2 km), y no sirven para medir distancias. Una vez cargado `config/areas_mapa.json` con `cargar_areas_mapa`, San Clemente tiene las dos coordenadas. El Arenal no tiene ubicación: su `longitud` es `null` y su `latitud` es una aproximación heredada, así que no lleva marcador. El marcador muestra el último dato de la estación: el último elemento de `dias` de su `resumen_diario` (§4.5), que se une por `estacion_id`.
 
@@ -492,11 +492,11 @@ valor de la estación no se muestran como fallas; no se borran de la base.
 
 | Método y ruta | Entrada | Respuesta correcta |
 | --- | --- | --- |
-| `POST /api/v1/correcciones` | estación (código), fecha, hora para H, variable, frecuencia, valor_nuevo, autor, motivo; carga_origen y fila_origen si procede | 201, `correccion` y `actualizacion.ok=true` |
+| `POST /api/v1/correcciones` | estación (código), fecha, hora para H, variable, frecuencia, valor_nuevo, motivo; carga_origen y fila_origen si procede | 201, `correccion` y `actualizacion.ok=true` |
 | `GET /api/v1/correcciones?estacion=<codigo>` | filtro opcional; paginación con `page` | 200, `count`, `next`, `previous`, `results` |
-| `POST /api/v1/correcciones/<id>/revertir` | autor, motivo | 200, corrección revertida y `actualizacion.ok=true` |
+| `POST /api/v1/correcciones/<id>/revertir` | motivo | 200, corrección revertida y `actualizacion.ok=true` |
 
-Todas exigen `X-Api-Key`. La respuesta incluye ID, estación, fecha, hora, timestamp,
+Todas exigen token (`Authorization: Bearer`). El `autor` es el correo de la cuenta del token; si el cuerpo trae `autor` se ignora. La respuesta incluye ID, estación, fecha, hora, timestamp,
 variable, frecuencia, valor anterior/nuevo, autor, motivo, creación, estado,
 carga/fila de origen, corrección anterior y datos de reversión. No se añaden datos
 inventados al JSON de resultados. Tras 201/200 se puede volver a consultar
@@ -578,19 +578,41 @@ Los archivos compartidos por Drive quedan solo como respaldo, no como fuente de 
 
 ### Carga de archivos
 
-| Operación | Clave | Comportamiento |
+| Operación | Token | Comportamiento |
 | --- | --- | --- |
-| `GET /api/v1/estaciones` | No | Catálogo dinámico; `id` es el código usado en las demás rutas. |
+| `GET /api/v1/estaciones` | Lectura | Catálogo dinámico; `id` es el código usado en las demás rutas. |
 | `POST /api/v1/estaciones` | Sí | `nombre`, `latitud`, `longitud`, `subzona` opcional. 201 devuelve la estación; 409 devuelve `estacion` existente; 400 explica los campos inválidos. |
 | `POST /api/v1/cargas?solo_validar=1` | Sí | Multipart con `archivo` y `estacion`; valida sin guardar mediciones. |
 | `POST /api/v1/cargas` | Sí | Mismo multipart. Guarda, recalcula y devuelve el detalle. Un archivo ya cargado responde 200 con `repetida: true`, sin duplicarlo. |
 | `GET /api/v1/cargas` | Sí | Lista de cargas con archivo, estación, fechas, estado, filas y conteos. |
 
-La clave se envía únicamente en `X-Api-Key`. El usuario la escribe y se conserva
-en `sessionStorage`; el botón «Olvidar clave» la elimina. No se configura mediante
-variables `VITE_` ni se incluye en el repositorio. CORS admite `x-api-key` y
-`content-type` desde los orígenes configurados, además de la revalidación del ETag.
-Sin clave válida, las operaciones protegidas responden 401.
+El token va en `Authorization: Bearer <access>` (ver §Autenticación). CORS admite
+`authorization` y `content-type` desde los orígenes configurados, además de la revalidación
+del ETag. Sin token válido, las operaciones protegidas responden 401. «Lectura» quiere decir
+que pide token salvo con `API_LECTURA_PUBLICA=True`.
+
+### Autenticación (E1C-64)
+
+La clave compartida `X-Api-Key` se retiró. Se entra con correo y clave; no hay registro
+público (las cuentas las crea un administrador).
+
+| Ruta | Cuerpo | Respuesta |
+| --- | --- | --- |
+| `POST /api/v1/auth/token` | `{"email", "password"}` | 200 `{"access", "refresh", "usuario": {"id", "nombre", "email", "rol"}}`; 401 `{"detail": "Correo o contraseña incorrectos."}`; 429 tras 5 intentos por minuto |
+| `POST /api/v1/auth/refresh` | `{"refresh"}` | 200 `{"access", "refresh"}` (el refresco rota: el usado deja de servir); 401 si venció, se cerró la sesión o cambió la clave |
+| `POST /api/v1/auth/logout` | `{"refresh"}`, con `Authorization` | 204; 400 si el refresco no sirve o es de otra cuenta |
+| `GET /api/v1/auth/yo` | — | 200 `{"id", "nombre", "email", "rol"}` |
+| `POST /api/v1/auth/cambiar-clave` | `{"clave_actual", "clave_nueva"}` | 200 `{"access", "refresh"}` nuevos (las otras sesiones se cierran); 400 con el campo que falló |
+
+- El acceso dura 15 minutos y el refresco 8 horas. Ante un 401 por token vencido, el
+  frontend llama a `refresh` una vez y repite la petición; si `refresh` también da 401,
+  vuelve al login.
+- `rol` es `administrador`, `editor`, `lector` o `null`. Hasta que E1C-94 cree los grupos,
+  solo el superusuario tiene rol (`administrador`); el resto llega con `null`.
+- Los tokens no van en el código ni en variables `VITE_`. Conviene guardarlos solo en memoria
+  o en `sessionStorage` y borrarlos al cerrar sesión.
+- Mientras `API_LECTURA_PUBLICA=True` (compose de desarrollo y demo), las lecturas del
+  dashboard funcionan sin token; cargas, correcciones y la cuenta siempre lo piden.
 
 La vista previa válida incluye `valido`, `solo_validar`, `estacion`, `temporada`,
 `origen_temporada`, `formato`, `fecha_desde`, `fecha_hasta`, `filas`

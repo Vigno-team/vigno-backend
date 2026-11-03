@@ -42,7 +42,13 @@ services:
     environment:
       <<: *entorno
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
-      INGESTA_API_KEY: ${INGESTA_API_KEY:?Configura INGESTA_API_KEY en deploy/.env}
+      # E1C-64: el dashboard de la demo sigue sin token hasta que el frontend lo mande.
+      API_LECTURA_PUBLICA: ${API_LECTURA_PUBLICA:-True}
+      # Primer administrador (opcional): solo se crea si no existe.
+      DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:-}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:-}
+      # nginx es el único proxy delante: la IP real es la última de X-Forwarded-For.
+      NUM_PROXIES: "1"
     volumes:
       - datos:/app/data/cliente
       - ficticio:/app/data/ficticio

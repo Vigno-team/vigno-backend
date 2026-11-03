@@ -15,18 +15,12 @@ from apps.ingesta.models import RegistroCarga
 pytestmark = pytest.mark.django_db
 
 URL = "/api/v1/estaciones"
-CLAVE = "clave-de-prueba"
 NUEVA = {"nombre": "Villa Nueva", "latitud": -35.9, "longitud": -72.3}
 
 
-@pytest.fixture(autouse=True)
-def clave(settings):
-    settings.INGESTA_API_KEY = CLAVE
-
-
 @pytest.fixture
-def api():
-    return APIClient(HTTP_X_API_KEY=CLAVE)
+def api(cliente_con_token):
+    return cliente_con_token
 
 
 def crear(api, **cambios):
@@ -153,33 +147,30 @@ def test_falta_un_campo_obligatorio_da_400(api, campo):
     assert campo in r.json()
 
 
-def test_sin_clave_da_401(client):
+def test_sin_token_da_401(client):
     r = client.post(URL, NUEVA, content_type="application/json")
 
     assert r.status_code == 401
     assert not Estacion.objects.filter(nombre="Villa Nueva").exists()
 
 
-def test_clave_incorrecta_da_401():
-    r = APIClient(HTTP_X_API_KEY="otra").post(URL, NUEVA, format="json")
+def test_token_alterado_da_401(cliente_con_token):
+    token = cliente_con_token._credentials["HTTP_AUTHORIZATION"]
+    alterado = APIClient(HTTP_AUTHORIZATION=token[:-2] + ("aa" if token[-2:] != "aa" else "bb"))
 
-    assert r.status_code == 401
-
-
-def test_sin_clave_configurada_nadie_escribe(settings):
-    settings.INGESTA_API_KEY = ""
-
-    assert APIClient(HTTP_X_API_KEY="").post(URL, NUEVA, format="json").status_code == 401
-    assert APIClient(HTTP_X_API_KEY="x").post(URL, NUEVA, format="json").status_code == 401
+    assert alterado.post(URL, NUEVA, format="json").status_code == 401
+    assert not Estacion.objects.filter(nombre="Villa Nueva").exists()
 
 
-def test_la_lectura_sigue_publica(client):
+def test_el_post_pide_token_aunque_la_lectura_sea_publica(client, settings):
+    settings.API_LECTURA_PUBLICA = True
+
     assert client.get(URL).status_code == 200
-    assert client.get(URL, HTTP_X_API_KEY="cualquiera").status_code == 200
+    assert client.post(URL, NUEVA, content_type="application/json").status_code == 401
 
 
-def test_la_sin_clave_se_revisa_antes_que_los_datos(client):
-    # 401 aunque el cuerpo sea inválido: no se filtra qué falta a quien no tiene clave
+def test_sin_token_se_revisa_antes_que_los_datos(client):
+    # 401 aunque el cuerpo sea inválido: no se filtra qué falta a quien no tiene token
     assert client.post(URL, {}, content_type="application/json").status_code == 401
 
 

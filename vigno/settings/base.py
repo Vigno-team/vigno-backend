@@ -3,6 +3,7 @@ Configuracion comun a todos los entornos.
 Los valores especificos de cada entorno viven en development.py y production.py.
 """
 
+from datetime import timedelta
 from pathlib import Path
 
 from corsheaders.defaults import default_headers
@@ -28,11 +29,13 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "corsheaders",
     "drf_spectacular",
+    "rest_framework_simplejwt.token_blacklist",
 ]
 
 LOCAL_APPS = [
     "apps.clima",
     "apps.ingesta",
+    "apps.cuentas",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -102,7 +105,9 @@ FACTOR_MES_INUSUAL = config("FACTOR_MES_INUSUAL", default=2.0, cast=float)
 CDSE_CLIENT_ID = config("CDSE_CLIENT_ID", default="")
 CDSE_CLIENT_SECRET = config("CDSE_CLIENT_SECRET", default="")
 
-INGESTA_API_KEY = config("INGESTA_API_KEY", default="")
+# Lecturas del dashboard sin token (E1C-64). Solo mientras el frontend no mande el token:
+# los compose de desarrollo y de la demo la dejan en True; por defecto todo pide token.
+API_LECTURA_PUBLICA = config("API_LECTURA_PUBLICA", default=False, cast=bool)
 
 # Carpeta donde quedan los datos listos para el frontend.
 DATOS_DIR = BASE_DIR / config("DATOS_DIR", default="data/cliente")
@@ -118,7 +123,33 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
+    # E1C-64: todo pide token salvo health, login y refresco (y las lecturas con
+    # API_LECTURA_PUBLICA). Ver apps/cuentas.
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_THROTTLE_RATES": {"login": "5/min", "cambiar_clave": "5/min"},
+    # Detrás de nginx la IP real es la última de X-Forwarded-For. Sin proxy delante (por
+    # ejemplo runserver expuesto directo) debe ser 0: si no, el cliente elige su propia IP
+    # escribiendo esa cabecera y se salta el límite de intentos.
+    "NUM_PROXIES": config("NUM_PROXIES", default=1, cast=int),
 }
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(hours=8),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
+    # El token lleva un hash de la clave: al cambiarla, los tokens anteriores dejan de servir.
+    "CHECK_REVOKE_TOKEN": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+# Contador del límite de intentos. En memoria sirve con un solo proceso (runserver y tests);
+# production.py usa la base para que los workers de gunicorn compartan el contador.
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 
 # --- Contrato de la API (lo consume el equipo de frontend) ---
 SPECTACULAR_SETTINGS = {
@@ -128,6 +159,8 @@ SPECTACULAR_SETTINGS = {
     ),
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # El token que se pega en Authorize (/api/docs) no queda guardado en el navegador.
+    "SWAGGER_UI_SETTINGS": {"persistAuthorization": False},
 }
 
 # --- CORS ---
@@ -137,4 +170,5 @@ CORS_ALLOWED_ORIGINS = config(
     cast=Csv(),
 )
 CORS_EXPOSE_HEADERS = ["ETag"]
-CORS_ALLOW_HEADERS = [*default_headers, "if-none-match", "x-api-key"]
+# default_headers ya incluye authorization, que lleva el token (Bearer).
+CORS_ALLOW_HEADERS = [*default_headers, "if-none-match"]

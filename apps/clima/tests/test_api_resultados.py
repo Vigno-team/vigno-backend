@@ -295,9 +295,8 @@ def test_solo_lectura_y_sin_escrituras_por_get(client, estacion, path):
     assert not any(
         q["sql"].lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE")) for q in queries
     )
-    # /estaciones acepta POST (E1C-68), pero solo con X-Api-Key: sin ella da 401
-    esperado = 401 if path == "estaciones" else 405
-    assert client.post(f"/api/v1/{path}", {}).status_code == esperado
+    # Sin token, todo POST da 401 antes de revisar el método (E1C-64)
+    assert client.post(f"/api/v1/{path}", {}).status_code == 401
 
 
 def test_openapi_incluye_consultas_y_metadatos():
