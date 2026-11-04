@@ -61,7 +61,7 @@ def estaciones(settings):
     # Los umbrales se fijan aquí para que la referencia no dependa del .env de cada máquina.
     settings.UMBRAL_CALOR_C = 35.0
     settings.MINIMO_DIAS_INCIDENCIA = 5
-    # Las migraciones dejan cargadas las estaciones reales (sin mediciones): se sacan para que la referencia dependa solo de los datos sintéticos.
+    # El fixture carga el perfil histórico: se retira para comparar solo los datos sintéticos.
     Estacion.objects.all().delete()
     return {
         e["codigo"]: Estacion.objects.create(

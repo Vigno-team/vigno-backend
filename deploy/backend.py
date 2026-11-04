@@ -7,6 +7,9 @@ import sys
 
 def main():
     subprocess.run([sys.executable, "manage.py", "migrate", "--noinput"], check=True)
+    # Contador compartido del límite de intentos del login (CACHES en production.py).
+    subprocess.run([sys.executable, "manage.py", "createcachetable"], check=True)
+    subprocess.run([sys.executable, "manage.py", "crear_admin_inicial"], check=True)
     subprocess.run([sys.executable, "manage.py", "collectstatic", "--noinput"], check=True)
     os.execvp(
         "gunicorn",

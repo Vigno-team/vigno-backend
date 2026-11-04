@@ -123,6 +123,7 @@ def base_nueva(tmp_path, transactional_db):
         "INSTANCIA_CONFIG": str(NORTE / "instancia.json"),
         "DATOS_DIR": str(tmp_path / "datos"),
         "ALLOWED_HOSTS": "testserver,localhost,127.0.0.1",
+        "API_LECTURA_PUBLICA": "True",
     }
     try:
         yield env
@@ -137,6 +138,20 @@ def ejecutar(env, *args):
     )
     assert proceso.returncode == 0, proceso.stdout + proceso.stderr
     return proceso.stdout
+
+
+def test_arranque_rechaza_configuracion_explicita_invalida(tmp_path):
+    archivo = tmp_path / "instancia.json"
+    archivo.write_text('{"version": 1}', encoding="utf-8")
+    proceso = subprocess.run(
+        [sys.executable, "manage.py", "check"],
+        cwd=RAIZ,
+        env={**os.environ, "INSTANCIA_CONFIG": str(archivo)},
+        capture_output=True,
+        text=True,
+    )
+    assert proceso.returncode != 0
+    assert "instancia.json: raíz" in proceso.stderr
 
 
 def test_instalacion_nueva_y_flujo_completo_del_norte(base_nueva):

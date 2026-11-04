@@ -204,8 +204,10 @@ def test_actualizacion_refleja_la_ultima_corrida_incluso_si_fallo(entorno):
 
 
 @pytest.mark.parametrize("endpoint", ["datos", "actualizacion", "prediccion-ficticia"])
-def test_endpoints_publicos_no_permiten_escritura(endpoint):
-    assert APIClient().post(f"/api/v1/{endpoint}", {}).status_code == 405
+def test_endpoints_publicos_no_permiten_escritura(endpoint, cliente_con_token):
+    # Sin token, 401 antes de revisar el método: no se le dice qué existe a quien no entró.
+    assert APIClient().post(f"/api/v1/{endpoint}", {}).status_code == 401
+    assert cliente_con_token.post(f"/api/v1/{endpoint}", {}).status_code == 405
 
 
 def test_cors_permite_vite_revalidar_y_leer_etag(entorno, settings):

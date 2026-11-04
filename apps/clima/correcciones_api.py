@@ -1,4 +1,4 @@
-"""Bitácora y endpoints de E1C-131. El autor es declarado hasta incorporar E1C-64."""
+"""Bitácora y endpoints de E1C-131. El autor sale de la cuenta del token (E1C-64)."""
 
 from datetime import datetime, time
 
@@ -14,13 +14,18 @@ from rest_framework.response import Response
 from apps.clima.correcciones import crear_correccion, revertir_correccion, valor_json
 from apps.clima.models import CorreccionManual, Estacion
 from apps.clima.rangos import VARIABLES, motivo_fuera_de_rango
-from apps.ingesta.autenticacion import ApiKeyPrivadaAuthentication
 from apps.ingesta.models import RegistroCarga
 
 
 class AutorMotivoSerializer(serializers.Serializer):
-    autor = serializers.CharField(max_length=100, allow_blank=False)
+    # El autor ya no lo declara el cliente: se toma del token para que nadie firme por otro.
+    # Si llega en el cuerpo (frontend anterior a E1C-64) se ignora.
+    autor = serializers.CharField(max_length=100, required=False, write_only=True)
     motivo = serializers.CharField(max_length=1000, allow_blank=False)
+
+
+def _con_autor(datos, request):
+    return {**datos, "autor": request.user.email[:100]}
 
 
 class NuevaCorreccionSerializer(AutorMotivoSerializer):
@@ -140,7 +145,6 @@ class ResultadoCorreccionSerializer(serializers.Serializer):
 
 
 class CorreccionesView(GenericAPIView):
-    authentication_classes = [ApiKeyPrivadaAuthentication]
     permission_classes = [IsAuthenticated]
     serializer_class = CorreccionSerializer
     http_method_names = ["get", "post", "head", "options"]
@@ -167,7 +171,7 @@ class CorreccionesView(GenericAPIView):
     def post(self, request):
         entrada = NuevaCorreccionSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
-        correccion, actualizacion = crear_correccion(entrada.validated_data)
+        correccion, actualizacion = crear_correccion(_con_autor(entrada.validated_data, request))
         return Response(
             {"correccion": CorreccionSerializer(correccion).data, "actualizacion": actualizacion},
             status=201 if actualizacion["ok"] else 503,
@@ -175,7 +179,6 @@ class CorreccionesView(GenericAPIView):
 
 
 class RevertirCorreccionView(GenericAPIView):
-    authentication_classes = [ApiKeyPrivadaAuthentication]
     permission_classes = [IsAuthenticated]
     serializer_class = AutorMotivoSerializer
     http_method_names = ["post", "options"]
@@ -188,7 +191,9 @@ class RevertirCorreccionView(GenericAPIView):
     def post(self, request, pk):
         entrada = self.get_serializer(data=request.data)
         entrada.is_valid(raise_exception=True)
-        correccion, actualizacion = revertir_correccion(pk, entrada.validated_data)
+        correccion, actualizacion = revertir_correccion(
+            pk, _con_autor(entrada.validated_data, request)
+        )
         return Response(
             {"correccion": CorreccionSerializer(correccion).data, "actualizacion": actualizacion},
             status=200 if actualizacion["ok"] else 503,

@@ -19,6 +19,7 @@ services:
     build: .
     command: >
       sh -c "python manage.py migrate &&
+             python manage.py crear_admin_inicial &&
              python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
@@ -26,6 +27,11 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      # E1C-64: el dashboard sigue sin token hasta que el frontend lo mande.
+      API_LECTURA_PUBLICA: ${API_LECTURA_PUBLICA:-True}
+      # runserver queda expuesto directo, sin nginx delante.
+      NUM_PROXIES: ${NUM_PROXIES:-0}
     depends_on:
       db:
         condition: service_healthy

@@ -10,7 +10,7 @@ from vigno.instancia import archivo_instancia
 
 class Command(BaseCommand):
     help = (
-        "Valida config/areas_mapa.json y copia latitud y longitud de cada estación a la base. "
+        "Valida el archivo de áreas de la instancia y copia las coordenadas a la base. "
         "Es idempotente: se puede correr las veces que haga falta."
     )
 
@@ -18,7 +18,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--archivo",
             default=str(archivo_instancia("areas")),
-            help="Ruta del GeoJSON (por defecto config/areas_mapa.json).",
+            help="Ruta del GeoJSON (por defecto archivos.areas de la instancia).",
         )
         parser.add_argument(
             "--solo-validar",

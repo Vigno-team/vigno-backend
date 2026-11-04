@@ -7,7 +7,6 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db.models.query import QuerySet
-from rest_framework.test import APIClient
 
 from apps.clima.models import CorreccionManual, Estacion, MedicionHoraria, ResumenDiario
 from apps.clima.tests.test_correcciones import crear, dias_json, medir, revertir
@@ -32,7 +31,6 @@ def entorno(settings, tmp_path):
         "mapeos": "config/mapeos_estaciones.json",
     }
     settings.DATOS_DIR = tmp_path / "salidas"
-    settings.INGESTA_API_KEY = "clave-e132-test"
     estacion, _ = Estacion.objects.update_or_create(
         nombre="San Clemente", defaults={"codigo": "sc", "latitud": -35.5}
     )
@@ -42,8 +40,8 @@ def entorno(settings, tmp_path):
 
 
 @pytest.fixture
-def cliente(entorno):
-    return APIClient(HTTP_X_API_KEY="clave-e132-test")
+def cliente(entorno, cliente_con_token):
+    return cliente_con_token
 
 
 def dato_corregido(estacion):
@@ -88,7 +86,7 @@ def test_excel_valido_reemplaza_incluso_el_mismo_valor(cliente, entorno, tmp_pat
     c = CorreccionManual.objects.get(pk=correccion["id"])
     assert (dato.valor, dato.origen, dato.carga_id) == (valor_excel, "excel", carga.pk)
     assert c.estado == "reemplazada" and c.reemplazada_por_id == carga.pk
-    assert c.valor_nuevo == 21 and c.autor == "Enóloga de prueba"
+    assert c.valor_nuevo == 21 and c.autor == "analista@vigno.cl"
     assert revertir(cliente, c.pk).status_code == 409
     bitacora = cliente.get("/api/v1/correcciones?estacion=sc").json()["results"]
     assert next(r for r in bitacora if r["id"] == c.pk)["reemplazada_por"] == carga.pk
