@@ -6,13 +6,13 @@ from apps.clima.prediccion.calidad_vino import calidad_por_temporada
 
 
 class Command(BaseCommand):
-    help = "Calcula la calidad por temporada del dataset ficticio (E1C-79)"
+    help = "Calcula la calidad por temporada del dataset de referencia (E1C-79)"
 
     def handle(self, *args, **options):
-        carpeta = settings.BASE_DIR / "data" / "ficticio"
+        carpeta = settings.BASE_DIR / "data" / "referencia"
         entrada = carpeta / "cosechas.csv"
         if not entrada.exists():
-            raise CommandError("Falta cosechas.csv: corre primero cargar_dataset_ficticio")
+            raise CommandError("Falta cosechas.csv: corre primero cargar_dataset_referencia")
 
         try:
             calidad = calidad_por_temporada(pd.read_csv(entrada))

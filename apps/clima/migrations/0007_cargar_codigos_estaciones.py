@@ -18,4 +18,6 @@ def cargar(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [("clima", "0006_configuracioncalidad_estacion_codigo_and_more")]
-    operations = [migrations.RunPython(cargar, migrations.RunPython.noop)]
+    # E1C-95: solo cargar_instancia incorpora el catálogo. Las bases ya migradas
+    # conservan sus filas; no se agrega ninguna operación de borrado.
+    operations = []

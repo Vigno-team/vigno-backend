@@ -27,6 +27,10 @@ def entorno(settings, tmp_path):
         '{"type":"FeatureCollection","features":[]}', encoding="utf-8"
     )
     settings.BASE_DIR = tmp_path
+    settings.INSTANCIA["archivos"] = {
+        "areas": "config/areas_mapa.json",
+        "mapeos": "config/mapeos_estaciones.json",
+    }
     settings.DATOS_DIR = tmp_path / "salidas"
     settings.INGESTA_API_KEY = "clave-e132-test"
     estacion, _ = Estacion.objects.update_or_create(

@@ -7,7 +7,6 @@ import sys
 
 def main():
     subprocess.run([sys.executable, "manage.py", "migrate", "--noinput"], check=True)
-    subprocess.run([sys.executable, "manage.py", "cargar_areas_mapa"], check=True)
     subprocess.run([sys.executable, "manage.py", "collectstatic", "--noinput"], check=True)
     os.execvp(
         "gunicorn",

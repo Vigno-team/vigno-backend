@@ -45,7 +45,8 @@ def test_config_real_carga_el_contorno_san_clemente():
     from django.conf import settings
 
     geometria = cargar_geometria_predio(
-        settings.BASE_DIR / "config" / "areas_mapa.json", "cp-san-clemente-01"
+        settings.BASE_DIR / "config/instancias/casas-patronales/areas_mapa.json",
+        "cp-san-clemente-01",
     )
 
     anillo = geometria["coordinates"][0]
@@ -73,7 +74,7 @@ def test_estacion_fuera_del_contorno_no_es_error(tmp_path):
     [
         ({"geometry": None}, "falta el contorno"),
         ({"lat": None}, "faltan las coordenadas"),
-        ({"lat": -72.355, "lon": -35.525}, "fuera de Chile"),
+        ({"lat": -72.355, "lon": -35.525}, "fuera del territorio configurado"),
         ({"anillo": ANILLO[:3]}, "al menos 4 puntos"),
         ({"anillo": ANILLO[:-1] + [[-72.37, -35.53]]}, "no está cerrado"),
         (
@@ -113,7 +114,7 @@ CODIGOS_CONOCIDOS = {"cp-villavicencio-01", "cp-san-clemente-01"}
 def test_config_versionada_es_valida_y_usa_codigos_conocidos():
     from django.conf import settings
 
-    areas = cargar_areas(settings.BASE_DIR / "config" / "areas_mapa.json")
+    areas = cargar_areas(settings.BASE_DIR / "config/instancias/casas-patronales/areas_mapa.json")
     assert areas, "El archivo versionado debe tener al menos un predio."
     assert {a.codigo for a in areas} <= CODIGOS_CONOCIDOS
 
@@ -168,7 +169,7 @@ def test_comando_avisa_estacion_sin_contorno(tmp_path):
 def test_comando_carga_el_archivo_versionado():
     from django.conf import settings
 
-    areas = cargar_areas(settings.BASE_DIR / "config" / "areas_mapa.json")
+    areas = cargar_areas(settings.BASE_DIR / "config/instancias/casas-patronales/areas_mapa.json")
     for area in areas:
         # Las migraciones ya crean las estaciones reales: se parte de la latitud vieja.
         Estacion.objects.update_or_create(

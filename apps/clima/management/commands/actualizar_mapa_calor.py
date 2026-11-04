@@ -1,9 +1,9 @@
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.clima.areas_mapa import AreasMapaError, cargar_geometria_predio
 from apps.clima.models import Estacion
 from apps.clima.satelite import ErrorSatelite, actualizar_capa_ndvi
+from vigno.instancia import archivo_instancia
 
 
 class Command(BaseCommand):
@@ -21,7 +21,7 @@ class Command(BaseCommand):
         except Estacion.DoesNotExist as exc:
             raise CommandError(f"No existe la estación {codigo}.") from exc
 
-        ruta_areas = settings.BASE_DIR / "config" / "areas_mapa.json"
+        ruta_areas = archivo_instancia("areas")
         try:
             geometria = cargar_geometria_predio(ruta_areas, codigo)
         except AreasMapaError as exc:

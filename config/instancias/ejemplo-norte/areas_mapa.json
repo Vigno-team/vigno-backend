@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "codigo": "norte-01",
+        "nombre": "Estación Norte",
+        "latitud": 44.8,
+        "longitud": -0.6
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -0.61,
+              44.79
+            ],
+            [
+              -0.59,
+              44.79
+            ],
+            [
+              -0.59,
+              44.81
+            ],
+            [
+              -0.61,
+              44.81
+            ],
+            [
+              -0.61,
+              44.79
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

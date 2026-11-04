@@ -167,7 +167,7 @@ def ficha_temporada(estacion, temporada):
     calor_metrica = valor_metrica(
         estacion, "dias_sobre_umbral", temporada, timezone.localdate(), umbral
     )
-    # Las rachas conservan su ventana anual; la métrica de días usa octubre-abril.
+    # Las rachas usan la temporada; la métrica de días usa su ventana configurada.
     hay_temperatura = ResumenDiario.objects.filter(
         estacion=estacion, temporada=temporada, tmax__isnull=False
     ).exists()

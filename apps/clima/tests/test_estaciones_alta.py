@@ -6,7 +6,7 @@ from django.core.management.base import CommandError
 from rest_framework.test import APIClient
 
 from apps.clima import mapeos
-from apps.clima.estaciones import en_chile
+from apps.clima.estaciones import en_territorio
 from apps.clima.management.commands.exportar_json import exportar
 from apps.clima.models import Estacion, MedicionHoraria
 from apps.clima.tests.test_ingestar_excel import crear_excel, fila
@@ -184,9 +184,9 @@ def test_la_sin_clave_se_revisa_antes_que_los_datos(client):
 
 
 def test_cajas_de_chile():
-    assert en_chile(-35.516667, -71.466667)  # San Clemente
-    assert en_chile(-33.6, -78.8)  # Juan Fernández
-    assert not en_chile(-34.6, -58.4)
+    assert en_territorio(-35.516667, -71.466667)  # San Clemente
+    assert en_territorio(-33.6, -78.8)  # Juan Fernández
+    assert not en_territorio(-34.6, -58.4)
 
 
 # --- plantilla y búsqueda del mapeo ---------------------------------------------------------

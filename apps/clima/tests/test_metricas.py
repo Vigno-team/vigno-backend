@@ -3,7 +3,6 @@ from datetime import date, timedelta
 import pytest
 from django.test import override_settings
 
-from apps.clima import temporadas
 from apps.clima.lluvia_fuera_invierno import lluvia_fuera_invierno
 from apps.clima.models import Estacion, ResumenDiario
 from apps.clima.temporadas import temporada_de
@@ -164,16 +163,8 @@ def test_temporada_sin_lluvia_devuelve_motivo_nulo(estacion):
     assert resultado["motivo_nulo"] == "Sin datos de precipitación en el año agrícola."
 
 
-def test_dia_lluvioso_en_hueco_entre_etapas_no_aborta_ficha(estacion, monkeypatch):
-    monkeypatch.setattr(
-        temporadas,
-        "ETAPAS_CRECIMIENTO",
-        (
-            ("brotacion_floracion", (10, 1), (11, 30)),
-            ("cuaja_envero", (12, 2), (1, 31)),
-            ("maduracion_cosecha", (2, 1), (4, 30)),
-        ),
-    )
+def test_dia_lluvioso_en_hueco_entre_etapas_no_aborta_ficha(estacion, settings):
+    settings.INSTANCIA["calendario"]["etapas_crecimiento"][1]["inicio"] = [12, 2]
     cargar_anio_agricola(estacion, 2024, {date(2024, 12, 1): 25})
 
     resultado = lluvia_fuera_invierno(estacion, "2024-2025", hoy=date(2025, 5, 1))

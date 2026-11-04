@@ -3,20 +3,12 @@
 import re
 import unicodedata
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 
 from apps.clima.mapeos import buscar_estacion
 from apps.clima.models import Estacion
 
-# Cajas (lat_min, lat_max, lon_min, lon_max) que cubren el territorio chileno donde puede haber
-# viñas: el continente y las islas Juan Fernández y Rapa Nui. Es una revisión gruesa para
-# atrapar errores de digitación (signo, coordenadas cruzadas), no un límite político: cerca de
-# la frontera acepta puntos que ya son de Argentina, Bolivia o Perú. No incluye la Antártica.
-CAJAS_CHILE = (
-    (-56.6, -17.5, -75.7, -66.4),
-    (-34.0, -33.5, -80.9, -78.5),
-    (-27.3, -26.9, -109.6, -109.2),
-)
 MAX_CODIGO = 50
 INTENTOS_CODIGO = 5
 
@@ -27,10 +19,12 @@ class NombreRepetido(Exception):
         super().__init__(f"Ya existe la estación {existente.nombre}")
 
 
-def en_chile(latitud: float, longitud: float) -> bool:
+def en_territorio(latitud: float, longitud: float, limites=None) -> bool:
+    limites = limites or settings.INSTANCIA["limites_geograficos"]
+    cajas = limites.get("estaciones", [[*limites["latitud"], *limites["longitud"]]])
     return any(
         lat_min <= latitud <= lat_max and lon_min <= longitud <= lon_max
-        for lat_min, lat_max, lon_min, lon_max in CAJAS_CHILE
+        for lat_min, lat_max, lon_min, lon_max in cajas
     )
 
 

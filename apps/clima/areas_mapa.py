@@ -2,9 +2,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-# Caja que contiene a Chile continental. Sirve para detectar latitud y longitud invertidas.
-LAT_MIN, LAT_MAX = -56.0, -17.0
-LON_MIN, LON_MAX = -76.0, -66.0
+from django.conf import settings
 
 
 class AreasMapaError(ValueError):
@@ -26,17 +24,21 @@ def _numero(valor, nombre: str, codigo: str) -> float:
     return float(valor)
 
 
-def validar_punto(lon: float, lat: float, donde: str) -> None:
+def validar_punto(lon: float, lat: float, donde: str, limites=None) -> None:
     if not (-180 <= lon <= 180 and -90 <= lat <= 90):
         raise AreasMapaError(f"{donde}: coordenada fuera de rango (lon={lon}, lat={lat}).")
-    if not (LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX):
+    limites = limites or settings.INSTANCIA["limites_geograficos"]
+    if not (
+        limites["latitud"][0] <= lat <= limites["latitud"][1]
+        and limites["longitud"][0] <= lon <= limites["longitud"][1]
+    ):
         raise AreasMapaError(
-            f"{donde}: (lon={lon}, lat={lat}) cae fuera de Chile. "
+            f"{donde}: (lon={lon}, lat={lat}) cae fuera del territorio configurado. "
             "GeoJSON usa el orden [longitud, latitud]: revisa que no estén invertidos."
         )
 
 
-def _anillos(geometria: dict, codigo: str) -> list[list]:
+def _anillos(geometria: dict, codigo: str, limites=None) -> list[list]:
     tipo = geometria.get("type")
     coords = geometria.get("coordinates")
     if tipo == "Polygon":
@@ -61,7 +63,7 @@ def _anillos(geometria: dict, codigo: str) -> list[list]:
                     raise AreasMapaError(f"{codigo}: punto inválido {punto!r}.")
                 lon = _numero(punto[0], "longitud", codigo)
                 lat = _numero(punto[1], "latitud", codigo)
-                validar_punto(lon, lat, f"{codigo} (contorno)")
+                validar_punto(lon, lat, f"{codigo} (contorno)", limites)
             anillos.append(anillo)
     if not anillos:
         raise AreasMapaError(f"{codigo}: la geometría no tiene coordenadas.")
@@ -91,7 +93,7 @@ def _estacion_en_predio(geometria: dict, lon: float, lat: float) -> bool:
     return False
 
 
-def cargar_areas(ruta: Path) -> list[AreaMapa]:
+def cargar_areas(ruta: Path, *, limites=None, permitir_vacio=False) -> list[AreaMapa]:
     """Lee y valida el archivo. Lanza AreasMapaError con todos los problemas encontrados."""
     try:
         datos = json.loads(Path(ruta).read_text(encoding="utf-8"))
@@ -103,7 +105,7 @@ def cargar_areas(ruta: Path) -> list[AreaMapa]:
     if not isinstance(datos, dict) or datos.get("type") != "FeatureCollection":
         raise AreasMapaError("El archivo debe ser un GeoJSON de tipo FeatureCollection.")
     features = datos.get("features")
-    if not isinstance(features, list) or not features:
+    if not isinstance(features, list) or (not features and not permitir_vacio):
         raise AreasMapaError("La FeatureCollection no tiene features.")
 
     areas, errores, vistos = [], [], set()
@@ -125,8 +127,8 @@ def cargar_areas(ruta: Path) -> list[AreaMapa]:
                 raise AreasMapaError(f"{codigo}: faltan las coordenadas reales de la estación.")
             lat = _numero(props["latitud"], "latitud", codigo)
             lon = _numero(props["longitud"], "longitud", codigo)
-            validar_punto(lon, lat, f"{codigo} (estación)")
-            _anillos(geometria, codigo)
+            validar_punto(lon, lat, f"{codigo} (estación)", limites)
+            _anillos(geometria, codigo, limites)
             dentro = _estacion_en_predio(geometria, lon, lat)
             areas.append(AreaMapa(codigo, lat, lon, geometria, dentro))
         except AreasMapaError as exc:

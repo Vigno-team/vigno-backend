@@ -1,0 +1,10 @@
+[
+  {
+    "nombre": "Estación Norte",
+    "codigo": "norte-01",
+    "subzona": "ejemplo",
+    "propietario": "Viña de ejemplo del norte",
+    "latitud": 44.8,
+    "longitud": -0.6
+  }
+]

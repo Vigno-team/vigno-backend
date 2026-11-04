@@ -8,9 +8,9 @@ class Command(BaseCommand):
     help = "Correlaciona índices climáticos con fecha de cosecha y madurez (E1C-82)"
 
     def handle(self, *args, **options):
-        ruta = settings.BASE_DIR / "data" / "ficticio" / "cosechas.csv"
+        ruta = settings.BASE_DIR / "data" / "referencia" / "cosechas.csv"
         if not ruta.exists():
-            raise CommandError("Falta cosechas.csv: corre primero cargar_dataset_ficticio")
+            raise CommandError("Falta cosechas.csv: corre primero cargar_dataset_referencia")
 
         resultados = correlacionar_clima_madurez(ruta)
         for r in resultados:

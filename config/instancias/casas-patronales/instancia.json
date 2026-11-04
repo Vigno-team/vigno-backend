@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "organizacion": {
+    "nombre": "Casas Patronales",
+    "nombre_corto": "VIGNO"
+  },
+  "zona_horaria": "America/Santiago",
+  "calendario": {
+    "mes_inicio_temporada": 7,
+    "mes_inicio_anio_agricola": 5,
+    "meses_invierno": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "desfase_anio_invierno": 0,
+    "ventanas_indices": {
+      "winkler": {
+        "inicio": [
+          10,
+          1
+        ],
+        "fin": [
+          4,
+          30
+        ]
+      },
+      "huglin": {
+        "inicio": [
+          10,
+          1
+        ],
+        "fin": [
+          3,
+          31
+        ]
+      },
+      "dias_calor": {
+        "inicio": [
+          10,
+          1
+        ],
+        "fin": [
+          4,
+          30
+        ]
+      }
+    },
+    "etapas_crecimiento": [
+      {
+        "nombre": "brotacion_floracion",
+        "inicio": [
+          10,
+          1
+        ],
+        "fin": [
+          11,
+          30
+        ]
+      },
+      {
+        "nombre": "cuaja_envero",
+        "inicio": [
+          12,
+          1
+        ],
+        "fin": [
+          1,
+          31
+        ]
+      },
+      {
+        "nombre": "maduracion_cosecha",
+        "inicio": [
+          2,
+          1
+        ],
+        "fin": [
+          4,
+          30
+        ]
+      }
+    ],
+    "desfase_analogos_dias": 182
+  },
+  "json_salida": "vigno-datos-reales.json",
+  "limites_geograficos": {
+    "latitud": [
+      -56,
+      -17
+    ],
+    "longitud": [
+      -76,
+      -66
+    ],
+    "estaciones": [
+      [
+        -56.6,
+        -17.5,
+        -75.7,
+        -66.4
+      ],
+      [
+        -34.0,
+        -33.5,
+        -80.9,
+        -78.5
+      ],
+      [
+        -27.3,
+        -26.9,
+        -109.6,
+        -109.2
+      ]
+    ]
+  },
+  "archivos": {
+    "mapeos": "config/instancias/casas-patronales/mapeos_estaciones.json",
+    "areas": "config/instancias/casas-patronales/areas_mapa.json"
+  }
+}

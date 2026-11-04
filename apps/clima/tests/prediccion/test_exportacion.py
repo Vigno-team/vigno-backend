@@ -54,13 +54,17 @@ def evaluacion():
 @pytest.fixture
 def carpeta(tmp_path, settings):
     settings.BASE_DIR = tmp_path
-    destino = tmp_path / "data" / "ficticio"
+    settings.INSTANCIA["archivos"] = {
+        "areas": "config/areas_mapa.json",
+        "mapeos": "config/mapeos_estaciones.json",
+    }
+    destino = tmp_path / "data" / "referencia"
     destino.mkdir(parents=True)
     return destino
 
 
 def escribir(carpeta, evaluacion):
-    (carpeta / "prediccion_cosecha_california.json").write_text(
+    (carpeta / "prediccion_cosecha_referencia.json").write_text(
         json.dumps(evaluacion), encoding="utf-8"
     )
 
@@ -68,13 +72,13 @@ def escribir(carpeta, evaluacion):
 def test_exporta_valores_de_entrada_y_fechas_originales(carpeta, evaluacion, monkeypatch):
     instante = datetime(2026, 10, 20, 12, 34, tzinfo=UTC)
     monkeypatch.setattr(
-        "apps.clima.management.commands.exportar_prediccion_ficticia.timezone.now",
+        "apps.clima.management.commands.exportar_prediccion_referencia.timezone.now",
         lambda: instante,
     )
     escribir(carpeta, evaluacion)
-    original = (carpeta / "prediccion_cosecha_california.json").read_bytes()
-    call_command("exportar_prediccion_ficticia")
-    contenido = (carpeta / "prediccion_ficticia.json").read_bytes()
+    original = (carpeta / "prediccion_cosecha_referencia.json").read_bytes()
+    call_command("exportar_prediccion_referencia")
+    contenido = (carpeta / "prediccion_referencia.json").read_bytes()
     assert not contenido.startswith(b"\xef\xbb\xbf")
     salida = json.loads(contenido.decode("utf-8"))
     assert salida["generado"] == instante.isoformat()
@@ -94,21 +98,21 @@ def test_exporta_valores_de_entrada_y_fechas_originales(carpeta, evaluacion, mon
     assert salida["predicciones"] == evaluacion["predicciones"]
     assert not {"temporadas", "correlaciones", "calidad"}.intersection(salida)
     assert not (carpeta.parent / "cliente").exists()
-    assert (carpeta / "prediccion_cosecha_california.json").read_bytes() == original
+    assert (carpeta / "prediccion_cosecha_referencia.json").read_bytes() == original
 
 
 def test_cambios_del_entrenamiento_se_reflejan_sin_numeros_fijos(carpeta, evaluacion):
     escribir(carpeta, evaluacion)
-    call_command("exportar_prediccion_ficticia")
-    anterior = json.loads((carpeta / "prediccion_ficticia.json").read_text())
+    call_command("exportar_prediccion_referencia")
+    anterior = json.loads((carpeta / "prediccion_referencia.json").read_text())
     nuevo = copy.deepcopy(evaluacion)
     nuevo["metricas"]["random_forest"]["mae_dias"] = 8.7654
     nuevo["importancias_random_forest"]["GST"] = 0.15
     nuevo["predicciones"][0]["cultivar"] = "Otro cultivar de prueba"
     nuevo["comparacion_base"]["rf_mejora_mae"] = True
     escribir(carpeta, nuevo)
-    call_command("exportar_prediccion_ficticia")
-    actual = json.loads((carpeta / "prediccion_ficticia.json").read_text())
+    call_command("exportar_prediccion_referencia")
+    actual = json.loads((carpeta / "prediccion_referencia.json").read_text())
     assert actual["modelo"]["metricas"] == nuevo["metricas"]
     assert actual["modelo"]["importancias"] == nuevo["importancias_random_forest"]
     assert actual["predicciones"] == nuevo["predicciones"]
@@ -118,16 +122,16 @@ def test_cambios_del_entrenamiento_se_reflejan_sin_numeros_fijos(carpeta, evalua
 
 def test_sin_entrenamiento_pide_ejecutar_comando(carpeta):
     with pytest.raises(CommandError, match="^Corre primero: python manage.py entrenar_cosecha$"):
-        call_command("exportar_prediccion_ficticia")
-    assert not (carpeta / "prediccion_ficticia.json").exists()
+        call_command("exportar_prediccion_referencia")
+    assert not (carpeta / "prediccion_referencia.json").exists()
 
 
 @pytest.mark.parametrize("contenido", ["", "{", "\ufeff{}", '{"metricas": NaN}', "[]"])
 def test_entrada_invalida_no_escribe_salida(carpeta, contenido):
-    (carpeta / "prediccion_cosecha_california.json").write_text(contenido, encoding="utf-8")
+    (carpeta / "prediccion_cosecha_referencia.json").write_text(contenido, encoding="utf-8")
     with pytest.raises(CommandError):
-        call_command("exportar_prediccion_ficticia")
-    assert not (carpeta / "prediccion_ficticia.json").exists()
+        call_command("exportar_prediccion_referencia")
+    assert not (carpeta / "prediccion_referencia.json").exists()
 
 
 @pytest.mark.parametrize("campo", ["metricas", "features", "predicciones", "version_modelo"])
@@ -135,11 +139,11 @@ def test_faltan_campos_no_se_inventan(carpeta, evaluacion, campo):
     del evaluacion[campo]
     escribir(carpeta, evaluacion)
     with pytest.raises(CommandError, match="Faltan campos"):
-        call_command("exportar_prediccion_ficticia")
+        call_command("exportar_prediccion_referencia")
 
 
 def test_rechaza_datos_no_ficticios(carpeta, evaluacion):
     evaluacion["datos_ficticios"] = False
     escribir(carpeta, evaluacion)
     with pytest.raises(CommandError, match="datos_ficticios"):
-        call_command("exportar_prediccion_ficticia")
+        call_command("exportar_prediccion_referencia")

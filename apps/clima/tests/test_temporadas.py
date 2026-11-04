@@ -40,15 +40,8 @@ def test_etapas_contiguas_y_sin_huecos():
         assert inicio_siguiente == date.fromordinal(fin.toordinal() + 1)
 
 
-def test_rango_crecimiento_se_deriva_de_las_etapas(monkeypatch):
-    monkeypatch.setattr(
-        "apps.clima.temporadas.ETAPAS_CRECIMIENTO",
-        (
-            ("brotacion_floracion", (10, 1), (11, 30)),
-            ("cuaja_envero", (12, 1), (1, 31)),
-            ("maduracion_cosecha", (2, 1), (3, 31)),
-        ),
-    )
+def test_rango_crecimiento_se_deriva_de_las_etapas(settings):
+    settings.INSTANCIA["calendario"]["etapas_crecimiento"][-1]["fin"] = [3, 31]
 
     assert rango_crecimiento("2024-2025") == (date(2024, 10, 1), date(2025, 3, 31))
 

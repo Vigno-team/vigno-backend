@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from apps.clima.models import Estacion, IndiceClimatico
-from apps.clima.prediccion.analogos import calcular_analogos, obtener_analogos_vigno
+from apps.clima.prediccion.analogos import calcular_analogos, obtener_analogos_instancia
 
 
 def _historico():
@@ -69,6 +69,12 @@ def test_las_variables_son_un_parametro():
     assert solo_winkler[0]["calidad"] == {"pct_alta": None, "motivo_nulo": None}
 
 
+def test_analogos_del_norte_no_desplazan_la_fecha_al_sur(settings):
+    settings.INSTANCIA["calendario"]["desfase_analogos_dias"] = 0
+    resultado = calcular_analogos({"winkler": 1500, "huglin": 2200}, _historico(), 2024)
+    assert resultado[0]["fecha_equivalente"] == "2024-08-27"
+
+
 def test_sin_historico_devuelve_lista_vacia():
     assert calcular_analogos({"winkler": 1000, "huglin": 2000}, pd.DataFrame(), 2024) == []
 
@@ -94,8 +100,11 @@ def test_lee_winkler_y_huglin_confiables_de_indice_climatico():
             estacion=estacion, temporada=temporada, indice=indice, valor=valor, confiable=confiable
         )
 
-    res = obtener_analogos_vigno(_historico(), calidad=_calidad())
+    res = obtener_analogos_instancia(_historico(), calidad=_calidad())
 
-    assert [(r["estacion_id"], r["temporada"]) for r in res] == [(arenal.codigo, "2024-2025")]
+    assert [(r["estacion_id"], r["temporada"]) for r in res] == [
+        (arenal.codigo, "2024-2025"),
+        (otra.codigo, "2024-2025"),
+    ]
     assert res[0]["indices"] == {"wi": 1500, "hi": 2200}
     assert res[0]["anios_analogos"][0]["origen"] == "Región I 1935"

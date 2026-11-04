@@ -2,7 +2,6 @@
   "formato_estandar": {
     "sheet_name": "mensual",
     "skip_rows": 4,
-    "zona_horaria": "America/Santiago",
     "formatos": {
       "A_2020_2022": {
         "frecuencia": "D",
@@ -35,7 +34,6 @@
   "Estación horaria de prueba": {
     "sheet_name": "mensual",
     "skip_rows": 4,
-    "zona_horaria": "America/Santiago",
     "formatos": {
       "H_prueba": {
         "frecuencia": "H",

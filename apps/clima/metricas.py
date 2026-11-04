@@ -116,9 +116,9 @@ def version_calculo(metrica: str, temporada: str) -> str:
     """Versión publicada de la métrica, compartida por persistencia y API."""
     inicio, fin = METRICAS[metrica][1](temporada)
     if metrica == "winkler":
-        return "winkler-v1_base10_1001-0430"
+        return f"winkler-v1_base10_{inicio:%m%d}-{fin:%m%d}"
     if metrica == "huglin":
-        return "huglin-v1_base10_1001-0331"
+        return f"huglin-v1_base10_{inicio:%m%d}-{fin:%m%d}"
     if metrica == "dias_sobre_umbral":
         return f"dias_umbral-v2_{float(settings.UMBRAL_CALOR_C):g}c_{inicio:%m%d}-{fin:%m%d}"
     return f"lluvia-invernal-v1_{inicio:%d%m}-{fin:%d%m}"

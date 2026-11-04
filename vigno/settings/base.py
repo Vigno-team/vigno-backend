@@ -8,7 +8,16 @@ from pathlib import Path
 from corsheaders.defaults import default_headers
 from decouple import Csv, config
 
+from vigno.instancia import cargar_configuracion
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+INSTANCIA_CONFIG = BASE_DIR / (config("INSTANCIA_CONFIG", default="") or "config/instancia.json")
+# Un checkout nuevo arranca con una organización genérica y sin estaciones.
+# Una ruta explícita inválida siempre falla: no se sustituye silenciosamente.
+_ruta_instancia = INSTANCIA_CONFIG
+if not _ruta_instancia.exists() and not config("INSTANCIA_CONFIG", default=""):
+    _ruta_instancia = BASE_DIR / "config/instancia.example.json"
+INSTANCIA = cargar_configuracion(_ruta_instancia)
 
 SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=False, cast=bool)
@@ -88,7 +97,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # --- Internacionalizacion ---
 LANGUAGE_CODE = "es-cl"
-TIME_ZONE = "America/Santiago"
+TIME_ZONE = INSTANCIA["zona_horaria"]
 USE_I18N = True
 USE_TZ = True
 
@@ -122,9 +131,9 @@ REST_FRAMEWORK = {
 
 # --- Contrato de la API (lo consume el equipo de frontend) ---
 SPECTACULAR_SETTINGS = {
-    "TITLE": "VIGNO API",
+    "TITLE": f"{INSTANCIA['organizacion']['nombre_corto']} API",
     "DESCRIPTION": (
-        "API del sistema de prediccion de fecha optima de cosecha para Casas Patronales."
+        f"API de análisis climático y cosecha de {INSTANCIA['organizacion']['nombre']}."
     ),
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,

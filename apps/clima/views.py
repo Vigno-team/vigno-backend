@@ -1,5 +1,6 @@
 """API de solo lectura y health check del entorno."""
 
+from django.conf import settings
 from django.db import connection
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -165,7 +166,7 @@ class HealthCheckView(APIView):
 
         payload = {
             "status": "ok" if db_ok else "degraded",
-            "servicio": "vigno-backend",
+            "servicio": settings.INSTANCIA["organizacion"]["nombre_corto"],
             "version": "0.1.0",
             "base_datos": "conectada" if db_ok else "sin conexion",
         }

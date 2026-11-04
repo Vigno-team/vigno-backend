@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from apps.clima.archivos import escribir_json_atomico
 from apps.clima.models import CapaSatelital, Estacion
+from vigno.instancia import archivo_instancia, nombre_salida
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ def hay_sklearn() -> bool:
 
 
 def estaciones_con_contorno() -> list[str]:
-    ruta = settings.BASE_DIR / "config" / "areas_mapa.json"
+    ruta = archivo_instancia("areas")
     datos = json.loads(ruta.read_text(encoding="utf-8"))
     codigos = {
         (feature.get("properties") or {}).get("codigo")
@@ -118,23 +119,23 @@ class Command(BaseCommand):
             )
             return ok
 
-        csv = settings.BASE_DIR / "data" / "ficticio" / "cosechas.csv"
+        csv = settings.BASE_DIR / "data" / "referencia" / "cosechas.csv"
 
         paso("generar_resumenes", lambda: call_command("generar_resumenes"))
         paso("calcular_indices", lambda: call_command("calcular_indices"))
         paso("clasificar_temporadas", lambda: self.clasificar(csv))
         paso("actualizar_mapa_calor", lambda: self.mapa_calor(options))
 
-        evaluacion = csv.with_name("prediccion_cosecha_california.json")
+        evaluacion = csv.with_name("prediccion_cosecha_referencia.json")
         paso("entrenar_cosecha", lambda: self.entrenar(csv, evaluacion))
-        paso("exportar_prediccion_ficticia", lambda: self.exportar_prediccion(evaluacion))
+        paso("exportar_prediccion_referencia", lambda: self.exportar_prediccion(evaluacion))
 
         paso(
             "exportar_json",
             lambda: call_command(
                 "exportar_json",
                 "--salida",
-                str(settings.DATOS_DIR / "vigno-datos-reales.json"),
+                str(settings.DATOS_DIR / nombre_salida()),
                 "--sobrescribir",
             ),
         )
@@ -201,5 +202,5 @@ class Command(BaseCommand):
         # solo lee la evaluación: no necesita el CSV ni scikit-learn
         if not evaluacion.is_file():
             raise Omitido(f"no existe {evaluacion.relative_to(settings.BASE_DIR)}")
-        call_command("exportar_prediccion_ficticia")
+        call_command("exportar_prediccion_referencia")
         return ""

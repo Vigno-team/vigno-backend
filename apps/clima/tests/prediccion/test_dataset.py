@@ -5,7 +5,7 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.clima.prediccion.dataset import procesar_historico_ficticio
+from apps.clima.prediccion.dataset import procesar_dataset_referencia
 
 
 def _excels(tmp_path, df1=None, df2=None, df3=None):
@@ -50,7 +50,7 @@ def _excels(tmp_path, df1=None, df2=None, df3=None):
 
 def test_procesamiento_ficticio_basico(tmp_path):
     ruta_out = tmp_path / "cosechas.csv"
-    df_res = procesar_historico_ficticio(*_excels(tmp_path), ruta_out)
+    df_res = procesar_dataset_referencia(*_excels(tmp_path), ruta_out)
 
     assert os.path.exists(ruta_out)
     assert len(df_res) == 2
@@ -68,7 +68,7 @@ def test_falla_si_falta_una_columna(tmp_path):
     clima_sin_wi = pd.DataFrame({"anio": [1935], "region": ["I"], "gst": [16.5], "hi": [2000]})
     rutas = _excels(tmp_path, df3=clima_sin_wi)
     with pytest.raises(ValueError, match="Subset3 no trae las columnas \\['wi'\\]"):
-        procesar_historico_ficticio(*rutas, tmp_path / "cosechas.csv")
+        procesar_dataset_referencia(*rutas, tmp_path / "cosechas.csv")
 
 
 def test_falla_si_el_clima_repite_region_anio(tmp_path):
@@ -77,13 +77,17 @@ def test_falla_si_el_clima_repite_region_anio(tmp_path):
     )
     rutas = _excels(tmp_path, df3=clima_diario)
     with pytest.raises(pd.errors.MergeError):
-        procesar_historico_ficticio(*rutas, tmp_path / "cosechas.csv")
+        procesar_dataset_referencia(*rutas, tmp_path / "cosechas.csv")
 
 
 def test_comando_falla_sin_los_excel(tmp_path, settings):
     settings.BASE_DIR = tmp_path
+    settings.INSTANCIA["archivos"] = {
+        "areas": "config/areas_mapa.json",
+        "mapeos": "config/mapeos_estaciones.json",
+    }
     with pytest.raises(CommandError, match="Subset1.xlsx"):
-        call_command("cargar_dataset_ficticio")
+        call_command("cargar_dataset_referencia")
 
 
 def test_lee_hojas_originales_y_une_indices_anuales(tmp_path):
@@ -134,7 +138,7 @@ def test_lee_hojas_originales_y_une_indices_anuales(tmp_path):
                 ],
             )
             clima.to_excel(writer, sheet_name=f"Region_{i}", index=False)
-    res = procesar_historico_ficticio(*rutas, tmp_path / "cosechas.csv")
+    res = procesar_dataset_referencia(*rutas, tmp_path / "cosechas.csv")
     assert len(res) == 2
     aw = res[res.fuente == "Amerine & Winkler"].iloc[0]
     assert (aw.anio, aw.region, aw.doy, aw.wi, aw.brix) == (1935, "I", 280, 1500, 22.1)
@@ -144,9 +148,13 @@ def test_lee_hojas_originales_y_une_indices_anuales(tmp_path):
 
 def test_comando_rechaza_dos_versiones_del_mismo_subset(tmp_path, settings):
     settings.BASE_DIR = tmp_path
-    carpeta = tmp_path / "data" / "ficticio"
+    settings.INSTANCIA["archivos"] = {
+        "areas": "config/areas_mapa.json",
+        "mapeos": "config/mapeos_estaciones.json",
+    }
+    carpeta = tmp_path / "data" / "referencia"
     carpeta.mkdir(parents=True)
     (carpeta / "Subset1.xls").touch()
     (carpeta / "Subset1.xlsx").touch()
     with pytest.raises(CommandError, match="dos versiones de Subset1"):
-        call_command("cargar_dataset_ficticio")
+        call_command("cargar_dataset_referencia")

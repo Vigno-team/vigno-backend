@@ -12,8 +12,10 @@ data/cliente
 .env
 *.md
 !README.md
+data/referencia
 data/ficticio
 apps/ml/artifacts
 .env.*
 deploy/.env
 deploy/.env.*
+config/instancia.json

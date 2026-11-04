@@ -8,6 +8,4 @@ def corregir_propietario_san_clemente(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [("clima", "0010_auto_20261002_1516")]
-    operations = [
-        migrations.RunPython(corregir_propietario_san_clemente, migrations.RunPython.noop)
-    ]
+    operations = []  # E1C-95: propietario en el catálogo de la instancia.

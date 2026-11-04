@@ -8,6 +8,10 @@ import json
 import re
 import unicodedata
 
+from django.conf import settings
+
+from vigno.instancia import archivo_instancia
+
 PLANTILLA = "formato_estandar"
 
 
@@ -34,11 +38,12 @@ def es_nombre_reservado(nombre: str) -> bool:
 
 def cargar_mapeos(ruta=None) -> dict:
     if ruta is None:
-        from django.conf import settings
-
-        ruta = settings.BASE_DIR / "config" / "mapeos_estaciones.json"
+        ruta = archivo_instancia("mapeos")
     with open(ruta, encoding="utf-8") as f:
-        return json.load(f)
+        mapeos = json.load(f)
+    return {
+        nombre: {"zona_horaria": settings.TIME_ZONE, **mapeo} for nombre, mapeo in mapeos.items()
+    }
 
 
 def mapeo_de(nombre_estacion: str, mapeos: dict | None = None) -> dict:

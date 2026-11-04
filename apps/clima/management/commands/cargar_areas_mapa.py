@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.clima.areas_mapa import AreasMapaError, cargar_areas
 from apps.clima.models import Estacion
+from vigno.instancia import archivo_instancia
 
 
 class Command(BaseCommand):
@@ -17,7 +17,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--archivo",
-            default=str(settings.BASE_DIR / "config" / "areas_mapa.json"),
+            default=str(archivo_instancia("areas")),
             help="Ruta del GeoJSON (por defecto config/areas_mapa.json).",
         )
         parser.add_argument(

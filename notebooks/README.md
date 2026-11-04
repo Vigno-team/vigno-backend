@@ -18,3 +18,10 @@ Para trabajar con notebooks instala las dependencias del track de datos:
 ```bash
 pip install -r requirements-ml.txt
 ```
+# Ejemplo histórico
+
+El notebook de comparación de Casas Patronales está en
+[`docs/notebooks/03_comparacion_temporadas_estaciones.ipynb`](../docs/notebooks/03_comparacion_temporadas_estaciones.ipynb).
+Es documentación de esa instancia y usa sus nombres y datos; no se ejecuta
+como parte del servicio ni de la carga de organizaciones nuevas.
+

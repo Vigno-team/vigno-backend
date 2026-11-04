@@ -25,7 +25,7 @@ db.sqlite3-journal
 .env.*.local
 
 # ---------------------------------------------------------------
-# Datos del cliente (Casas Patronales). NUNCA deben entrar al repo.
+# Datos del cliente. NUNCA deben entrar al repo.
 # ---------------------------------------------------------------
 data/raw/
 data/cliente/
@@ -67,13 +67,18 @@ Thumbs.db
 
 # Archivo de prueba
 config/areas_mapa.dev.json
+config/instancia.json
+!config/instancias/**/instancia.json
 
-# Dataset ficticio (E1C-78): se comparte por Drive hasta confirmar la licencia
-data/ficticio/*.xlsx
-data/ficticio/*.zip
+# Dataset de referencia (E1C-78): se comparte por Drive hasta confirmar la licencia
+data/referencia/*.xlsx
+data/referencia/*.zip
 
-# Salidas de los comandos del dataset ficticio
+# Salidas de los comandos del dataset de referencia
+data/referencia/*.json
+# Mantener protegidas las salidas de instalaciones anteriores.
 data/ficticio/*.json
+data/ficticio/*.zip
 
 # Variables locales de despliegue
 deploy/.env

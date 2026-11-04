@@ -1,6 +1,7 @@
-# VIGNO Backend
+# Backend agroclimático
 
-Sistema de apoyo a la decisión de fecha de cosecha para **Casas Patronales**.
+Sistema de apoyo a la decisión de fecha de cosecha, configurable por organización.
+El perfil de Casas Patronales se entrega como una configuración de ejemplo.
 
 Backend en Django + Django REST Framework sobre PostgreSQL 16. Recibe los Excel de las
 estaciones meteorológicas, calcula los resúmenes diarios y los índices de cada temporada,
@@ -30,6 +31,105 @@ correcciones manuales y el servicio `tareas` del despliegue, así que normalment
 correr los pasos uno por uno.
 
 ---
+
+## Configurar una organización nueva
+
+Una instalación nueva no crea estaciones. Al arrancar, Django valida
+`config/instancia.json`; si aún no existe, utiliza `config/instancia.example.json`
+(organización genérica y catálogo vacío). `INSTANCIA_CONFIG` permite elegir otra
+ruta. Una ruta explícita inexistente o un JSON inválido impide el arranque con un
+mensaje de error. El archivo activo local está ignorado por Git.
+
+Para crear un perfil, copia `config/instancias/ejemplo-norte/` a una carpeta propia
+y edita sus cuatro archivos: `instancia.json`, `estaciones.json`,
+`mapeos_estaciones.json` y `areas_mapa.json`. Las rutas de `archivos` se resuelven
+desde la raíz del backend, **no desde la carpeta del perfil**. En contenedores,
+usa rutas relativas a esa raíz o rutas de Linux, no rutas de Windows.
+
+| Campo de `instancia.json` | Uso |
+| --- | --- |
+| `version` | Versión del contrato, actualmente `1` |
+| `organizacion.nombre`, `nombre_corto` | Descripción y título de la API; nombre del servicio en health |
+| `zona_horaria` | Zona IANA de la organización; también es el valor por defecto al ingerir Excel |
+| `calendario.mes_inicio_temporada` | Primer mes de la temporada, de 1 a 12 |
+| `calendario.mes_inicio_anio_agricola` | Primer mes de la ventana anual de lluvia |
+| `calendario.meses_invierno` | Meses consecutivos y ordenados; pueden cruzar diciembre |
+| `calendario.desfase_anio_invierno` | Año inicial del invierno respecto del primer año de la etiqueta: -1, 0 o 1 |
+| `calendario.ventanas_indices` | Inicio y fin `[mes, día]` para `winkler`, `huglin` y `dias_calor` |
+| `calendario.etapas_crecimiento` | Etapas ordenadas, sin solapamientos, con `nombre`, `inicio` y `fin` |
+| `calendario.desfase_analogos_dias` | Desplazamiento de la fecha equivalente de análogos: 182 en el perfil histórico y 0 en el norte; no modifica la evaluación del modelo de referencia |
+| `json_salida` | Nombre del archivo dentro de `DATOS_DIR`, sin directorios |
+| `limites_geograficos` | Intervalos `latitud` y `longitud`; opcionalmente cajas `estaciones` para territorios separados |
+| `archivos.mapeos`, `archivos.areas` | Archivos de columnas y contornos del perfil |
+
+Las etiquetas conservan el formato `AAAA-AAAA+1`. En el ejemplo norte,
+`2024-2025` representa enero a diciembre de 2024; su invierno es diciembre de
+2023 a febrero de 2024. El mes previo al crecimiento se deriva de la primera
+etapa. El JSON conserva `septiembre_mm` cuando corresponde a septiembre; en
+otros calendarios entrega `precrecimiento_mm` y `mes_precrecimiento`.
+
+Cada estación del catálogo lleva `codigo`, `nombre`, `subzona`, `propietario`,
+`latitud` y `longitud`. Los códigos y nombres normalizados deben ser únicos.
+Los contornos GeoJSON identifican estaciones por código. Una estación sin mapeo
+propio usa `formato_estandar`. Los mapeos pueden especificar su propia zona
+horaria cuando la fuente lo requiere.
+
+En desarrollo, desde la raíz del backend:
+
+```powershell
+docker compose exec backend python manage.py cargar_instancia config/instancias/ejemplo-norte
+docker compose restart backend
+docker compose exec backend python manage.py actualizar_todo --sin-satelite
+```
+
+`cargar_instancia` valida el perfil completo antes de escribir. Actualiza o crea
+estaciones por código, carga sus coordenadas y guarda la configuración activa.
+Repetirlo no duplica registros ni borra mediciones o estaciones ajenas al catálogo.
+La configuración se aplica al reiniciar los procesos. No se deben cambiar códigos
+para renombrar estaciones que ya tienen histórico.
+
+Para mantener el comportamiento de Casas Patronales:
+
+```powershell
+docker compose exec backend python manage.py cargar_instancia config/instancias/casas-patronales
+docker compose restart backend
+```
+
+Las migraciones 0007, 0010 y 0011 ya no cargan catálogos en bases nuevas. No se
+revierten ni se vuelven a ejecutar en bases existentes; sus estaciones y mediciones
+permanecen. Antes de actualizar una instalación existente, copia su perfil a
+`config/instancia.json` para conservar calendario, rutas y nombres de salida.
+Después de un cambio de calendario, ejecuta `actualizar_todo --sin-satelite`
+para regenerar temporadas, resúmenes, índices y JSON.
+
+En producción, `config/` se monta en modo de solo lectura. Selecciona el perfil
+en el host antes de levantar los servicios y carga el catálogo sin escribir allí:
+
+```powershell
+Copy-Item config/instancias/casas-patronales/instancia.json config/instancia.json
+docker compose -f deploy/docker-compose.yml up --build -d
+docker compose -f deploy/docker-compose.yml exec backend python manage.py cargar_instancia config/instancias/casas-patronales --sin-activar
+docker compose -f deploy/docker-compose.yml restart backend tareas
+```
+
+Con otro perfil, sustituye la carpeta en ambos comandos. Conserva `deploy/.env`
+y sus credenciales al actualizar. En instalaciones anteriores, fija
+`COMPOSE_PROJECT_NAME` al nombre del proyecto existente (consultable con
+`docker compose ls`) para seguir usando los mismos volúmenes de base de datos.
+El nombre por defecto para instalaciones nuevas es `agroclima-produccion`.
+
+El dataset de referencia ahora se lee de `data/referencia/`. Copia allí los
+Subset y `cosechas.csv` que antes estaban en `data/ficticio/`, y ejecuta
+`entrenar_cosecha` seguido de `exportar_prediccion_referencia` para regenerar las
+salidas con los nombres nuevos. No borres el directorio o volumen anterior hasta
+verificar la copia. En producción, el volumen `referencia` es nuevo: la sección
+de despliegue explica cómo copiar el CSV. La procedencia científica y los
+resultados se conservan. Los comandos antiguos siguen como alias y la ruta
+`/api/v1/prediccion-ficticia` se mantiene para el frontend actual.
+
+El contrato de configuración vive en `vigno/instancia.py` y se comparte con
+E1C-96; cualquier editor de configuración debe validar con
+`validar_configuracion` y escribir el archivo de forma atómica.
 
 ## Requisitos
 
@@ -61,7 +161,13 @@ El contenedor aplica las migraciones al partir. Cuando termine, verifica que tod
 | http://localhost:8000/admin/      | Admin de Django                           |
 
 Si `/api/health/` devuelve `"status": "ok"`, tu entorno está listo. La base parte vacía: para
-ver datos hay que [cargar los Excel del cliente](#cargar-los-datos-del-cliente).
+ver datos primero configura la organización y luego carga los Excel.
+Para usar Casas Patronales en desarrollo:
+
+```powershell
+docker compose exec backend python manage.py cargar_instancia config/instancias/casas-patronales
+docker compose restart backend
+```
 
 Para crear un usuario del admin:
 
@@ -221,11 +327,11 @@ docker compose exec backend ruff format --check .  # formato
 | `exportar_json [--salida <ruta>] [--sobrescribir]` | Escribe `DATOS_DIR/vigno-datos-reales.json` |
 | `cargar_areas_mapa [--solo-validar]` | Valida `config/areas_mapa.json` y copia la ubicación de cada estación a la base |
 | `actualizar_mapa_calor --estacion <código> --capa ndvi` | Pide a Copernicus la capa NDVI de un predio |
-| `cargar_dataset_ficticio` | Une los Excel del dataset de California en `data/ficticio/cosechas.csv` |
-| `clasificar_temporadas` | Calidad de cada temporada del dataset ficticio |
-| `correlacionar_madurez` | Correlaciona índices climáticos con fecha de cosecha y madurez (dataset ficticio) |
+| `cargar_dataset_referencia` | Une los Excel del dataset de referencia en `data/referencia/cosechas.csv` |
+| `clasificar_temporadas` | Calidad de cada temporada del dataset de referencia |
+| `correlacionar_madurez` | Correlaciona índices climáticos con fecha de cosecha y madurez (dataset de referencia) |
 | `entrenar_cosecha [--anios-prueba <años>]` | Entrena y evalúa el modelo de ventana de cosecha (requiere `requirements-ml.txt`) |
-| `exportar_prediccion_ficticia` | Escribe `data/ficticio/prediccion_ficticia.json` con lo que dejó `entrenar_cosecha` |
+| `exportar_prediccion_referencia` | Escribe `data/referencia/prediccion_referencia.json` con lo que dejó `entrenar_cosecha` |
 
 `--estacion` recibe el nombre de la estación en todos los comandos, salvo
 `actualizar_mapa_calor`, que recibe el código (por ejemplo `cp-san-clemente-01`).
@@ -258,7 +364,7 @@ vigno/                  configuración del proyecto Django
 apps/
   clima/                mediciones, resúmenes, índices, resultados, fallas, correcciones,
                         mapa de calor, API de resultados y health check
-    prediccion/         modelo de ventana de cosecha y análisis del dataset de California
+    prediccion/         modelo de ventana de cosecha y análisis del dataset de referencia
   ingesta/              carga de Excel (carga.py), API de cargas, bitácora RegistroCarga
                         y la clave X-Api-Key (autenticacion.py)
 config/                 mapeos de estaciones, rangos físicos, umbrales de validación y áreas del mapa
@@ -348,8 +454,8 @@ Si cambia `generado`, vuelve a pedir `/datos`. El estado contiene los mismos cam
 `actualizacion.json` (`generado`, `ok`, `pasos`); si no existe, devuelve `{"generado": null}`.
 Una corrida fallida conserva `ok: false` y su detalle; no equivale a una publicación exitosa.
 
-`GET /api/v1/prediccion-ficticia` entrega `data/ficticio/prediccion_ficticia.json` sin entrenar.
-Si falta, responde 404 con `{"motivo_nulo": "Aún no se ha entrenado el modelo de California."}`.
+`GET /api/v1/prediccion-ficticia` entrega `data/referencia/prediccion_referencia.json` sin entrenar.
+Si falta, responde 404 con `{"motivo_nulo": "Aún no se ha entrenado el modelo del dataset de referencia."}`.
 El estado y la predicción también usan `Cache-Control: no-cache`; los errores, `no-store`.
 
 `CORS_ALLOWED_ORIGINS` se configura en `.env` (o `deploy/.env`), por ejemplo
@@ -463,10 +569,10 @@ Corre estos pasos en orden, para todas las estaciones:
 | ------------------------------ | -------------------------------------------------------------------------- | ------- |
 | `generar_resumenes`            | Pasa las mediciones horarias a resúmenes diarios                           | Sí      |
 | `calcular_indices`             | Calcula Winkler y Huglin por temporada                                     | Sí      |
-| `clasificar_temporadas`        | Calidad del histórico de California. Se omite si falta `data/ficticio/cosechas.csv` | Sí, si hay CSV |
+| `clasificar_temporadas`        | Calidad del histórico de California. Se omite si falta `data/referencia/cosechas.csv` | Sí, si hay CSV |
 | `actualizar_mapa_calor`        | Capa NDVI de Sentinel-2 por estación con contorno en `config/areas_mapa.json` | No   |
 | `entrenar_cosecha`             | Reentrena si existen `cosechas.csv` y scikit-learn, y el CSV es más nuevo que la evaluación | No |
-| `exportar_prediccion_ficticia` | Regenera `data/ficticio/prediccion_ficticia.json` si existe la evaluación  | No      |
+| `exportar_prediccion_referencia` | Regenera `data/referencia/prediccion_referencia.json` si existe la evaluación  | No      |
 | `exportar_json`                | Escribe `DATOS_DIR/vigno-datos-reales.json`                                | Sí      |
 
 El mapa de calor solo se pide si están `CDSE_CLIENT_ID` y `CDSE_CLIENT_SECRET` en `.env`
@@ -500,7 +606,7 @@ lee el archivo anterior o el nuevo, nunca uno a medias.
     {"paso": "actualizar_mapa_calor", "ok": false, "segundos": 60.1,
      "detalle": "con error: cp-san-clemente-01: Error al solicitar el GeoTIFF..."},
     {"paso": "entrenar_cosecha", "ok": true, "segundos": 0.0,
-     "detalle": "omitido: no existe data/ficticio/cosechas.csv"}
+     "detalle": "omitido: no existe data/referencia/cosechas.csv"}
   ]
 }
 ```
@@ -595,7 +701,7 @@ valor de la estación no se muestran como fallas; no se borran de la base.
 
 ---
 
-## Dataset ficticio de California
+## Dataset de referencia
 
 Mientras no haya un histórico de cosechas del cliente, el modelo se prueba con un dataset
 público de California. Todo lo de esta sección usa datos ficticios para el proyecto y no
@@ -607,14 +713,14 @@ https://doi.org/10.6084/m9.figshare.19807777.v1
 ### Cargar el histórico (E1C-78)
 
 Descargar `data.zip` y colocar los originales `Subset1.xls`, `Subset2.xls` y
-`Subset3.xls` en `data/ficticio/` (ignorado por Git). No renombrar .xls a .xlsx.
+`Subset3.xls` en `data/referencia/` (ignorado por Git). No renombrar .xls a .xlsx.
 Después ejecutar:
 
 ```bash
-docker compose exec backend python manage.py cargar_dataset_ficticio
+docker compose exec backend python manage.py cargar_dataset_referencia
 ```
 
-Queda `data/ficticio/cosechas.csv`. El lector usa `data` en Subset1/2 y los índices anuales
+Queda `data/referencia/cosechas.csv`. El lector usa `data` en Subset1/2 y los índices anuales
 de I:L de `Region_1` a `Region_5` en Subset3. Obtiene el año de la fecha de cosecha en
 Subset1, convierte las regiones 1–5 a I–V y conserva las etiquetas originales de Recommend.
 También acepta tablas .xlsx ya normalizadas, pero no dos versiones del mismo Subset a la vez.
@@ -640,13 +746,13 @@ docker compose exec backend python manage.py clasificar_temporadas
 ### Ventana de cosecha (E1C-85)
 
 `entrenar_cosecha` evalúa el modelo en años de California que no se usaron para entrenar, y
-`exportar_prediccion_ficticia` deja el resultado en `data/ficticio/prediccion_ficticia.json`.
+`exportar_prediccion_referencia` deja el resultado en `data/referencia/prediccion_referencia.json`.
 Necesita las dependencias de ML:
 
 ```bash
 docker compose exec backend pip install -r requirements-ml.txt
 docker compose exec backend python manage.py entrenar_cosecha --anios-prueba 1941
-docker compose exec backend python manage.py exportar_prediccion_ficticia
+docker compose exec backend python manage.py exportar_prediccion_referencia
 ```
 
 El detalle de los datos, el modelo y la salida está en
@@ -663,7 +769,7 @@ El backend y el frontend deben quedar como carpetas hermanas:
 
 ```powershell
 git clone https://github.com/Vigno-team/vigno-backend.git
-git clone --branch develop https://github.com/Vigno-team/vigno-fronted.git
+git clone --branch develop https://github.com/Vigno-team/vigno-fronted.git frontend
 cd vigno-backend
 Copy-Item deploy/.env.example deploy/.env
 ```
@@ -711,7 +817,7 @@ Este despliegue utiliza otra base y otros volúmenes; los datos de desarrollo
 no aparecen automáticamente.
 
 El backend usa la etapa `production` del Dockerfile, sin pytest, Ruff ni Jupyter.
-Al arrancar aplica migraciones, carga las coordenadas de `areas_mapa.json`, ejecuta
+Al arrancar aplica migraciones, ejecuta
 collectstatic y arranca Gunicorn con DEBUG=False. `ALLOWED_HOSTS` y
 `CSRF_TRUSTED_ORIGINS` se leen de `deploy/.env`; conservar localhost y 127.0.0.1
 para los healthchecks. La configuración entregada sirve HTTP en localhost.
@@ -735,8 +841,8 @@ responde 503 y Retry-After. El servicio web espera la primera actualización cor
 
 ### Datos y operación
 
-La base nueva empieza sin mediciones: la pantalla puede mostrar estaciones
-sin datos hasta cargar los Excel. Hay dos formas de cargarlos:
+La base nueva empieza sin estaciones ni mediciones. Primero configura la organización
+y carga su catálogo según la sección siguiente. Después hay dos formas de cargar los Excel:
 
 - Desde la plataforma o con `POST /api/v1/cargas`, usando la `INGESTA_API_KEY` de
   `deploy/.env`. Valida el archivo y recalcula solo.
@@ -749,11 +855,11 @@ docker compose -f deploy/docker-compose.yml exec tareas python manage.py actuali
 ```
 
 Backend y tareas comparten los volúmenes `datos` (DATOS_DIR fijo en
-`/app/data/cliente`) y `ficticio` (`/app/data/ficticio`). Las salidas y los modelos
+`/app/data/cliente`) y `referencia` (`/app/data/referencia`). Las salidas y los modelos
 persisten al recrear contenedores. Para cargar el histórico ficticio local:
 
 ```powershell
-docker compose -f deploy/docker-compose.yml cp data/ficticio/cosechas.csv tareas:/app/data/ficticio/cosechas.csv
+docker compose -f deploy/docker-compose.yml cp data/referencia/cosechas.csv tareas:/app/data/referencia/cosechas.csv
 docker compose -f deploy/docker-compose.yml exec tareas python manage.py actualizar_todo
 ```
 
@@ -854,7 +960,7 @@ pre-commit install
 **Los datos de Casas Patronales nunca entran al repositorio.** Los archivos
 `.xlsx`, `.xls` y `.csv` están bloqueados en `.gitignore`. Los datos reales van en
 `data/raw/` (ignorado) y se comparten por el Drive del equipo. Lo que genera el backend
-(`data/cliente/`, `data/ficticio/`) tampoco se sube.
+(`data/cliente/`, `data/referencia/`) tampoco se sube.
 
 Para desarrollar y escribir tests se usa el generador de datos sintéticos de
 `data/synthetic/` (ver [su README](data/synthetic/README.md)).
@@ -908,12 +1014,12 @@ Para empezar de cero, usar un proyecto de demo que aún no tenga volúmenes.
    de E1C-78 al volumen compartido y ejecutar el pipeline en `tareas`:
 
    ```powershell
-   docker compose @demo cp data/ficticio/cosechas.csv tareas:/app/data/ficticio/cosechas.csv
+   docker compose @demo cp data/referencia/cosechas.csv tareas:/app/data/referencia/cosechas.csv
    docker compose @demo exec tareas python manage.py actualizar_todo --forzar-satelite
    ```
 
-   También se puede reutilizar el `prediccion_ficticia.json` ya generado por E1C-124
-   mediante `docker compose @demo cp data/ficticio/prediccion_ficticia.json backend:/app/data/ficticio/prediccion_ficticia.json`.
+   También se puede reutilizar el `prediccion_referencia.json` ya generado por E1C-124
+   mediante `docker compose @demo cp data/referencia/prediccion_referencia.json backend:/app/data/referencia/prediccion_referencia.json`.
    La validación de esta entrega reutilizó esa salida del modelo y la capa real de
    Copernicus del 14-10-2026; comprobó su visualización, no una nueva descarga OAuth
    ni un nuevo entrenamiento. No se sustituyeron por números inventados.

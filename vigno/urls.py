@@ -1,4 +1,4 @@
-"""Rutas raiz del proyecto VIGNO."""
+"""Rutas raíz del servicio."""
 
 from django.contrib import admin
 from django.urls import include, path
