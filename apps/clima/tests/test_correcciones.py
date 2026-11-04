@@ -22,7 +22,7 @@ from apps.ingesta.models import RegistroCarga
 
 pytestmark = pytest.mark.django_db
 URL = "/api/v1/correcciones"
-CLAVE = "clave-solo-para-tests"
+AUTOR = "analista@vigno.cl"  # la cuenta del token (conftest.py)
 
 
 def medir(
@@ -49,7 +49,6 @@ def entorno(settings, tmp_path):
     )
     settings.BASE_DIR = tmp_path
     settings.DATOS_DIR = tmp_path / "salidas"
-    settings.INGESTA_API_KEY = CLAVE
     estacion, _ = Estacion.objects.update_or_create(
         nombre="San Clemente", defaults={"codigo": "sc", "latitud": -35.5}
     )
@@ -65,8 +64,8 @@ def entorno(settings, tmp_path):
 
 
 @pytest.fixture
-def cliente(entorno):
-    return APIClient(HTTP_X_API_KEY=CLAVE)
+def cliente(entorno, cliente_con_token):
+    return cliente_con_token
 
 
 def entrada(**extra):
@@ -114,7 +113,7 @@ def test_hueco_se_reintegra_sin_imputar_y_reversion_elimina_el_resumen(cliente, 
     call_command("actualizar_todo", "--sin-satelite")
     indice = IndiceClimatico.objects.get(estacion=entorno, indice="Winkler").valor
     correccion = crear(cliente)
-    assert correccion["autor"] == "Enóloga de prueba"
+    assert correccion["autor"] == AUTOR
     assert correccion["motivo"] == "Planilla manual del predio"
     assert correccion["valor_anterior"] is None and correccion["hora"] is None
     nuevo = MedicionHoraria.objects.get(timestamp__date="2025-01-16")
@@ -179,7 +178,7 @@ def test_conserva_y_restaura_null_o_outlier_con_su_carga(cliente, entorno, valor
     assert {k: getattr(dato, k) for k in correcciones.CAMPOS_DATO} == original
     assert next(d for d in dias_json() if d["fecha"] == "2025-01-16")["tmedia"] is None
     guardada = CorreccionManual.objects.get(pk=correccion["id"])
-    assert guardada.revertida_por == "Revisor" and guardada.motivo_reversion
+    assert guardada.revertida_por == AUTOR and guardada.motivo_reversion
     assert guardada.revertida_en is not None
 
 
@@ -209,7 +208,6 @@ def test_reemplazo_y_reversion_respetan_la_cadena(cliente):
         {"variable": "precipitacion", "valor_nuevo": 301},
         {"variable": "precipitacion", "frecuencia": "H", "hora": "14:00", "valor_nuevo": 101},
         {"motivo": "   "},
-        {"autor": ""},
         {"frecuencia": "X"},
         {"frecuencia": "H"},
         {"hora": "14:00"},
@@ -254,25 +252,32 @@ def test_limites_del_catalogo_son_inclusivos(cliente, variable, valor, frecuenci
     assert dato.valor == valor and dato.frecuencia == frecuencia and dato.origen == "manual"
 
 
-@pytest.mark.parametrize("cabecera", [None, "incorrecta"])
-def test_todas_las_rutas_exigen_clave(entorno, cabecera):
-    cliente = APIClient(**({"HTTP_X_API_KEY": cabecera} if cabecera else {}))
+@pytest.mark.parametrize("cabecera", [None, "Bearer incorrecto"])
+def test_todas_las_rutas_exigen_token(entorno, cabecera):
+    cliente = APIClient(**({"HTTP_AUTHORIZATION": cabecera} if cabecera else {}))
     assert cliente.get(URL).status_code == 401
     assert cliente.post(URL, entrada(), format="json").status_code == 401
     assert revertir(cliente, 999).status_code == 401
     assert not CorreccionManual.objects.exists()
 
 
-def test_configuracion_sin_clave_no_abre_la_api(cliente, settings):
-    settings.INGESTA_API_KEY = ""
-    assert cliente.get(URL).status_code == 401
-    assert cliente.post(URL, entrada(), format="json").status_code == 401
+def test_la_lectura_publica_no_abre_la_bitacora(entorno, settings):
+    settings.API_LECTURA_PUBLICA = True
+    assert APIClient().get(URL).status_code == 401
+
+
+def test_el_autor_sale_del_token_y_no_del_cuerpo(cliente):
+    # Nadie puede firmar una corrección a nombre de otro escribiendo "autor".
+    correccion = crear(cliente, autor="Otra persona")
+    assert correccion["autor"] == AUTOR
+    revertir(cliente, correccion["id"])
+    assert CorreccionManual.objects.get(pk=correccion["id"]).revertida_por == AUTOR
 
 
 def test_bitacora_filtrada_paginada_con_autoria(cliente):
     crear(cliente)
     respuesta = cliente.get(URL, {"estacion": "sc"}).json()
-    assert respuesta["count"] == 1 and respuesta["results"][0]["autor"] == "Enóloga de prueba"
+    assert respuesta["count"] == 1 and respuesta["results"][0]["autor"] == AUTOR
     assert "dato_anterior" not in respuesta["results"][0]
     assert cliente.get(URL, {"estacion": "otra"}).json()["count"] == 0
 
@@ -400,7 +405,7 @@ def test_hora_futura_del_mismo_dia_es_400(cliente, monkeypatch):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_dos_peticiones_concurrentes_dejan_una_sola_vigente(entorno):
+def test_dos_peticiones_concurrentes_dejan_una_sola_vigente(entorno, cliente_con_token):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Barrier
 
@@ -411,9 +416,9 @@ def test_dos_peticiones_concurrentes_dejan_una_sola_vigente(entorno):
     def enviar(valor):
         try:
             inicio.wait(timeout=10)
-            respuesta = APIClient(HTTP_X_API_KEY=CLAVE).post(
-                URL, entrada(valor_nuevo=valor), format="json"
-            )
+            respuesta = APIClient(
+                HTTP_AUTHORIZATION=cliente_con_token._credentials["HTTP_AUTHORIZATION"]
+            ).post(URL, entrada(valor_nuevo=valor), format="json")
             return respuesta.status_code, respuesta.json()
         finally:
             connections.close_all()

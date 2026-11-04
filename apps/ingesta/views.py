@@ -20,7 +20,6 @@ from apps.clima.management.commands.actualizar_todo import candado
 from apps.clima.mapeos import EstacionNoExiste, estacion_y_mapeo
 from apps.clima.models import Estacion
 from apps.ingesta import carga
-from apps.ingesta.autenticacion import ApiKeyPrivadaAuthentication
 from apps.ingesta.models import RegistroCarga
 
 logger = logging.getLogger(__name__)
@@ -92,7 +91,7 @@ def _recalcular() -> dict:
 
 
 class CargasView(APIView):
-    authentication_classes = [ApiKeyPrivadaAuthentication]
+    # Siempre con token, también al leer: muestran archivos y filas rechazadas (E1C-64).
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
@@ -113,7 +112,7 @@ class CargasView(APIView):
             "Multipart con `archivo` (.xls o .xlsx), `estacion` (código o nombre de una "
             "estación registrada) y `temporada` opcional (año). Con `?solo_validar=1` devuelve "
             "lo que pasaría sin guardar nada. El mismo archivo ya cargado responde 200 sin "
-            "procesarlo de nuevo. Requiere la cabecera X-Api-Key."
+            "procesarlo de nuevo. Requiere token."
         ),
         parameters=[OpenApiParameter("solo_validar", bool)],
         request={
@@ -286,7 +285,12 @@ class CargasView(APIView):
         (carpeta / f"{hash_del_archivo}{extension}").write_bytes(contenido)
 
         registro = carga.guardar(
-            prep, clasificacion, nombre[:255], hash_del_archivo, usuario="API (X-Api-Key)"
+            prep,
+            clasificacion,
+            nombre[:255],
+            hash_del_archivo,
+            # quién subió el archivo sale de la cuenta del token, no de lo que mande el cliente
+            usuario=self.request.user.email[:100],
         )
         return Response(
             {
@@ -303,7 +307,7 @@ class CargasView(APIView):
 
 
 class CargaView(APIView):
-    authentication_classes = [ApiKeyPrivadaAuthentication]
+    # Siempre con token, también al leer: muestran archivos y filas rechazadas (E1C-64).
     permission_classes = [IsAuthenticated]
 
     @extend_schema(

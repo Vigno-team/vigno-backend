@@ -17,7 +17,8 @@ def test_api_entrega_archivo_actual_y_exige_revalidacion(settings, tmp_path):
         assert respuesta.json()["version"] == valor
         assert respuesta["Cache-Control"] == "no-cache"
         assert respuesta["ETag"]
-    assert cliente.post("/api/v1/datos", {}).status_code == 405
+    # Escribir siempre pide token, aunque la lectura sea pública (E1C-64).
+    assert cliente.post("/api/v1/datos", {}).status_code == 401
 
 
 @pytest.mark.parametrize("contenido", ["incompleto{", "[]"])

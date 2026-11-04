@@ -46,6 +46,10 @@ import json
 import django
 django.setup()
 from django.urls import resolve, Resolver404
+from django.conf import settings
+assert settings.CACHES['default']['BACKEND'] == 'django.core.cache.backends.db.DatabaseCache'
+for ruta in ('/api/v1/auth/token', '/api/v1/auth/refresh', '/api/v1/auth/yo'):
+    resolve(ruta)
 encontradas = []
 for ruta in ('/admin/', '/api/docs/', '/api/schema/'):
     try:
@@ -65,6 +69,19 @@ print(json.dumps(encontradas))
         check=True,
     )
     assert json.loads(resultado.stdout) == [habilitado == "True"] * 3
+
+
+@pytest.mark.parametrize("clave", ["corta", "REEMPLAZAR" + "x" * 55])
+def test_produccion_rechaza_secret_key_insegura(clave):
+    resultado = subprocess.run(
+        [sys.executable, "manage.py", "check", "--deploy"],
+        cwd=RAIZ,
+        env=entorno(SECRET_KEY=clave),
+        capture_output=True,
+        text=True,
+    )
+    assert resultado.returncode != 0
+    assert "SECRET_KEY debe tener al menos 50 caracteres aleatorios" in resultado.stderr
 
 
 def test_produccion_redirige_http_y_protege_respuestas_https():

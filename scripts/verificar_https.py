@@ -58,6 +58,7 @@ def main():
         assert headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
         assert "camera=()" in headers["Permissions-Policy"]
         assert "default-src 'self'" in headers["Content-Security-Policy"]
+        assert "https://server.arcgisonline.com" in headers["Content-Security-Policy"]
         assert "max-age=3600" in headers["Strict-Transport-Security"]
         assert headers.get("Server") == "nginx", headers.get("Server")
         if ruta == "/api/v1/datos":
@@ -73,18 +74,22 @@ def main():
         headers={
             "Origin": args.url.rstrip("/"),
             "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "x-api-key,if-none-match",
+            "Access-Control-Request-Headers": "authorization,if-none-match",
         },
     )
     assert estado == 200
     minusculas = {k.lower(): v for k, v in headers.items()}
     assert minusculas["access-control-allow-origin"] == args.url.rstrip("/")
-    assert "x-api-key" in minusculas["access-control-allow-headers"]
+    assert "authorization" in minusculas["access-control-allow-headers"]
     assert "if-none-match" in minusculas["access-control-allow-headers"]
-    for ruta in ("/api/v1/auth/prueba-e134", "/api/v1/cargas"):
+    for ruta in ("/api/v1/auth/token", "/api/v1/auth/cambiar-clave", "/api/v1/cargas"):
         estados = [consultar(ruta)[0] for _ in range(16)]
         assert 429 in estados, (ruta, estados)
         print(f"OK límite por IP en {ruta}: HTTP 429")
+    for ruta in ("/api/v1/auth/refresh", "/api/v1/auth/yo", "/api/v1/auth/logout"):
+        estados = [consultar(ruta)[0] for _ in range(16)]
+        assert all(estado in (401, 405) for estado in estados), (ruta, estados)
+        print(f"OK {ruta}: sin bloqueo por el límite de login")
     print("HTTPS, redirección, ETag, CORS, rutas cerradas y límites: OK")
 
 

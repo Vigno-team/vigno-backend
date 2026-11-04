@@ -10,13 +10,12 @@ from rest_framework.views import APIView
 
 from apps.clima import estaciones, resultados, serializers, services
 from apps.clima.models import Estacion
-from apps.ingesta.autenticacion import ApiKeyAuthentication
+from apps.cuentas.permisos import LecturaPublicaOAutenticado
 
 
 class ResultadosView(APIView):
-    # La demo es pública y de solo lectura según el contrato D4.1.
-    authentication_classes = []
-    permission_classes = [AllowAny]
+    # Lecturas del dashboard: piden token salvo con API_LECTURA_PUBLICA (E1C-64).
+    permission_classes = [LecturaPublicaOAutenticado]
     http_method_names = ["get", "head", "options"]
 
     def consultar(self, request, temporada):
@@ -41,14 +40,13 @@ ERRORES = {400: serializers.ErrorConsultaSerializer, 404: serializers.ErrorDetal
 
 
 class EstacionesView(ResultadosView):
-    # GET sigue público (D4.1); solo POST pide la X-Api-Key de E1C-66.
-    authentication_classes = [ApiKeyAuthentication]
+    # El GET es una lectura del dashboard; el POST (E1C-68) siempre pide token.
     http_method_names = ["get", "post", "head", "options"]
 
     def get_permissions(self):
         # spectacular genera el esquema con una petición simulada que puede no traer método
         escribe = getattr(getattr(self, "request", None), "method", None) == "POST"
-        return [IsAuthenticated()] if escribe else [AllowAny()]
+        return [IsAuthenticated()] if escribe else [LecturaPublicaOAutenticado()]
 
     @extend_schema(
         summary="Estaciones disponibles y calidad de sus datos",
@@ -64,7 +62,7 @@ class EstacionesView(ResultadosView):
     @extend_schema(
         summary="Da de alta una estación nueva",
         description=(
-            "Requiere la cabecera X-Api-Key. El nombre es único sin distinguir mayúsculas ni "
+            "Requiere token. El nombre es único sin distinguir mayúsculas ni "
             "tildes; si ya existe responde 409 con la estación existente. La estación queda con "
             "un `id` (código) propio, que se usa en `estacion=` de las demás consultas. Una "
             "estación sin mapeo propio carga sus Excel con el formato estándar."
@@ -144,7 +142,7 @@ class HealthCheckView(APIView):
     """Verifica que la API responde y que la base de datos esta accesible."""
 
     authentication_classes = []
-    permission_classes = []
+    permission_classes = [AllowAny]
 
     @extend_schema(
         summary="Estado del servicio",

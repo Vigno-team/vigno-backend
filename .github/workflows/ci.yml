@@ -37,7 +37,8 @@ jobs:
           --health-retries 10
 
     env:
-      SECRET_KEY: clave-solo-para-ci
+      # Firma los tokens JWT en los tests: con menos de 32 caracteres PyJWT avisa en cada token.
+      SECRET_KEY: clave-solo-para-ci-con-largo-suficiente-para-firmar-jwt
       DEBUG: "True"
       DJANGO_SETTINGS_MODULE: vigno.settings.development
       ALLOWED_HOSTS: localhost,127.0.0.1
