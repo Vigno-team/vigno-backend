@@ -823,34 +823,36 @@ a `deploy/`, o absoluta). No reemplazar el `.env` usado para desarrollo.
 Si falla la descarga de paquetes de Debian, `DEBIAN_MIRROR` permite elegir
 otro [mirror oficial](https://www.debian.org/mirror/list), sin cambiar el Dockerfile.
 
-Para comprobar la configuración sin levantar nada:
+Generar primero el certificado local siguiendo la sección **Seguridad**.
+Para comprobar la configuración sin mostrar secretos ni levantar nada:
 
 ```powershell
-docker compose -f deploy/docker-compose.yml config
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml config --quiet
 ```
 
 Desde la raíz del backend:
 
 ```powershell
-docker compose -f deploy/docker-compose.yml up --build
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up --build
 ```
 
 Para dejarlo en segundo plano y esperar los healthchecks:
 
 ```powershell
-docker compose -f deploy/docker-compose.yml up --build -d --wait --wait-timeout 600
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up --build -d --wait --wait-timeout 600
 ```
 
 | Dirección | Contenido |
 | --- | --- |
-| http://localhost | Frontend de la rama develop |
-| http://localhost/api/health/ | Estado de la API y conexión a PostgreSQL |
-| http://localhost/api/v1/datos | JSON actualizado por el servicio tareas |
-| http://localhost/api/docs/ | Documentación de la API |
-| http://localhost/admin/ | Admin de Django, con sus estáticos |
+| https://localhost | Frontend de la rama develop |
+| https://localhost/api/health/ | Estado de la API y conexión a PostgreSQL |
+| https://localhost/api/v1/datos | JSON actualizado por el servicio tareas |
+| https://localhost/api/docs/ | 404 por defecto en producción |
+| https://localhost/admin/ | 404 por defecto en producción |
 
-`WEB_PORT` cambia el puerto publicado si el 80 está ocupado. Solo nginx publica
-un puerto; PostgreSQL y Gunicorn se comunican dentro de la red del despliegue.
+`WEB_PORT` cambia el puerto HTTP y `HTTPS_PORT` el HTTPS (80 y 443 por defecto).
+HTTP redirige a HTTPS. Solo nginx publica puertos; PostgreSQL y Gunicorn se
+comunican dentro de la red del despliegue.
 El Compose de la raíz sigue siendo exclusivamente de desarrollo.
 Este despliegue utiliza otra base y otros volúmenes; los datos de desarrollo
 no aparecen automáticamente.
@@ -859,9 +861,8 @@ El backend usa la etapa `production` del Dockerfile, sin pytest, Ruff ni Jupyter
 Al arrancar aplica migraciones, ejecuta
 collectstatic y arranca Gunicorn con DEBUG=False. `ALLOWED_HOSTS` y
 `CSRF_TRUSTED_ORIGINS` se leen de `deploy/.env`; conservar localhost y 127.0.0.1
-para los healthchecks. La configuración entregada sirve HTTP en localhost.
-Si se publica con HTTPS, configurar el dominio, los orígenes HTTPS y ambas
-variables `SESSION_COOKIE_SECURE` y `CSRF_COOKIE_SECURE` en True.
+para los healthchecks. Las cookies de sesión y CSRF se envían solo por HTTPS.
+Antes de arrancar, el backend exige que `check --deploy` pase sin advertencias.
 
 El servicio `tareas` usa la misma base de imagen y añade `requirements-ml.txt`.
 Ejecuta `actualizar_todo` al partir, espera a que termine y vuelve a ejecutarlo
@@ -889,8 +890,8 @@ y carga su catálogo según la sección siguiente. Después hay dos formas de ca
   archivo:
 
 ```powershell
-docker compose -f deploy/docker-compose.yml exec backend python manage.py ingestar_excel --archivo "/app/data/raw/San Clemente 2024.xlsx" --estacion "San Clemente"
-docker compose -f deploy/docker-compose.yml exec tareas python manage.py actualizar_todo
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec backend python manage.py ingestar_excel --archivo "/app/data/raw/San Clemente 2024.xlsx" --estacion "San Clemente"
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec tareas python manage.py actualizar_todo
 ```
 
 Backend y tareas comparten los volúmenes `datos` (DATOS_DIR fijo en
@@ -898,21 +899,21 @@ Backend y tareas comparten los volúmenes `datos` (DATOS_DIR fijo en
 persisten al recrear contenedores. Para cargar el histórico ficticio local:
 
 ```powershell
-docker compose -f deploy/docker-compose.yml cp data/referencia/cosechas.csv tareas:/app/data/referencia/cosechas.csv
-docker compose -f deploy/docker-compose.yml exec tareas python manage.py actualizar_todo
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml cp data/referencia/cosechas.csv tareas:/app/data/referencia/cosechas.csv
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec tareas python manage.py actualizar_todo
 ```
 
 Consultar estado y logs, o parar conservando la base:
 
 ```powershell
-docker compose -f deploy/docker-compose.yml ps
-docker compose -f deploy/docker-compose.yml logs --tail=100 backend tareas
-docker compose -f deploy/docker-compose.yml exec backend python manage.py createsuperuser
-docker compose -f deploy/docker-compose.yml down
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml ps
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml logs --tail=100 backend tareas
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec backend python manage.py createsuperuser
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml down
 ```
 
 Después de cambiar credenciales o variables, recrear backend y tareas:
-`docker compose -f deploy/docker-compose.yml up -d --force-recreate backend tareas`.
+`docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --force-recreate backend tareas`.
 No usar `down -v` para una base que se quiera conservar: elimina los volúmenes.
 
 Esta entrega cubre disponibilidad y conexión en vivo del sprint 6. El respaldo
@@ -1023,7 +1024,9 @@ Copy-Item deploy/.env.example deploy/.env.demo
 Completar `SECRET_KEY` (50+ caracteres), `POSTGRES_PASSWORD`, `DJANGO_SUPERUSER_EMAIL`,
 `DJANGO_SUPERUSER_PASSWORD` y, para obtener
 una imagen nueva, las credenciales de Copernicus en `deploy/.env.demo`.
-Usar `CSRF_TRUSTED_ORIGINS=http://localhost:18130` y comprobar `FRONTEND_DIR`.
+Usar `CSRF_TRUSTED_ORIGINS=https://localhost:18443` y
+`CORS_ALLOWED_ORIGINS=https://localhost:18443`, y comprobar `FRONTEND_DIR`.
+Generar el certificado local como se indica en **Seguridad**.
 No sobrescribir el archivo si ya existe. Este archivo está ignorado por Git y Docker.
 
 ```powershell
@@ -1031,12 +1034,14 @@ $demo = @('--env-file', 'deploy/.env.demo', '-f', 'deploy/docker-compose.yml', '
 docker compose @demo up -d --build
 ```
 
-La demo queda en `http://localhost:18130`, con PostgreSQL 16 y volúmenes separados.
-La prueba automatizada exige esa URL y ese proyecto para no modificar producción.
+La demo queda en `https://localhost:18443`, con PostgreSQL 16 y volúmenes separados.
+El puerto HTTP 18130 redirige a HTTPS. La suite del frontend de E1C-130 fue
+escrita para HTTP 18130; para ejecutarla con este despliegue necesita aceptar
+la URL HTTPS y confiar en el certificado de prueba.
 Para empezar de cero, usar un proyecto de demo que aún no tenga volúmenes.
 
 1. Tener los Excel en `data/raw/` (no se suben al repositorio). Cargar inicialmente
-   San Clemente y El Arenal desde **Cargar datos**, con su clave y vista previa.
+   San Clemente y El Arenal desde **Cargar datos**, iniciando sesión y usando la vista previa.
    Para reproducir la ejecución registrada, se usaron los archivos de 2025 y 2026
    de ambas estaciones; también se pueden ingresar con `ingestar_excel`:
 
@@ -1083,9 +1088,8 @@ Para empezar de cero, usar un proyecto de demo que aún no tenga volúmenes.
    npm test
    # Desde E1C-64 el backend ya no acepta X-Api-Key: la suite del frontend tiene que
    # entrar con una cuenta (login) antes de volver a correr contra este backend.
-   $env:E2E_API_KEY = Read-Host 'Clave de la demo (INGESTA_API_KEY)'
-   npm run test:e2e
-   Remove-Item Env:E2E_API_KEY
+   # Tras adaptar la suite al login JWT y al certificado HTTPS de la demo:
+   # npm run test:e2e
    ```
 
    Usa Microsoft Edge instalado. Para otro navegador compatible, configurar
@@ -1116,3 +1120,122 @@ imagen de desarrollo), Ruff y formato. En frontend pasan 7 tests unitarios y la
 compilación de producción. El lint general conserva 17 errores y 4 advertencias
 preexistentes de `develop`, comprobados contra esa rama; los módulos nuevos pasan
 lint. El PR de frontend identifica esa deuda sin desactivar reglas.
+
+## Seguridad (E1C-134)
+
+Producción usa Django 5.2 LTS y dependencias de API compatibles. La CI audita
+`requirements.txt`, `requirements-dev.txt` y `requirements-ml.txt`, incluidas sus
+dependencias transitivas, con `pip-audit --strict`. Una vulnerabilidad conocida
+hace fallar el job. También exige `manage.py check --deploy --fail-level WARNING`
+y ejecuta la suite con las dependencias de ML instaladas.
+
+Referencias de mantenimiento: [versiones de Django](https://www.djangoproject.com/download/),
+[pip-audit](https://pypi.org/project/pip-audit/) y
+[nginx sin privilegios](https://github.com/nginx/docker-nginx-unprivileged).
+
+### Certificado local
+
+Desde la raíz del backend, crear `deploy/certs/`. En PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force deploy/certs
+```
+
+En macOS/Linux, usar `mkdir -p deploy/certs`. Después, este mismo comando Docker
+funciona en las tres plataformas (no requiere instalar OpenSSL en el equipo):
+
+```sh
+docker run --rm --mount "type=bind,source=./deploy/certs,target=/certs" --entrypoint sh alpine/openssl:3.5.9 -c "openssl req -x509 -nodes -days 30 -newkey rsa:3072 -keyout /certs/privkey.pem -out /certs/fullchain.pem -subj /CN=localhost -addext subjectAltName=DNS:localhost,IP:127.0.0.1 && chown 101:101 /certs/privkey.pem && chmod 640 /certs/privkey.pem"
+```
+
+El certificado es para localhost y dura 30 días. El navegador advertirá que no
+es de una autoridad pública; confiar en él solo para esta prueba local. No
+repetir el comando sobre un certificado de servidor que se quiera conservar.
+`deploy/certs/` queda fuera de Git y del contexto de las imágenes. Nginx monta
+la carpeta de solo lectura. La utilidad de generación escribe la clave con
+propietario/grupo 101 y permisos 640 para que nginx pueda leerla sin root.
+
+Completar `deploy/.env` con secretos distintos generados con el comando de su
+`.env.example`. `SECRET_KEY` (50+ caracteres) y `POSTGRES_PASSWORD` son
+obligatorios. Para crear la primera cuenta, completar `DJANGO_SUPERUSER_EMAIL`
+y `DJANGO_SUPERUSER_PASSWORD`. `API_LECTURA_PUBLICA=True` mantiene las lecturas
+del dashboard mientras el frontend incorpora el token; las escrituras exigen JWT.
+Levantar con:
+
+```sh
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up --build -d --wait --wait-timeout 600
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec backend python manage.py check --deploy --fail-level WARNING
+```
+
+### Certificado del servidor
+
+Obtener el certificado de Let's Encrypt para el dominio real. Copiar el
+certificado completo a `deploy/certs/fullchain.pem` y la clave privada a
+`deploy/certs/privkey.pem`, con permisos de lectura para el UID/GID 101 de nginx
+(640 para la clave en Linux). Copiar los archivos reales, no enlaces simbólicos
+que apunten fuera de la carpeta montada. Configurar el dominio en `ALLOWED_HOSTS`
+y sus orígenes HTTPS en `CSRF_TRUSTED_ORIGINS` y `CORS_ALLOWED_ORIGINS`.
+
+Tras cada renovación, verificar y recargar:
+
+```sh
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec web nginx -t
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec web nginx -s reload
+```
+
+La renovación se programa en el servidor que gestione Let's Encrypt. No está
+automatizada en estos contenedores. HSTS comienza en 3600 segundos e incluye
+subdominios; utilizar un dominio cuyos subdominios también admitan HTTPS.
+La directiva `preload` no registra el dominio en ninguna lista de navegadores;
+no solicitar ese registro durante esta fase de pruebas.
+
+### Protecciones y operación
+
+- Nginx redirige HTTP a HTTPS y acepta TLS 1.2/1.3. Django redirige HTTP y usa
+  cookies Secure. Solo confía en el protocolo que nginx sobrescribe; Gunicorn
+  y PostgreSQL no publican puertos al host.
+- La CSP permite los recursos locales, las teselas satelitales de
+  server.arcgisonline.com y las teselas de a/b/c.tile.openstreetmap.org
+  y las imágenes generadas por el mapa. Los estilos inline son necesarios para
+  Leaflet y los gráficos; los scripts inline y los orígenes arbitrarios quedan
+  bloqueados. Se envían `nosniff`, `Referrer-Policy`, `Permissions-Policy` y
+  `X-Frame-Options: DENY`, también en respuestas de error HTTPS.
+- Nginx limita `/api/v1/auth/token` y `/api/v1/auth/cambiar-clave` a 5
+  peticiones/minuto por IP, con ráfaga adicional de 5 y respuesta 429. Refresco,
+  consulta de cuenta y logout no comparten este límite. `/api/v1/cargas` y sus
+  subrutas permiten 10/minuto, también con ráfaga de 5. Estos controles se suman
+  a los de E1C-64; el login usa DatabaseCache compartida entre workers.
+  El CORS permite `if-none-match` y `authorization`.
+- `/admin/`, `/api/docs/` y `/api/schema/` dan 404 por defecto. Se habilitan
+  explícitamente con `ADMIN_HABILITADO=True` y `DOCS_HABILITADOS=True` y recreando
+  backend. La documentación Swagger usa recursos externos que la CSP de
+  producción no permite; para consultarla completa usar el entorno de desarrollo.
+- Backend, tareas, PostgreSQL y nginx arrancan como usuarios no root, con
+  `no-new-privileges`, sin capacidades Linux, filesystem de solo lectura y
+  directorios temporales en memoria. Solo los volúmenes de datos, modelos y
+  estáticos necesitan escritura. Los límites son 1 GiB/2 CPU para backend,
+  2 GiB/2 CPU para tareas, 768 MiB/1 CPU para PostgreSQL y 128 MiB/0,5 CPU para web.
+- PostgreSQL sigue siendo PostgreSQL 16. Las imágenes de PostgreSQL, nginx,
+  Node y OpenSSL tienen versión explícita; Python usa `3.11-slim-bookworm`.
+  Al actualizar versiones, repetir la auditoría, la suite y la prueba de arranque.
+  Las versiones y la auditoría de paquetes Python no sustituyen una revisión
+  periódica de las imágenes del sistema operativo.
+
+Los volúmenes nuevos reciben los propietarios correctos desde las imágenes.
+Al reutilizar volúmenes, conservar los UID de PostgreSQL (999) y de la aplicación
+(10001). Si aparece un error de permisos, revisar el volumen y su respaldo antes
+de cambiar propietarios. No borrar volúmenes para resolver ese error.
+
+### Verificación local de HTTPS
+
+Con Python 3 en el host y un despliegue local de prueba, ejecutar:
+
+```sh
+python scripts/verificar_https.py --url https://localhost --http-url http://localhost
+```
+
+El script confía en `deploy/certs/fullchain.pem` y verifica el nombre del
+certificado, redirección, cabeceras en respuestas correctas y errores, ETag,
+CORS y las rutas cerradas. Hace ráfagas de GET para comprobar el 429, por lo que
+solo acepta localhost; esperar un minuto antes de probar cargas manualmente.
+Para otros puertos locales, pasar ambas URL y, si corresponde, `--cert`.

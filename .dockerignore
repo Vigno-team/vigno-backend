@@ -18,4 +18,5 @@ apps/ml/artifacts
 .env.*
 deploy/.env
 deploy/.env.*
+deploy/certs/
 config/instancia.json

@@ -84,3 +84,4 @@ data/ficticio/*.zip
 deploy/.env
 deploy/.env.*
 !deploy/.env.example
+deploy/certs/
