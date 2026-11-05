@@ -17,3 +17,4 @@ apps/ml/artifacts
 .env.*
 deploy/.env
 deploy/.env.*
+deploy/certs/

@@ -23,7 +23,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16.15-bookworm
         env:
           POSTGRES_DB: vigno_test
           POSTGRES_USER: vigno_user
@@ -57,10 +57,43 @@ jobs:
           cache: pip
 
       - name: Instalar dependencias
-        run: pip install -r requirements-dev.txt
+        run: pip install -r requirements-dev.txt -r requirements-ml.txt
 
       - name: Verificar que no falten migraciones
         run: python manage.py makemigrations --check --dry-run
 
       - name: Correr tests
         run: pytest
+
+  seguridad:
+    name: Seguridad del despliegue
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_SETTINGS_MODULE: vigno.settings.production
+      DEBUG: "False"
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      CSRF_TRUSTED_ORIGINS: https://localhost
+      POSTGRES_DB: vigno_ci
+      POSTGRES_USER: vigno_ci
+      POSTGRES_HOST: localhost
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Instalar auditor y dependencias de la API
+        run: pip install pip-audit==2.10.1 -r requirements.txt
+      - name: Auditar todos los requirements y sus dependencias transitivas
+        run: pip-audit --strict -r requirements.txt -r requirements-dev.txt -r requirements-ml.txt
+      - name: Generar secretos temporales de CI
+        run: |
+          python - <<'PY'
+          import os
+          import secrets
+          with open(os.environ["GITHUB_ENV"], "a") as archivo:
+              for nombre in ("SECRET_KEY", "POSTGRES_PASSWORD"):
+                  archivo.write(f"{nombre}={secrets.token_urlsafe(48)}\n")
+          PY
+      - name: Comprobar producción sin advertencias
+        run: python manage.py check --deploy --fail-level WARNING

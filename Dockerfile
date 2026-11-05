@@ -1,6 +1,6 @@
-FROM python:3.11-slim AS base
+FROM python:3.11-slim-bookworm AS base
 
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 MPLCONFIGDIR=/tmp/matplotlib
 WORKDIR /app
 ARG DEBIAN_MIRROR=https://deb.debian.org/debian
 RUN sed -i "s|http://deb.debian.org/debian$|${DEBIAN_MIRROR}|" /etc/apt/sources.list.d/debian.sources \
