@@ -51,7 +51,7 @@ def test_login_correcto_entrega_tokens_y_la_cuenta(usuario):
         "id": usuario.pk,
         "nombre": CORREO_PRUEBA,
         "email": CORREO_PRUEBA,
-        "rol": None,
+        "rol": "editor",
     }
     assert con_bearer(datos["access"]).get(YO).json()["email"] == CORREO_PRUEBA
     usuario.refresh_from_db()
@@ -79,7 +79,8 @@ def test_superusuario_tiene_rol_administrador(usuario, cliente_con_token):
 
 
 def test_usuario_sin_grupo_tiene_rol_null(usuario, cliente_con_token):
-    # Los grupos de rol los crea E1C-94; mientras tanto, solo el superusuario tiene rol.
+    # Sin grupo de rol y sin ser superusuario, la cuenta no tiene rol.
+    usuario.groups.clear()
     usuario.is_staff = True  # staff sin ser superusuario no basta
     usuario.save()
 
@@ -181,7 +182,9 @@ def test_refresco_entrega_tokens_nuevos_y_rota(usuario):
 
 
 def test_refresco_de_una_cuenta_borrada_da_401_y_no_500(usuario):
-    refresco = entrar().json()["refresh"]
+    # El token se emite sin pasar por el login: un login deja la cuenta en la bitácora
+    # y una cuenta con historial no se puede borrar, solo desactivar.
+    refresco = str(RefreshToken.for_user(usuario))
     usuario.delete()
 
     assert APIClient().post(REFRESH, {"refresh": refresco}, format="json").status_code == 401

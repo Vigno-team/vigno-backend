@@ -15,6 +15,7 @@ urlpatterns = [
     path("api/v1/", include("apps.clima.urls")),
     path("api/v1/", include("apps.ingesta.urls")),
     path("api/v1/", include("apps.cuentas.urls")),
+    path("api/v1/", include("apps.auditoria.urls")),
 ]
 
 if settings.ADMIN_HABILITADO:

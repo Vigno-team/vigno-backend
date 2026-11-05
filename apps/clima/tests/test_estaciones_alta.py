@@ -5,6 +5,8 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from rest_framework.test import APIClient
 
+from apps.auditoria.models import RegistroAuditoria
+from apps.auditoria.registro import Accion
 from apps.clima import mapeos
 from apps.clima.estaciones import en_territorio
 from apps.clima.management.commands.exportar_json import exportar
@@ -272,3 +274,31 @@ def test_el_arenal_sigue_cargando_con_su_mapeo(tmp_path):
 
     assert RegistroCarga.objects.get().formato_detectado == "B_2023_2026"
     assert MedicionHoraria.objects.filter(estacion__nombre="El Arenal").count() == 7
+
+
+# --- roles y bitácora --------------------------------------------------------------
+
+
+def test_lector_no_puede_crear_estaciones_pero_si_verlas(cliente_lector):
+    assert crear(cliente_lector).status_code == 403
+    assert not Estacion.objects.filter(nombre="Villa Nueva").exists()
+    assert cliente_lector.get(URL).status_code == 200
+
+
+def test_administrador_puede_crear_estaciones(cliente_admin):
+    assert crear(cliente_admin).status_code == 201
+
+
+def test_el_alta_queda_en_la_bitacora(api, usuario):
+    codigo = crear(api).json()["id"]
+
+    registro = RegistroAuditoria.objects.get(accion=Accion.ESTACION_ALTA)
+    assert registro.usuario == usuario and registro.valor_anterior is None
+    assert registro.valor_nuevo["codigo"] == codigo
+    assert registro.valor_nuevo["nombre"] == "Villa Nueva"
+
+
+def test_un_nombre_repetido_no_deja_registro(api):
+    crear(api)
+    assert crear(api).status_code == 409
+    assert RegistroAuditoria.objects.filter(accion=Accion.ESTACION_ALTA).count() == 1

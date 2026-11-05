@@ -8,6 +8,8 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 
+from apps.auditoria.models import RegistroAuditoria
+from apps.auditoria.registro import Accion
 from apps.clima.models import Estacion, MedicionHoraria
 from apps.clima.tests.test_ingestar_excel import crear_excel, fila
 from apps.ingesta import carga, views
@@ -421,3 +423,29 @@ def test_el_recalculo_real_corre_dentro_del_candado_de_la_carga(
     assert respuesta.status_code == 201
     assert respuesta.json()["recalculo"]["ok"] is True
     assert (settings.DATOS_DIR / "actualizacion.json").is_file()
+
+
+# --- roles y bitácora --------------------------------------------------------------
+
+
+def test_lector_no_puede_cargar_pero_si_ver_el_historial(cliente_lector, tmp_path, recalculos):
+    respuesta = subir(cliente_lector, tres_dias(tmp_path))
+
+    assert respuesta.status_code == 403
+    assert not RegistroCarga.objects.exists() and recalculos == []
+    assert cliente_lector.get(URL).status_code == 200
+
+
+def test_administrador_puede_cargar(cliente_admin, tmp_path):
+    assert subir(cliente_admin, tres_dias(tmp_path)).status_code == 201
+
+
+def test_la_carga_queda_en_la_bitacora(api, usuario, tmp_path):
+    respuesta = subir(api, tres_dias(tmp_path))
+
+    registro = RegistroAuditoria.objects.get(accion=Accion.CARGA_EXCEL)
+    assert registro.usuario == usuario and registro.ip == "127.0.0.1"
+    assert registro.tipo_objeto == "ingesta.RegistroCarga"
+    assert registro.id_objeto == str(respuesta.json()["id"])
+    assert registro.valor_nuevo["insertados"] == 21
+    assert registro.valor_nuevo["fecha_desde"] == "2025-01-10"

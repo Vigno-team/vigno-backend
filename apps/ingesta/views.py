@@ -12,13 +12,13 @@ from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.clima.management.commands.actualizar_todo import candado
 from apps.clima.mapeos import EstacionNoExiste, estacion_y_mapeo
 from apps.clima.models import Estacion
+from apps.cuentas.permisos import LeerOEditar, PuedeLeer
 from apps.ingesta import carga
 from apps.ingesta.models import RegistroCarga
 
@@ -90,9 +90,9 @@ def _recalcular() -> dict:
         return {"ok": False, "generado": None, "pasos": []}
 
 
-class CargasView(APIView):
-    # Siempre con token, también al leer: muestran archivos y filas rechazadas (E1C-64).
-    permission_classes = [IsAuthenticated]
+class CargasView(LeerOEditar, APIView):
+    # Historial: cualquier rol, nunca público (muestra archivos y filas rechazadas).
+    # Subir: editor o administrador.
     parser_classes = [MultiPartParser, FormParser]
 
     @extend_schema(
@@ -291,6 +291,8 @@ class CargasView(APIView):
             hash_del_archivo,
             # quién subió el archivo sale de la cuenta del token, no de lo que mande el cliente
             usuario=self.request.user.email[:100],
+            # con la petición, la carga queda en la bitácora con su usuario e IP
+            request=self.request,
         )
         return Response(
             {
@@ -307,8 +309,8 @@ class CargasView(APIView):
 
 
 class CargaView(APIView):
-    # Siempre con token, también al leer: muestran archivos y filas rechazadas (E1C-64).
-    permission_classes = [IsAuthenticated]
+    # Cualquier rol, nunca público: muestra archivos y filas rechazadas.
+    permission_classes = [PuedeLeer]
 
     @extend_schema(
         summary="Detalle de una carga: estado, filas y rechazos con su motivo",
