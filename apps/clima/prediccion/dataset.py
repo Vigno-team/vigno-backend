@@ -100,7 +100,7 @@ def _validar(df: pd.DataFrame, nombre: str) -> None:
         raise ValueError(f"{nombre} no trae las columnas {faltan}. Trae: {list(df.columns)}")
 
 
-def procesar_historico_ficticio(
+def procesar_dataset_referencia(
     ruta_subset1: str, ruta_subset2: str, ruta_subset3: str, ruta_salida: str
 ) -> pd.DataFrame:
     """Une las cosechas de California con su clima y escribe cosechas.csv.

@@ -50,6 +50,10 @@ def test_catalogo_configurable_compartido(tmp_path, settings):
     (tmp_path / "config").mkdir()
     (tmp_path / "config/rangos_variables.json").write_text(json.dumps(catalogo), encoding="utf-8")
     settings.BASE_DIR = tmp_path
+    settings.INSTANCIA["archivos"] = {
+        "areas": "config/areas_mapa.json",
+        "mapeos": "config/mapeos_estaciones.json",
+    }
     assert motivo_fuera_de_rango("tmax", 43)
     assert motivo_fuera_de_rango("temperatura_maxima", 43)
     assert motivo_fuera_de_rango("humedad_media", 80) is None

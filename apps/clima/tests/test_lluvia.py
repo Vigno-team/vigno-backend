@@ -10,7 +10,7 @@ from apps.clima.temporadas import (
     rango_anio_agricola,
     rango_crecimiento,
     rango_invernal,
-    rango_septiembre,
+    rango_precrecimiento,
     rangos_etapas_crecimiento,
     temporada_de,
 )
@@ -67,7 +67,7 @@ def test_rango_invernal():
 
 def test_ventanas_de_lluvia_fuera_del_invierno():
     assert rango_anio_agricola("2024-2025") == (date(2024, 5, 1), date(2025, 4, 30))
-    assert rango_septiembre("2024-2025") == (date(2024, 9, 1), date(2024, 9, 30))
+    assert rango_precrecimiento("2024-2025") == (date(2024, 9, 1), date(2024, 9, 30))
     assert rango_crecimiento("2024-2025") == (date(2024, 10, 1), date(2025, 4, 30))
     assert rangos_etapas_crecimiento("2024-2025") == {
         "brotacion_floracion": (date(2024, 10, 1), date(2024, 11, 30)),

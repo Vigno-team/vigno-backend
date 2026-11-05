@@ -12,8 +12,9 @@ from rest_framework.response import Response
 
 from apps.clima.archivos import escribir_json_atomico
 from apps.clima.management.commands.actualizar_todo import candado
-from apps.clima.management.commands.exportar_json import NOMBRE_SALIDA, exportar
+from apps.clima.management.commands.exportar_json import exportar
 from apps.clima.views import ResultadosView
+from vigno.instancia import nombre_salida
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def _leer(ruta):
 
 
 def _datos_publicados():
-    ruta = settings.DATOS_DIR / NOMBRE_SALIDA
+    ruta = settings.DATOS_DIR / nombre_salida()
     try:
         return _leer(ruta)
     except FileNotFoundError:
@@ -95,7 +96,7 @@ class DatosFrontendView(ResultadosView):
         operation_id="dashboard_datos",
         tags=["Dashboard"],
         description=(
-            "Contrato completo de vigno-datos-reales.json, publicado en DATOS_DIR por "
+            "Contrato completo del archivo configurado en json_salida, publicado en DATOS_DIR por "
             "actualizar_todo. Si aún no existe, exporta los resultados de la base y lo guarda "
             "atómicamente. No ejecuta ingesta ni entrenamiento. Usa ETag y Cache-Control: no-cache."
         ),
@@ -116,21 +117,21 @@ class DatosFrontendView(ResultadosView):
 
 class PrediccionFicticiaView(ResultadosView):
     @extend_schema(
-        summary="Predicción ficticia del modelo de California",
+        summary="Predicción del dataset de referencia",
         operation_id="dashboard_prediccion_ficticia",
         tags=["Dashboard"],
         description=(
-            "Devuelve data/ficticio/prediccion_ficticia.json (E1C-124) sin entrenar ni "
+            "Devuelve data/referencia/prediccion_referencia.json (E1C-124) sin entrenar ni "
             "modificar su contenido. Si falta, devuelve 404 con motivo_nulo."
         ),
         responses={200: dict, 404: dict, 503: dict},
     )
     def get(self, request):
         try:
-            datos = _leer(settings.BASE_DIR / "data" / "ficticio" / "prediccion_ficticia.json")
+            datos = _leer(settings.BASE_DIR / "data" / "referencia" / "prediccion_referencia.json")
         except FileNotFoundError:
             return Response(
-                {"motivo_nulo": "Aún no se ha entrenado el modelo de California."},
+                {"motivo_nulo": "Aún no se ha entrenado el modelo del dataset de referencia."},
                 status=404,
                 headers={"Cache-Control": "no-store"},
             )

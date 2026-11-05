@@ -8,11 +8,11 @@ from apps.clima.calidad import construir_calidad_dato, resolucion_desde_origenes
 from apps.clima.metricas import calidad_metrica
 from apps.clima.models import ConfiguracionCalidad, Estacion, ResumenDiario
 from apps.clima.temporadas import (
-    MES_INICIO_ANIO_AGRICOLA,
     MIN_TEMPORADAS_PROMEDIO,
+    mes_inicio_anio_agricola,
     rango_anio_agricola,
     rango_crecimiento,
-    rango_septiembre,
+    rango_precrecimiento,
     rangos_etapas_crecimiento,
 )
 
@@ -35,7 +35,7 @@ def _medir(lluvia, inicio: date, fin: date, hoy: date, umbral: float) -> dict:
 
 
 def _rango_mes(anio_inicio: int, mes: int) -> tuple[date, date]:
-    anio = anio_inicio + (mes < MES_INICIO_ANIO_AGRICOLA)
+    anio = anio_inicio + (mes < mes_inicio_anio_agricola())
     return date(anio, mes, 1), date(anio, mes, monthrange(anio, mes)[1])
 
 
@@ -51,7 +51,7 @@ def _meses_en_rango(inicio: date, fin: date):
 
 def _anios_disponibles(fechas) -> set[int]:
     return {
-        fecha.year if fecha.month >= MES_INICIO_ANIO_AGRICOLA else fecha.year - 1
+        fecha.year if fecha.month >= mes_inicio_anio_agricola() else fecha.year - 1
         for fecha in fechas
     }
 
@@ -105,7 +105,7 @@ def lluvia_fuera_invierno(
     umbral_lluvia_intensa_mm: float | None = None,
     factor_mes_inusual: float | None = None,
 ) -> dict:
-    """Calcula lluvia del año agrícola y eventos de octubre a abril, sin clasificarla."""
+    """Calcula lluvia del año agrícola y eventos durante el crecimiento configurado."""
     hoy = hoy or timezone.localdate()
     umbral_calidad = ConfiguracionCalidad.obtener_umbral()
     umbral_lluvia_intensa = (
@@ -130,9 +130,12 @@ def lluvia_fuera_invierno(
     inicio_anio_agricola, _ = rango_anio_agricola(temporada)
     anio = inicio_anio_agricola.year
 
+    previo = rango_precrecimiento(temporada)
+    # Conservar el contrato anterior cuando el mes de transición es septiembre.
+    clave_previa = "septiembre" if previo[0].month == 9 else "precrecimiento"
     rangos = {
         "total_anio_agricola": rango_anio_agricola(temporada),
-        "septiembre": rango_septiembre(temporada),
+        clave_previa: previo,
         "crecimiento": rango_crecimiento(temporada),
         **{
             f"etapa_{nombre}": rango
@@ -147,7 +150,7 @@ def lluvia_fuera_invierno(
         f"{inicio:%d%m}-{fin:%d%m}" for inicio, fin in rangos_etapas_crecimiento(temporada).values()
     )
     version = (
-        f"lluvia-fuera-invierno-v2_ini{MES_INICIO_ANIO_AGRICOLA}_r{umbral_lluvia_intensa:g}mm_"
+        f"lluvia-fuera-invierno-v2_ini{mes_inicio_anio_agricola()}_r{umbral_lluvia_intensa:g}mm_"
         f"mes{factor_inusual:g}x_min{MIN_TEMPORADAS_PROMEDIO}_{codigos_etapas}"
     )
     calidad_ventanas = {
@@ -278,13 +281,15 @@ def lluvia_fuera_invierno(
     )
     resultado = {
         "total_anio_agricola_mm": mediciones["total_anio_agricola"]["mm"],
-        "septiembre_mm": mediciones["septiembre"]["mm"],
+        f"{clave_previa}_mm": mediciones[clave_previa]["mm"],
         "crecimiento_mm": mediciones["crecimiento"]["mm"],
         "etapas": etapas,
         "dias_lluvia_intensa": dias_lluvia_intensa,
         "meses_inusuales": meses_inusuales,
         "calidad_dato": calidad_dato,
     }
+    if clave_previa == "precrecimiento":
+        resultado["mes_precrecimiento"] = previo[0].month
     if resultado["total_anio_agricola_mm"] is None:
         resultado["motivo_nulo"] = "Sin datos de precipitación en el año agrícola."
     return resultado

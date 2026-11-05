@@ -7,14 +7,14 @@ from django.core.management.base import BaseCommand, CommandError
 
 
 class Command(BaseCommand):
-    help = "Evalúa modelos en años de California no usados para entrenar y exporta métricas."
+    help = "Evalúa modelos en años del dataset de referencia no usados para entrenar y exporta métricas."
 
     def add_arguments(self, parser):
         parser.add_argument("--anios-prueba", type=int, nargs="+", default=[1941])
 
     def handle(self, *args, **options):
-        ruta_datos = settings.BASE_DIR / "data" / "ficticio" / "cosechas.csv"
-        ruta_json = ruta_datos.with_name("prediccion_cosecha_california.json")
+        ruta_datos = settings.BASE_DIR / "data" / "referencia" / "cosechas.csv"
+        ruta_json = ruta_datos.with_name("prediccion_cosecha_referencia.json")
         if not ruta_datos.is_file():
             raise CommandError(f"No se encontró el dataset en {ruta_datos}")
         try:

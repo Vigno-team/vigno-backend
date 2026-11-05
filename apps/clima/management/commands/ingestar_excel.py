@@ -68,7 +68,7 @@ class Command(BaseCommand):
             raise CommandError(f"Error al insertar en la base de datos: {e}") from e
 
         out = self.stdout.write
-        out(self.style.SUCCESS("\n=== REPORTE DE INGESTA VIGNO ==="))
+        out(self.style.SUCCESS("\n=== REPORTE DE INGESTA ==="))
         out(f"Estación: {nombre_estacion} | Formato: {prep.formato} | Temporada: {prep.temporada}")
         out(f"Filas leídas totales: {res_limpieza.filas_leidas}")
         out(f"Filas vacías ignoradas: {res_limpieza.filas_vacias_ignoradas}")

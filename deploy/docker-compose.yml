@@ -1,4 +1,4 @@
-name: vigno-produccion
+name: ${COMPOSE_PROJECT_NAME:-agroclima-produccion}
 
 x-seguridad: &seguridad
   security_opt: [no-new-privileges:true]
@@ -11,9 +11,10 @@ x-seguridad: &seguridad
 x-entorno: &entorno
   DJANGO_SETTINGS_MODULE: vigno.settings.production
   DEBUG: "False"
+  INSTANCIA_CONFIG: ${INSTANCIA_CONFIG:-}
   SECRET_KEY: ${SECRET_KEY:?Configura SECRET_KEY en deploy/.env}
-  POSTGRES_DB: ${POSTGRES_DB:-vigno}
-  POSTGRES_USER: ${POSTGRES_USER:-vigno}
+  POSTGRES_DB: ${POSTGRES_DB:-agroclima}
+  POSTGRES_USER: ${POSTGRES_USER:-agroclima}
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
   POSTGRES_HOST: db
   POSTGRES_PORT: "5432"
@@ -41,8 +42,8 @@ services:
       - /var/run/postgresql:rw,noexec,nosuid,size=16m,uid=999,gid=999
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-vigno}
-      POSTGRES_USER: ${POSTGRES_USER:-vigno}
+      POSTGRES_DB: ${POSTGRES_DB:-agroclima}
+      POSTGRES_USER: ${POSTGRES_USER:-agroclima}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -75,8 +76,9 @@ services:
       NUM_PROXIES: "1"
     volumes:
       - datos:/app/data/cliente
-      - ficticio:/app/data/ficticio
+      - referencia:/app/data/referencia
       - staticfiles:/app/staticfiles
+      - ../config:/app/config:ro
       - ../data/raw:/app/data/raw:ro
     depends_on:
       db:
@@ -110,8 +112,9 @@ services:
       OMP_NUM_THREADS: "2"
     volumes:
       - datos:/app/data/cliente
-      - ficticio:/app/data/ficticio
+      - referencia:/app/data/referencia
       - modelos:/app/apps/ml/artifacts
+      - ../config:/app/config:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -131,7 +134,7 @@ services:
       context: ..
       dockerfile: deploy/frontend.Dockerfile
       additional_contexts:
-        frontend: ${FRONTEND_DIR:-../../vigno-fronted}
+        frontend: ${FRONTEND_DIR:-../../frontend}
       args:
         VITE_API_BASE_URL: /api
     restart: unless-stopped
@@ -158,6 +161,6 @@ services:
 volumes:
   postgres_data:
   datos:
-  ficticio:
+  referencia:
   modelos:
   staticfiles:

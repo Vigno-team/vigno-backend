@@ -181,12 +181,16 @@ def test_filas_incompletas_se_excluyen_tambien_de_base_y_metricas(historico):
 
 def test_comando_guarda_evaluacion_y_modelos(historico, tmp_path, settings):
     settings.BASE_DIR = tmp_path
-    carpeta = tmp_path / "data" / "ficticio"
+    settings.INSTANCIA["archivos"] = {
+        "areas": "config/areas_mapa.json",
+        "mapeos": "config/mapeos_estaciones.json",
+    }
+    carpeta = tmp_path / "data" / "referencia"
     carpeta.mkdir(parents=True)
     historico.to_csv(carpeta / "cosechas.csv", index=False)
     salida = io.StringIO()
     call_command("entrenar_cosecha", stdout=salida)
-    contenido = json.loads((carpeta / "prediccion_cosecha_california.json").read_text())
+    contenido = json.loads((carpeta / "prediccion_cosecha_referencia.json").read_text())
     assert contenido["validacion"]["anios_prueba"] == [1941]
     assert len(contenido["predicciones"]) == 4
     assert len(list((tmp_path / "apps/ml/artifacts").glob("*.joblib"))) == 1
@@ -207,8 +211,12 @@ def test_comando_guarda_evaluacion_y_modelos(historico, tmp_path, settings):
 @pytest.mark.parametrize("contenido", [None, "", "fuente,anio\n"])
 def test_comando_rechaza_archivo_ausente_o_vacio(tmp_path, settings, contenido):
     settings.BASE_DIR = tmp_path
+    settings.INSTANCIA["archivos"] = {
+        "areas": "config/areas_mapa.json",
+        "mapeos": "config/mapeos_estaciones.json",
+    }
     if contenido is not None:
-        carpeta = tmp_path / "data/ficticio"
+        carpeta = tmp_path / "data/referencia"
         carpeta.mkdir(parents=True)
         (carpeta / "cosechas.csv").write_text(contenido)
     with pytest.raises(CommandError):

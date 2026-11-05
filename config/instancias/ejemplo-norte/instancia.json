@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "organizacion": {
+    "nombre": "Viña de ejemplo del norte",
+    "nombre_corto": "Viña Norte"
+  },
+  "zona_horaria": "Europe/Paris",
+  "calendario": {
+    "mes_inicio_temporada": 1,
+    "mes_inicio_anio_agricola": 1,
+    "meses_invierno": [
+      12,
+      1,
+      2
+    ],
+    "desfase_anio_invierno": -1,
+    "ventanas_indices": {
+      "winkler": {
+        "inicio": [
+          4,
+          1
+        ],
+        "fin": [
+          10,
+          31
+        ]
+      },
+      "huglin": {
+        "inicio": [
+          4,
+          1
+        ],
+        "fin": [
+          9,
+          30
+        ]
+      },
+      "dias_calor": {
+        "inicio": [
+          4,
+          1
+        ],
+        "fin": [
+          10,
+          31
+        ]
+      }
+    },
+    "etapas_crecimiento": [
+      {
+        "nombre": "brotacion_floracion",
+        "inicio": [
+          4,
+          1
+        ],
+        "fin": [
+          5,
+          31
+        ]
+      },
+      {
+        "nombre": "cuaja_envero",
+        "inicio": [
+          6,
+          1
+        ],
+        "fin": [
+          7,
+          31
+        ]
+      },
+      {
+        "nombre": "maduracion_cosecha",
+        "inicio": [
+          8,
+          1
+        ],
+        "fin": [
+          10,
+          31
+        ]
+      }
+    ],
+    "desfase_analogos_dias": 0
+  },
+  "json_salida": "datos-norte.json",
+  "limites_geograficos": {
+    "latitud": [
+      41,
+      52
+    ],
+    "longitud": [
+      -6,
+      10
+    ]
+  },
+  "archivos": {
+    "mapeos": "config/instancias/ejemplo-norte/mapeos_estaciones.json",
+    "areas": "config/instancias/ejemplo-norte/areas_mapa.json"
+  }
+}

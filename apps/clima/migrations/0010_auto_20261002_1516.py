@@ -18,6 +18,4 @@ class Migration(migrations.Migration):
         ('clima', '0009_estacion_latitud_indiceclimatico_clasificacion_and_more'),
     ]
 
-    operations = [
-        migrations.RunPython(cargar_latitud_estaciones, migrations.RunPython.noop),
-    ]
+    operations = []  # E1C-95: coordenadas en el catálogo de la instancia.

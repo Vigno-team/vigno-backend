@@ -92,13 +92,23 @@ class MesInusualSerializer(serializers.Serializer):
 
 class LluviaFueraInviernoSerializer(serializers.Serializer):
     total_anio_agricola_mm = serializers.FloatField(allow_null=True)
-    septiembre_mm = serializers.FloatField(allow_null=True)
+    septiembre_mm = serializers.FloatField(allow_null=True, required=False)
+    precrecimiento_mm = serializers.FloatField(allow_null=True, required=False)
+    mes_precrecimiento = serializers.IntegerField(required=False)
     crecimiento_mm = serializers.FloatField(allow_null=True)
     etapas = EtapaLluviaSerializer(many=True)
     dias_lluvia_intensa = DiaLluviaIntensaSerializer(many=True)
     meses_inusuales = MesInusualSerializer(many=True)
     calidad_dato = CalidadLluviaFueraInviernoSerializer()
     motivo_nulo = serializers.CharField(required=False)
+
+    def to_representation(self, instance):
+        resultado = super().to_representation(instance)
+        # Un campo ausente no es una medición nula: depende del calendario activo.
+        for campo in ("septiembre_mm", "precrecimiento_mm", "mes_precrecimiento"):
+            if campo not in instance:
+                resultado.pop(campo, None)
+        return resultado
 
 
 class CalorSerializer(serializers.Serializer):
@@ -198,9 +208,9 @@ class EstacionNuevaSerializer(serializers.Serializer):
         lat, lon = datos["latitud"], datos["longitud"]
         self._finito(lat, "latitud")
         self._finito(lon, "longitud")
-        if not estaciones.en_chile(lat, lon):
-            mensaje = "Las coordenadas están fuera de Chile."
-            if estaciones.en_chile(lon, lat):
+        if not estaciones.en_territorio(lat, lon):
+            mensaje = "Las coordenadas están fuera del territorio configurado."
+            if estaciones.en_territorio(lon, lat):
                 mensaje += " ¿Intercambiaste latitud y longitud?"
             raise serializers.ValidationError({"coordenadas": mensaje})
         return datos

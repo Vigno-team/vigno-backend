@@ -24,7 +24,7 @@ PASOS = [
     "clasificar_temporadas",
     "actualizar_mapa_calor",
     "entrenar_cosecha",
-    "exportar_prediccion_ficticia",
+    "exportar_prediccion_referencia",
     "exportar_json",
 ]
 
@@ -37,6 +37,10 @@ class Registro(list):
 def entorno(settings, tmp_path, monkeypatch):
     """Proyecto falso en tmp_path: un predio con contorno, otro sin él, y cosechas.csv."""
     settings.BASE_DIR = tmp_path
+    settings.INSTANCIA["archivos"] = {
+        "areas": "config/areas_mapa.json",
+        "mapeos": "config/mapeos_estaciones.json",
+    }
     settings.DATOS_DIR = tmp_path / "datos"
     settings.CDSE_CLIENT_ID = "id"
     settings.CDSE_CLIENT_SECRET = "secreto"
@@ -61,8 +65,8 @@ def entorno(settings, tmp_path, monkeypatch):
     Estacion.objects.create(nombre="Con contorno", codigo="con-contorno")
     Estacion.objects.create(nombre="Sin contorno", codigo="sin-contorno")
 
-    (tmp_path / "data" / "ficticio").mkdir(parents=True)
-    (tmp_path / "data" / "ficticio" / "cosechas.csv").write_text("anio\n1941\n")
+    (tmp_path / "data" / "referencia").mkdir(parents=True)
+    (tmp_path / "data" / "referencia" / "cosechas.csv").write_text("anio\n1941\n")
     monkeypatch.setattr(actualizar_todo, "hay_sklearn", lambda: True)
     return tmp_path
 
@@ -78,9 +82,9 @@ def llamadas(monkeypatch, settings):
         if nombre in registro.fallar:
             raise registro.fallar[nombre]
         if nombre == "entrenar_cosecha":
-            # como el real: deja la evaluación que lee exportar_prediccion_ficticia
-            ficticio = settings.BASE_DIR / "data" / "ficticio"
-            (ficticio / "prediccion_cosecha_california.json").write_text("{}")
+            # como el real: deja la evaluación que lee exportar_prediccion_referencia
+            ficticio = settings.BASE_DIR / "data" / "referencia"
+            (ficticio / "prediccion_cosecha_referencia.json").write_text("{}")
 
     monkeypatch.setattr(actualizar_todo, "call_command", falso)
     return registro
@@ -214,20 +218,20 @@ def test_forzar_satelite(entorno, llamadas):
 
 
 def test_no_reentrena_si_la_evaluacion_es_mas_nueva(entorno, llamadas):
-    csv = entorno / "data" / "ficticio" / "cosechas.csv"
-    evaluacion = csv.with_name("prediccion_cosecha_california.json")
+    csv = entorno / "data" / "referencia" / "cosechas.csv"
+    evaluacion = csv.with_name("prediccion_cosecha_referencia.json")
     evaluacion.write_text("{}")
     os.utime(csv, (time.time() - 60, time.time() - 60))
 
     correr()
 
     assert "entrenar_cosecha" not in nombres(llamadas)
-    assert "exportar_prediccion_ficticia" in nombres(llamadas)
+    assert "exportar_prediccion_referencia" in nombres(llamadas)
 
 
 def test_reentrena_si_el_csv_es_mas_nuevo(entorno, llamadas):
-    csv = entorno / "data" / "ficticio" / "cosechas.csv"
-    evaluacion = csv.with_name("prediccion_cosecha_california.json")
+    csv = entorno / "data" / "referencia" / "cosechas.csv"
+    evaluacion = csv.with_name("prediccion_cosecha_referencia.json")
     evaluacion.write_text("{}")
     os.utime(evaluacion, (time.time() - 60, time.time() - 60))
 
@@ -238,13 +242,13 @@ def test_reentrena_si_el_csv_es_mas_nuevo(entorno, llamadas):
 
 def test_sin_sklearn_omite_entrenar_pero_exporta_la_evaluacion(entorno, llamadas, monkeypatch):
     monkeypatch.setattr(actualizar_todo, "hay_sklearn", lambda: False)
-    (entorno / "data" / "ficticio" / "cosechas.csv").unlink()
-    (entorno / "data" / "ficticio" / "prediccion_cosecha_california.json").write_text("{}")
+    (entorno / "data" / "referencia" / "cosechas.csv").unlink()
+    (entorno / "data" / "referencia" / "prediccion_cosecha_referencia.json").write_text("{}")
 
     correr()
 
     assert "entrenar_cosecha" not in nombres(llamadas)
-    assert "exportar_prediccion_ficticia" in nombres(llamadas)
+    assert "exportar_prediccion_referencia" in nombres(llamadas)
     assert leer_actualizacion(entorno)["ok"] is True
 
 
@@ -253,14 +257,14 @@ def test_sin_evaluacion_omite_exportar_prediccion(entorno, llamadas, monkeypatch
 
     correr()
 
-    assert "exportar_prediccion_ficticia" not in nombres(llamadas)
+    assert "exportar_prediccion_referencia" not in nombres(llamadas)
     paso = leer_actualizacion(entorno)["pasos"][5]
     assert paso["ok"] is True
     assert paso["detalle"].startswith("omitido: no existe")
 
 
 def test_sin_csv_omite_clasificar_temporadas_y_termina_bien(entorno, llamadas):
-    (entorno / "data" / "ficticio" / "cosechas.csv").unlink()
+    (entorno / "data" / "referencia" / "cosechas.csv").unlink()
 
     correr()
 

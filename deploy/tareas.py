@@ -10,7 +10,7 @@ import threading
 import time
 from pathlib import Path
 
-ESTADO = Path("/tmp/vigno-tareas.json")
+ESTADO = Path("/tmp/actualizacion-tareas.json")
 
 
 def intervalo_segundos(valor):

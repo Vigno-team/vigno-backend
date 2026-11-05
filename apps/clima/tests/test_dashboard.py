@@ -18,6 +18,10 @@ from apps.clima.models import Estacion, ResumenDiario
 @pytest.fixture
 def entorno(settings, tmp_path):
     settings.BASE_DIR = tmp_path
+    settings.INSTANCIA["archivos"] = {
+        "areas": "config/areas_mapa.json",
+        "mapeos": "config/mapeos_estaciones.json",
+    }
     settings.DATOS_DIR = tmp_path / "publicados"
     config = tmp_path / "config"
     config.mkdir()
@@ -143,7 +147,7 @@ def test_error_al_publicar_responde_503_sin_filtrar_detalles(entorno, monkeypatc
     [
         ("datos", "publicados/vigno-datos-reales.json"),
         ("actualizacion", "publicados/actualizacion.json"),
-        ("prediccion-ficticia", "data/ficticio/prediccion_ficticia.json"),
+        ("prediccion-ficticia", "data/referencia/prediccion_referencia.json"),
     ],
 )
 def test_archivo_invalido_no_se_sobrescribe(entorno, settings, endpoint, archivo, contenido):
@@ -159,9 +163,11 @@ def test_archivo_invalido_no_se_sobrescribe(entorno, settings, endpoint, archivo
 def test_prediccion_ausente_devuelve_motivo_y_no_crea_datos(entorno, settings):
     respuesta = APIClient().get("/api/v1/prediccion-ficticia")
     assert respuesta.status_code == 404
-    assert respuesta.json() == {"motivo_nulo": "Aún no se ha entrenado el modelo de California."}
+    assert respuesta.json() == {
+        "motivo_nulo": "Aún no se ha entrenado el modelo del dataset de referencia."
+    }
     assert respuesta["Cache-Control"] == "no-store"
-    assert not (settings.BASE_DIR / "data/ficticio").exists()
+    assert not (settings.BASE_DIR / "data/referencia").exists()
 
 
 def test_prediccion_devuelve_exactamente_el_archivo_de_e124(entorno, settings):
@@ -171,7 +177,7 @@ def test_prediccion_devuelve_exactamente_el_archivo_de_e124(entorno, settings):
         "modelo": {"metricas": {}},
         "predicciones": [],
     }
-    escribir_json_atomico(settings.BASE_DIR / "data/ficticio/prediccion_ficticia.json", datos)
+    escribir_json_atomico(settings.BASE_DIR / "data/referencia/prediccion_referencia.json", datos)
     respuesta = APIClient().get("/api/v1/prediccion-ficticia")
     assert respuesta.status_code == 200 and respuesta.json() == datos
 

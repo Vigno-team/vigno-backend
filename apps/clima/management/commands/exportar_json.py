@@ -12,8 +12,7 @@ from apps.clima.mapa_calor import bloque_mapa_calor
 from apps.clima.models import Estacion, ResumenDiario
 from apps.clima.services import HAY_DATO
 from apps.clima.temporadas import temporada_de
-
-NOMBRE_SALIDA = "vigno-datos-reales.json"
+from vigno.instancia import nombre_salida
 
 
 def exportar() -> dict:
@@ -62,7 +61,7 @@ class Command(BaseCommand):
     help = "E1C-48: exporta los resultados a un JSON con el formato del contrato para el frontend."
 
     def add_arguments(self, parser):
-        parser.add_argument("--salida", default=str(settings.DATOS_DIR / NOMBRE_SALIDA))
+        parser.add_argument("--salida", default=str(settings.DATOS_DIR / nombre_salida()))
         parser.add_argument("--sobrescribir", action="store_true")
 
     def handle(self, *args, **options):

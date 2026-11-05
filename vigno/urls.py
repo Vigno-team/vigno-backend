@@ -1,4 +1,4 @@
-"""Rutas raiz del proyecto VIGNO."""
+"""Rutas raíz del servicio."""
 
 from django.conf import settings
 from django.contrib import admin

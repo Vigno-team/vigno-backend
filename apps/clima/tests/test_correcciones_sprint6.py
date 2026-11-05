@@ -26,6 +26,10 @@ def entorno(settings, tmp_path):
         '{"type":"FeatureCollection","features":[]}', encoding="utf-8"
     )
     settings.BASE_DIR = tmp_path
+    settings.INSTANCIA["archivos"] = {
+        "areas": "config/areas_mapa.json",
+        "mapeos": "config/mapeos_estaciones.json",
+    }
     settings.DATOS_DIR = tmp_path / "salidas"
     estacion, _ = Estacion.objects.update_or_create(
         nombre="San Clemente", defaults={"codigo": "sc", "latitud": -35.5}

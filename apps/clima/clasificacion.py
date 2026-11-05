@@ -5,6 +5,7 @@ from django.utils import timezone
 from apps.clima.comparacion import cortes, temporadas_con_datos
 from apps.clima.metricas import METRICAS, valor_metrica
 from apps.clima.models import ConfiguracionCalidad, Estacion
+from apps.clima.temporadas import rango_invernal
 
 # Cortes provisionales: CONFIRMAR con el enólogo. Están aquí para cambiarlos en un solo lugar.
 UMBRAL_TERMICA_PCT = 5.0
@@ -16,6 +17,20 @@ METRICA_HIDRICA = "lluvia_invernal"
 
 ETIQUETAS_TERMICA = ("fria", "normal", "calida")  # (bajo, medio, alto)
 ETIQUETAS_HIDRICA = ("seca", "normal", "lluviosa")
+MESES = (
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+)
 
 
 def _etiqueta(diferencia_pct: float, umbral_pct: float, etiquetas: tuple[str, str, str]) -> str:
@@ -114,6 +129,8 @@ def clasificar_temporada(estacion: Estacion, temporada: str, hoy: date | None = 
         if parcial_hasta
         else ""
     )
+    inicio_invierno, fin_invierno = rango_invernal(temporada)
+    invierno = f"{MESES[inicio_invierno.month - 1]}-{MESES[fin_invierno.month - 1]}"
     return {
         "estacion_id": estacion.codigo,
         "temporada": temporada,
@@ -125,7 +142,7 @@ def clasificar_temporada(estacion: Estacion, temporada: str, hoy: date | None = 
             f"Térmica: índice Winkler frente al promedio de la estación, "
             f"cálida si la diferencia es >= +{UMBRAL_TERMICA_PCT:g} % y fría si es "
             f"<= -{UMBRAL_TERMICA_PCT:g} %. "
-            f"Hídrica: lluvia invernal (mayo-agosto) frente al promedio de la estación, "
+            f"Hídrica: lluvia invernal ({invierno}) frente al promedio de la estación, "
             f"lluviosa si la diferencia es >= +{UMBRAL_HIDRICA_PCT:g} % y seca si es "
             f"<= -{UMBRAL_HIDRICA_PCT:g} %. En otro caso, normal."
             f"{aviso_en_curso}"

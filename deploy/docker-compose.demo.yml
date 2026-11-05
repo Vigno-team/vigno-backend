@@ -1,4 +1,4 @@
-# Entorno separado para las pruebas E1C-130. Usar siempre -p vigno-e130-qa.
+# Entorno separado para las pruebas E1C-130. Usar siempre -p agroclima-demo.
 services:
   web:
     ports: !override

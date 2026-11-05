@@ -1,8 +1,8 @@
-"""E1C-83: años análogos de cada temporada de VIGNO en el dataset ficticio.
+"""E1C-83: años análogos de cada temporada de la instancia en el dataset de referencia.
 
 Similitud: se estandarizan (z) las variables elegidas con la media y la desviación
-de las temporadas ficticias, se mide la distancia euclidiana d entre la temporada
-de VIGNO y cada temporada ficticia, y se convierte a similitud = 100 / (1 + d).
+de las temporadas del dataset de referencia, se mide la distancia euclidiana d entre la temporada
+de la instancia y cada temporada de referencia, y se convierte a similitud = 100 / (1 + d).
 Una temporada idéntica da 100 %; la similitud baja a medida que crece la distancia.
 """
 
@@ -11,13 +11,13 @@ from datetime import date, timedelta
 import pandas as pd
 
 from apps.clima.models import IndiceClimatico
+from apps.clima.temporadas import calendario
 
 COLUMNA = {"winkler": "wi", "huglin": "hi", "gst": "gst"}
-ESTACIONES = ("El Arenal", "San Clemente")
 CLAVE = ["fuente", "region", "anio"]
 
 
-def temporadas_ficticias(df: pd.DataFrame, calidad: pd.DataFrame | None = None) -> pd.DataFrame:
+def temporadas_referencia(df: pd.DataFrame, calidad: pd.DataFrame | None = None) -> pd.DataFrame:
     """Una fila por temporada: Subset1 por región-año y Napa por año (región II)."""
     temporadas = df.groupby(CLAVE, as_index=False).agg(
         wi=("wi", "first"),
@@ -45,25 +45,25 @@ def _origen(fila) -> str:
 
 
 def calcular_analogos(
-    temp_vigno: dict,
+    indices_instancia: dict,
     df_historico: pd.DataFrame,
     anio_inicio: int,
     variables=("winkler", "huglin"),
     calidad: pd.DataFrame | None = None,
     cantidad: int = 3,
 ) -> list[dict]:
-    """Las `cantidad` temporadas ficticias más parecidas a `temp_vigno`."""
+    """Las `cantidad` temporadas del dataset de referencia más parecidas a `indices_instancia`."""
     desconocidas = [v for v in variables if v not in COLUMNA]
     if desconocidas:
         raise ValueError(f"Variables no soportadas: {desconocidas}")
-    faltan = [v for v in variables if temp_vigno.get(v) is None]
+    faltan = [v for v in variables if indices_instancia.get(v) is None]
     if faltan:
         raise ValueError(f"Faltan variables de la temporada: {faltan}")
     if df_historico.empty:
         return []
 
     columnas = [COLUMNA[v] for v in variables]
-    df = temporadas_ficticias(df_historico, calidad).dropna(subset=columnas)
+    df = temporadas_referencia(df_historico, calidad).dropna(subset=columnas)
     if df.empty:
         return []
 
@@ -72,7 +72,7 @@ def calcular_analogos(
         desviacion = df[columna].std()
         if pd.isna(desviacion) or desviacion == 0:
             desviacion = 1.0
-        diferencias[variable] = (df[columna] - temp_vigno[variable]) / desviacion
+        diferencias[variable] = (df[columna] - indices_instancia[variable]) / desviacion
 
     df["distancia"] = (diferencias**2).sum(axis=1) ** 0.5
     df["explica"] = diferencias.abs().idxmin(axis=1)
@@ -81,8 +81,10 @@ def calcular_analogos(
     resultados = []
     for _, fila in mejores.iterrows():
         fecha = None
-        if pd.notna(fila["doy_hs"]):
-            fecha = date(anio_inicio, 1, 1) + timedelta(days=round(fila["doy_hs"]) - 1)
+        if pd.notna(fila["doy"]):
+            fecha = date(anio_inicio, 1, 1) + timedelta(
+                days=round(fila["doy"] + calendario()["desfase_analogos_dias"]) - 1
+            )
         resultados.append(
             {
                 "origen": _origen(fila),
@@ -102,10 +104,10 @@ def calcular_analogos(
     return resultados
 
 
-def indices_vigno() -> dict:
+def indices_instancia() -> dict:
     """{(estacion, temporada): {"winkler": x, "huglin": y}} con índices confiables."""
     filas = IndiceClimatico.objects.filter(
-        estacion__nombre__in=ESTACIONES, indice__in=["Winkler", "Huglin"], confiable=True
+        indice__in=["Winkler", "Huglin"], confiable=True
     ).select_related("estacion")
     temporadas = {}
     for fila in filas:
@@ -113,14 +115,14 @@ def indices_vigno() -> dict:
     return temporadas
 
 
-def obtener_analogos_vigno(df_historico: pd.DataFrame, calidad: pd.DataFrame | None = None):
-    """Análogos de cada temporada de VIGNO con Winkler y Huglin confiables.
+def obtener_analogos_instancia(df_historico: pd.DataFrame, calidad: pd.DataFrame | None = None):
+    """Análogos de cada temporada de la instancia con Winkler y Huglin confiables.
 
-    Compara solo con Winkler y Huglin: el GST de VIGNO todavía no se calcula.
+    Compara solo con Winkler y Huglin: el GST de la instancia todavía no se calcula.
     """
     resultados = []
     for (estacion, temporada), indices in sorted(
-        indices_vigno().items(), key=lambda item: (item[0][0].nombre, item[0][1])
+        indices_instancia().items(), key=lambda item: (item[0][0].nombre, item[0][1])
     ):
         if indices.keys() != {"winkler", "huglin"}:
             continue
