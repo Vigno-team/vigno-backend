@@ -34,6 +34,7 @@ class RegistroAuditoria(models.Model):
         USUARIO_ALTA = "usuario_alta", "Alta de usuario"
         USUARIO_EDICION = "usuario_edicion", "Edición de usuario"
         USUARIO_BAJA = "usuario_baja", "Baja de usuario"
+        CLAVE_CAMBIADA = "clave_cambiada", "Cambio de clave"
 
     # PROTECT: una cuenta con historial no se borra, se desactiva (is_active=False).
     usuario = models.ForeignKey(

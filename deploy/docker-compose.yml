@@ -72,6 +72,8 @@ services:
       # Primer administrador (opcional): solo se crea si no existe.
       DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:-}
       DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:-}
+      # E1C-138: la cuenta por defecto admin@sistema.local / admin, solo si se activa.
+      ADMIN_POR_DEFECTO: ${ADMIN_POR_DEFECTO:-False}
       # nginx es el único proxy delante: la IP real es la última de X-Forwarded-For.
       NUM_PROXIES: "1"
     volumes:

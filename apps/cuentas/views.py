@@ -8,6 +8,8 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenViewBase
 
+from apps.auditoria.registro import Accion, registrar
+from apps.cuentas.models import Perfil, debe_cambiar_clave
 from apps.cuentas.roles import ROLES
 from apps.cuentas.serializers import (
     CambiarClaveSerializer,
@@ -26,6 +28,7 @@ UsuarioSerializer = inline_serializer(
         "nombre": serializers.CharField(),
         "email": serializers.EmailField(),
         "rol": serializers.ChoiceField(choices=list(ROLES), allow_null=True),
+        "debe_cambiar_clave": serializers.BooleanField(),
     },
 )
 TokensSerializer = inline_serializer(
@@ -82,6 +85,8 @@ class RefrescoView(TokenViewBase):
 
 
 class CerrarSesionView(APIView):
+    permite_cambio_de_clave_pendiente = True
+
     @extend_schema(
         summary="Cerrar sesión: el refresco deja de servir",
         request=CerrarSesionSerializer,
@@ -96,6 +101,8 @@ class CerrarSesionView(APIView):
 
 
 class YoView(APIView):
+    permite_cambio_de_clave_pendiente = True
+
     @extend_schema(
         summary="Datos de la cuenta del token",
         responses={200: UsuarioSerializer, 401: ERROR},
@@ -106,6 +113,8 @@ class YoView(APIView):
 
 
 class CambiarClaveView(APIView):
+    # La única salida para una cuenta con cambio de clave obligatorio (E1C-138).
+    permite_cambio_de_clave_pendiente = True
     # Con un token robado no se puede probar claves actuales sin límite.
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "cambiar_clave"
@@ -124,9 +133,18 @@ class CambiarClaveView(APIView):
         entrada = CambiarClaveSerializer(data=request.data, context={"request": request})
         entrada.is_valid(raise_exception=True)
         usuario = request.user
+        era_obligatorio = debe_cambiar_clave(usuario)
         with transaction.atomic():
             usuario.set_password(entrada.validated_data["clave_nueva"])
             usuario.save(update_fields=["password"])
             invalidar_refrescos(usuario)
+            Perfil.objects.update_or_create(usuario=usuario, defaults={"debe_cambiar_clave": False})
+            # Nunca la clave: solo que cambió y si era el cambio obligatorio.
+            registrar(
+                Accion.CLAVE_CAMBIADA,
+                request=request,
+                objeto=usuario,
+                nuevo={"cambio_obligatorio": era_obligatorio},
+            )
         # Los accesos anteriores ya no sirven (CHECK_REVOKE_TOKEN): se entregan unos nuevos.
         return Response(tokens_para(usuario))
