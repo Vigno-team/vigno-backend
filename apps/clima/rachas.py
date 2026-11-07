@@ -1,7 +1,10 @@
+from datetime import date, timedelta
 from typing import Any
 
 from apps.clima.models import Estacion, ResumenDiario
 from apps.clima.temporadas import rango_temporada
+
+UN_DIA = timedelta(days=1)
 
 
 def identificar_rachas(
@@ -10,6 +13,9 @@ def identificar_rachas(
     """
     Identifica secuencias de días consecutivos en los que la temperatura
     máxima supera o iguala el umbral dado.
+
+    Una racha queda interrumpida por dato faltante si el día anterior a su
+    inicio o el siguiente a su fin no tiene tmax.
     """
     try:
         umbral_temp = float(umbral_temp)
@@ -27,67 +33,40 @@ def identificar_rachas(
     if not dias:
         return []
 
-    rachas = []
-    racha_actual = None
-    prev_d = None
+    # Fechas con tmax registrado: un día sin registro o con tmax nulo es dato faltante.
+    con_dato = {d.fecha for d in dias if d.tmax is not None}
 
+    # Solo se revisan días dentro de la temporada, ampliada si hay registros
+    # guardados fuera de su rango (por ejemplo, ingestados con --temporada).
     inicio_temp, fin_temp = rango_temporada(temporada)
+    primer_dia = min(inicio_temp, dias[0].fecha)
+    ultimo_dia = max(fin_temp, dias[-1].fecha)
 
-    for d in dias:
-        if d.tmax is not None and d.tmax >= umbral_temp:
-            if racha_actual is None:
-                interrumpida = False
-                if prev_d is None:
-                    # Si es el primer día en la BD pero no el primero de la temporada
-                    if d.fecha > inicio_temp:
-                        interrumpida = True
-                else:
-                    # Si el día anterior no existe o su tmax es nulo
-                    if (d.fecha - prev_d.fecha).days > 1 or prev_d.tmax is None:
-                        interrumpida = True
+    def falta_dato(fecha: date) -> bool:
+        return primer_dia <= fecha <= ultimo_dia and fecha not in con_dato
 
-                racha_actual = {
-                    "inicio": d.fecha,
-                    "fin": d.fecha,
-                    "dias": 1,
-                    "tmax_maxima": d.tmax,
-                    "interrumpida_por_dato_faltante": interrumpida,
-                }
-            else:
-                if (d.fecha - racha_actual["fin"]).days == 1:
-                    racha_actual["fin"] = d.fecha
-                    racha_actual["dias"] += 1
-                    racha_actual["tmax_maxima"] = max(racha_actual["tmax_maxima"], d.tmax)
-                else:
-                    racha_actual["con_incidencia"] = racha_actual["dias"] >= min_dias
-                    racha_actual["interrumpida_por_dato_faltante"] = True
-                    rachas.append(racha_actual)
-
-                    racha_actual = {
-                        "inicio": d.fecha,
-                        "fin": d.fecha,
-                        "dias": 1,
-                        "tmax_maxima": d.tmax,
-                        "interrumpida_por_dato_faltante": True,
-                    }
+    # Agrupa los días calurosos de fechas consecutivas.
+    calurosos = [d for d in dias if d.tmax is not None and d.tmax >= umbral_temp]
+    grupos: list[list[ResumenDiario]] = []
+    for d in calurosos:
+        if grupos and (d.fecha - grupos[-1][-1].fecha).days == 1:
+            grupos[-1].append(d)
         else:
-            if racha_actual is not None:
-                if (d.fecha - racha_actual["fin"]).days > 1:
-                    racha_actual["interrumpida_por_dato_faltante"] = True
-                elif d.tmax is None:
-                    racha_actual["interrumpida_por_dato_faltante"] = True
+            grupos.append([d])
 
-                racha_actual["con_incidencia"] = racha_actual["dias"] >= min_dias
-                rachas.append(racha_actual)
-                racha_actual = None
-
-        prev_d = d
-
-    if racha_actual is not None:
-        if racha_actual["fin"] < fin_temp:
-            racha_actual["interrumpida_por_dato_faltante"] = True
-
-        racha_actual["con_incidencia"] = racha_actual["dias"] >= min_dias
-        rachas.append(racha_actual)
+    rachas = []
+    for grupo in grupos:
+        inicio, fin = grupo[0].fecha, grupo[-1].fecha
+        interrumpida = falta_dato(inicio - UN_DIA) or falta_dato(fin + UN_DIA)
+        rachas.append(
+            {
+                "inicio": inicio,
+                "fin": fin,
+                "dias": len(grupo),
+                "tmax_maxima": max(d.tmax for d in grupo),
+                "interrumpida_por_dato_faltante": interrumpida,
+                "con_incidencia": len(grupo) >= min_dias,
+            }
+        )
 
     return rachas
