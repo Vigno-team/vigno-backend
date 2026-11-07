@@ -11,6 +11,7 @@ from django.db.models import Max, Min
 from django.utils import timezone
 from rest_framework.exceptions import APIException, ValidationError
 
+from apps.auditoria.registro import Accion, registrar
 from apps.clima.management.commands.actualizar_todo import candado
 from apps.clima.models import (
     CorreccionManual,
@@ -40,6 +41,17 @@ class ConflictoCorreccion(APIException):
 
 def valor_json(valor):
     return str(valor) if isinstance(valor, float) and not math.isfinite(valor) else valor
+
+
+def _para_bitacora(correccion, valor):
+    """El dato corregido tal como queda en la bitácora de auditoría."""
+    return {
+        "estacion": correccion.estacion.codigo,
+        "timestamp": timezone.localtime(correccion.timestamp).isoformat(),
+        "variable": correccion.variable,
+        "frecuencia": correccion.frecuencia,
+        "valor": valor_json(valor),
+    }
 
 
 def _validar_periodo(estacion, timestamp, frecuencia):
@@ -167,7 +179,7 @@ def _reintegrar():
     return {"ok": True}
 
 
-def crear_correccion(datos):
+def crear_correccion(datos, request=None):
     estacion = datos["estacion"]
     clave = {k: datos[k] for k in ("estacion", "timestamp", "variable", "frecuencia")}
     # El mismo candado de E1C-129 evita publicar una actualización anterior después de esta.
@@ -235,6 +247,17 @@ def crear_correccion(datos):
                 },
             )
             _invalidar_derivados(correccion)
+            # En la misma transacción: si algo falla, no queda ni la corrección ni su registro.
+            registrar(
+                Accion.CORRECCION,
+                request=request,
+                objeto=correccion,
+                anterior=_para_bitacora(correccion, correccion.valor_anterior),
+                nuevo={
+                    **_para_bitacora(correccion, correccion.valor_nuevo),
+                    "motivo": correccion.motivo,
+                },
+            )
         actualizacion = _reintegrar()
     return correccion, actualizacion
 
@@ -251,7 +274,7 @@ def _comprobar_actual(correccion, dato):
         )
 
 
-def revertir_correccion(correccion_id, datos):
+def revertir_correccion(correccion_id, datos, request=None):
     from django.shortcuts import get_object_or_404
 
     with candado():
@@ -292,5 +315,19 @@ def revertir_correccion(correccion_id, datos):
                     estado=CorreccionManual.VIGENTE
                 )
             _invalidar_derivados(correccion)
+            registrar(
+                Accion.REVERSION,
+                request=request,
+                objeto=correccion,
+                anterior={
+                    **_para_bitacora(correccion, correccion.valor_nuevo),
+                    "estado": CorreccionManual.VIGENTE,
+                },
+                nuevo={
+                    **_para_bitacora(correccion, previo["valor"] if previo["existe"] else None),
+                    "estado": CorreccionManual.REVERTIDA,
+                    "motivo": correccion.motivo_reversion,
+                },
+            )
         actualizacion = _reintegrar()
     return correccion, actualizacion

@@ -9,6 +9,8 @@ from django.core.management.base import CommandError
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.auditoria.models import RegistroAuditoria
+from apps.auditoria.registro import Accion
 from apps.clima import correcciones
 from apps.clima.models import (
     CorreccionManual,
@@ -466,3 +468,40 @@ def test_rechazo_sin_fecha_se_marca_en_ambas_temporadas_donde_aparece(cliente, e
             f for f in fallas(temporada=temporada).json()["fallas"] if f["tipo"] == "rechazado"
         )
         assert rechazo["corregido"] is True
+
+
+# --- roles y bitácora --------------------------------------------------------------
+
+
+def test_lector_no_puede_corregir_ni_revertir_pero_si_leer(cliente, cliente_lector):
+    correccion = crear(cliente)
+
+    assert cliente_lector.post(URL, entrada(valor_nuevo=22), format="json").status_code == 403
+    assert revertir(cliente_lector, correccion["id"]).status_code == 403
+    assert cliente_lector.get(URL).json()["count"] == 1
+    assert CorreccionManual.objects.get(pk=correccion["id"]).estado == "vigente"
+
+
+def test_administrador_puede_corregir_y_revertir(entorno, cliente_admin):
+    correccion = crear(cliente_admin)
+
+    assert correccion["autor"] == "admin@vigno.cl"
+    assert revertir(cliente_admin, correccion["id"]).status_code == 200
+
+
+def test_correccion_y_reversion_quedan_en_la_bitacora(cliente, usuario):
+    correccion = crear(cliente)
+    revertir(cliente, correccion["id"])
+
+    alta = RegistroAuditoria.objects.get(accion=Accion.CORRECCION)
+    assert alta.usuario == usuario and alta.id_objeto == str(correccion["id"])
+    assert alta.valor_anterior["valor"] is None  # el 16 era un hueco
+    assert alta.valor_nuevo["valor"] == 21 and alta.valor_nuevo["variable"] == "temperatura_media"
+    reversion = RegistroAuditoria.objects.get(accion=Accion.REVERSION)
+    assert reversion.usuario == usuario
+    assert reversion.valor_anterior == {
+        **reversion.valor_anterior,
+        "valor": 21,
+        "estado": "vigente",
+    }
+    assert reversion.valor_nuevo["valor"] is None and reversion.valor_nuevo["estado"] == "revertida"

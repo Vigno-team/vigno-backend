@@ -16,6 +16,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from apps.auditoria.registro import Accion, registrar
 from apps.clima.models import CorreccionManual, Estacion, MedicionHoraria
 from apps.clima.rangos import cargar_rangos, motivo_fuera_de_rango
 from apps.ingesta.models import RegistroCarga
@@ -526,7 +527,9 @@ def guardar(
     archivo: str,
     hash_del_archivo: str | None = None,
     usuario: str | None = None,
+    request=None,
 ) -> RegistroCarga:
+    """Guarda la carga. Con `request` (la API) también la deja en la bitácora."""
     r_limp = prep.limpieza
     if r_limp.columnas_abejas:
         notas_descarte = (
@@ -597,6 +600,27 @@ def guardar(
             CorreccionManual.objects.filter(pk__in=ids).update(
                 estado=CorreccionManual.REEMPLAZADA, reemplazada_por=carga_obj
             )
+            if request is not None:
+                # La carga por API queda en la bitácora junto con sus mediciones.
+                registrar(
+                    Accion.CARGA_EXCEL,
+                    request=request,
+                    objeto=carga_obj,
+                    nuevo={
+                        "archivo": archivo,
+                        "estacion": prep.estacion.nombre,
+                        "temporada": prep.temporada,
+                        "fecha_desde": desde,
+                        "fecha_hasta": hasta,
+                        "filas_aceptadas": len(r_limp.df_limpio),
+                        "filas_rechazadas": len(r_limp.rechazos),
+                        "insertados": r_clas.insertados,
+                        "actualizados": r_clas.actualizados,
+                        "sin_cambio": r_clas.sin_cambio,
+                        "omitidos": r_clas.omitidos,
+                        "correcciones_reemplazadas": ids,
+                    },
+                )
     except Exception as e:
         carga_obj.estado = RegistroCarga.ESTADO_FALLIDA
         carga_obj.error = str(e)

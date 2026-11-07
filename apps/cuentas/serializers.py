@@ -15,6 +15,7 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.utils import get_md5_hash_password
 
+from apps.auditoria.registro import Accion, registrar
 from apps.cuentas.roles import rol_de
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ class LoginSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
+        request = self.context.get("request")
         correo = attrs["email"].strip()
         cuenta = User.objects.filter(email__iexact=correo).first()
         if cuenta is None:
@@ -66,16 +68,25 @@ class LoginSerializer(serializers.Serializer):
         else:
             # authenticate() rechaza las cuentas desactivadas y avisa user_login_failed.
             usuario = authenticate(
-                self.context.get("request"),
+                request,
                 username=cuenta.get_username(),
                 password=attrs["password"],
             )
         if usuario is None:
             logger.warning("Login fallido para %s", correo)
+            # Sin usuario (nadie entró); el correo intentado sirve para detectar ataques.
+            registrar(
+                Accion.LOGIN_FALLIDO,
+                request=request,
+                tipo_objeto="auth.User",
+                id_objeto=cuenta.pk if cuenta else "",
+                nuevo={"email": correo},
+            )
             raise AuthenticationFailed(CREDENCIALES_INVALIDAS, code="credenciales_invalidas")
 
         if api_settings.UPDATE_LAST_LOGIN:
             update_last_login(None, usuario)
+        registrar(Accion.LOGIN_CORRECTO, request=request, usuario=usuario, objeto=usuario)
         return {**tokens_para(usuario), "usuario": datos_usuario(usuario)}
 
 

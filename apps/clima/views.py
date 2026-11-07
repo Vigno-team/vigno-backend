@@ -1,22 +1,24 @@
 """API de solo lectura y health check del entorno."""
 
 from django.conf import settings
-from django.db import connection
+from django.db import connection, transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.auditoria.registro import Accion, instantanea_estacion, registrar
 from apps.clima import estaciones, resultados, serializers, services
 from apps.clima.models import Estacion
-from apps.cuentas.permisos import LecturaPublicaOAutenticado
+from apps.cuentas.permisos import LeerOEditar, PuedeLeer
 
 
 class ResultadosView(APIView):
-    # Lecturas del dashboard: piden token salvo con API_LECTURA_PUBLICA (E1C-64).
-    permission_classes = [LecturaPublicaOAutenticado]
+    # Lecturas del dashboard: cualquier rol, o sin token mientras API_LECTURA_PUBLICA esté
+    permission_classes = [PuedeLeer]
+    lectura_publica = True
     http_method_names = ["get", "head", "options"]
 
     def consultar(self, request, temporada):
@@ -40,14 +42,9 @@ PARAMETROS_TEMPORADA = [
 ERRORES = {400: serializers.ErrorConsultaSerializer, 404: serializers.ErrorDetalleSerializer}
 
 
-class EstacionesView(ResultadosView):
-    # El GET es una lectura del dashboard; el POST (E1C-68) siempre pide token.
+class EstacionesView(LeerOEditar, ResultadosView):
+    # El GET es una lectura del dashboard; el POST (E1C-68) pide rol editor o administrador.
     http_method_names = ["get", "post", "head", "options"]
-
-    def get_permissions(self):
-        # spectacular genera el esquema con una petición simulada que puede no traer método
-        escribe = getattr(getattr(self, "request", None), "method", None) == "POST"
-        return [IsAuthenticated()] if escribe else [LecturaPublicaOAutenticado()]
 
     @extend_schema(
         summary="Estaciones disponibles y calidad de sus datos",
@@ -63,9 +60,9 @@ class EstacionesView(ResultadosView):
     @extend_schema(
         summary="Da de alta una estación nueva",
         description=(
-            "Requiere token. El nombre es único sin distinguir mayúsculas ni "
-            "tildes; si ya existe responde 409 con la estación existente. La estación queda con "
-            "un `id` (código) propio, que se usa en `estacion=` de las demás consultas. Una "
+            "Requiere rol editor o administrador. El nombre es único sin distinguir mayúsculas "
+            "ni tildes; si ya existe responde 409 con la estación existente. La estación queda "
+            "con un `id` (código) propio, que se usa en `estacion=` de las demás consultas. Una "
             "estación sin mapeo propio carga sus Excel con el formato estándar."
         ),
         request=serializers.EstacionNuevaSerializer,
@@ -73,6 +70,7 @@ class EstacionesView(ResultadosView):
             201: serializers.EstacionCreadaSerializer,
             400: None,
             401: serializers.ErrorDetalleSerializer,
+            403: serializers.ErrorDetalleSerializer,
             409: serializers.EstacionRepetidaSerializer,
         },
         operation_id="estaciones_crear",
@@ -82,7 +80,15 @@ class EstacionesView(ResultadosView):
         entrada = serializers.EstacionNuevaSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
         try:
-            estacion = estaciones.crear_estacion(**entrada.validated_data)
+            # El alta y su registro en la bitácora se guardan juntos o ninguno.
+            with transaction.atomic():
+                estacion = estaciones.crear_estacion(**entrada.validated_data)
+                registrar(
+                    Accion.ESTACION_ALTA,
+                    request=request,
+                    objeto=estacion,
+                    nuevo=instantanea_estacion(estacion),
+                )
         except estaciones.NombreRepetido as repetida:
             return Response(
                 {

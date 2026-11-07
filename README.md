@@ -370,6 +370,7 @@ apps/
     prediccion/         modelo de ventana de cosecha y análisis del dataset de referencia
   ingesta/              carga de Excel (carga.py), API de cargas, bitácora RegistroCarga
   cuentas/              login con correo, tokens JWT, cambio de clave y primer administrador
+  auditoria/            bitácora de auditoría (RegistroAuditoria) y GET /api/v1/auditoria
 config/                 mapeos de estaciones, rangos físicos, umbrales de validación y áreas del mapa
 deploy/                 despliegue completo: compose, nginx, frontend y servicio de tareas
 docs/                   guías por tema y contrato de datos con el frontend
@@ -391,32 +392,39 @@ documentación navegable en `/api/docs/`. El contrato de datos con el frontend e
 [docs/contrato/CONTRATO_DATOS.md](docs/contrato/CONTRATO_DATOS.md). Cualquier cambio que
 modifique la forma de una respuesta necesita aviso al PO del otro equipo antes de mergearse.
 
-| Ruta | Método | Token | Qué devuelve |
+| Ruta | Método | Rol | Qué devuelve |
 | --- | --- | --- | --- |
-| `/api/health/` | GET | No | Estado de la API y de la base |
-| `/api/v1/auth/token` | POST | No | Login con correo y clave: tokens y datos de la cuenta |
-| `/api/v1/auth/refresh` | POST | No | Cambia el refresco por tokens nuevos |
-| `/api/v1/auth/logout` | POST | Sí | Cierra la sesión: el refresco deja de servir |
-| `/api/v1/auth/yo` | GET | Sí | Datos de la cuenta del token |
-| `/api/v1/auth/cambiar-clave` | POST | Sí | Cambia la clave y cierra las demás sesiones |
+| `/api/health/` | GET | Sin token | Estado de la API y de la base |
+| `/api/v1/auth/token` | POST | Sin token | Login con correo y clave: tokens y datos de la cuenta |
+| `/api/v1/auth/refresh` | POST | Sin token | Cambia el refresco por tokens nuevos |
+| `/api/v1/auth/logout` | POST | Cualquier cuenta | Cierra la sesión: el refresco deja de servir |
+| `/api/v1/auth/yo` | GET | Cualquier cuenta | Datos de la cuenta del token |
+| `/api/v1/auth/cambiar-clave` | POST | Cualquier cuenta | Cambia la clave y cierra las demás sesiones |
 | `/api/v1/datos` | GET | Lectura | JSON completo; si falta, lo exporta desde la base y lo guarda. ETag y 304 si no cambió |
 | `/api/v1/prediccion-ficticia` | GET | Lectura | JSON de E1C-124; 404 con motivo si no existe |
 | `/api/v1/actualizacion` | GET | Lectura | Última ejecución de E1C-129, o `{"generado": null}` si aún no ha corrido |
 | `/api/v1/estaciones` | GET | Lectura | Estaciones y calidad de sus datos |
-| `/api/v1/estaciones` | POST | Sí | Da de alta una localidad nueva |
+| `/api/v1/estaciones` | POST | Editor | Da de alta una localidad nueva |
 | `/api/v1/temporadas` | GET | Lectura | Temporadas con datos, de la más antigua a la más reciente |
 | `/api/v1/temporadas/{temporada}?estacion={codigo}` | GET | Lectura | Ficha de una estación y temporada |
 | `/api/v1/rachas/{temporada}?estacion={codigo}` | GET | Lectura | Rachas de calor de la temporada |
 | `/api/v1/calidad/fallas?estacion={codigo}&temporada={temporada}` | GET | Lectura | Reporte de datos con falla (`&formato=csv` para CSV) |
-| `/api/v1/cargas` | POST | Sí | Sube un Excel, lo valida, lo guarda y recalcula |
-| `/api/v1/cargas`, `/api/v1/cargas/{id}` | GET | Sí | Historial y detalle de las cargas |
-| `/api/v1/correcciones` | GET, POST | Sí | Bitácora de correcciones y nueva corrección manual |
-| `/api/v1/correcciones/{id}/revertir` | POST | Sí | Revierte una corrección |
+| `/api/v1/cargas` | POST | Editor | Sube un Excel, lo valida, lo guarda y recalcula |
+| `/api/v1/cargas`, `/api/v1/cargas/{id}` | GET | Lector | Historial y detalle de las cargas |
+| `/api/v1/correcciones` | GET | Lector | Bitácora de correcciones |
+| `/api/v1/correcciones` | POST | Editor | Nueva corrección manual |
+| `/api/v1/correcciones/{id}/revertir` | POST | Editor | Revierte una corrección |
+| `/api/v1/auditoria` | GET | Administrador | Bitácora de auditoría: quién cambió qué, con valor anterior y nuevo |
 
 `{temporada}` va como `2024-2025` y `{codigo}` es el `id` que devuelve `/api/v1/estaciones`
-(por ejemplo `cp-san-clemente-01`). Las marcadas **Lectura** piden token, salvo que
-`API_LECTURA_PUBLICA=True` (los compose de desarrollo y de la demo la dejan así hasta que el
-frontend mande el token). Cargas, correcciones y la cuenta siempre piden token.
+(por ejemplo `cp-san-clemente-01`).
+
+Roles (E1C-94): **Lector** es cualquier rol (lector, editor o administrador), **Editor** es
+editor o administrador y **Administrador** es solo administrador (o superusuario). Las marcadas
+**Lectura** piden lo mismo que Lector, salvo que `API_LECTURA_PUBLICA=True` (los compose de
+desarrollo y de la demo la dejan así hasta que el frontend mande el token). Cargas,
+correcciones y la auditoría nunca son públicas. Sin token la respuesta es 401; con token y sin
+el rol necesario, 403.
 
 Los tres endpoints de E1C-93 están documentados en `/api/docs/` y `/api/schema/`.
 
@@ -439,8 +447,9 @@ curl -X POST http://localhost:8000/api/v1/auth/token \
   "clave_nueva"}`. La nueva se valida con las reglas de Django (8+ caracteres, no común, no
   solo números, no parecida al correo). Cierra todas las sesiones de la cuenta, incluidos
   los tokens de acceso ya emitidos, y devuelve tokens nuevos.
-- **`rol`**: `administrador` para el superusuario; para el resto, el grupo `editor` o `lector`
-  (los crea E1C-94) o `null` si no tiene. Sale de `rol_de` en `apps/cuentas/roles.py`.
+- **`rol`**: `administrador` para el superusuario; para el resto, su grupo `administrador`,
+  `editor` o `lector` (creados por la migración `cuentas/0002_grupos_de_rol`, E1C-94), o `null`
+  si no tiene. Sale de `rol_de` en `apps/cuentas/roles.py`.
 
 Seguridad:
 
@@ -462,8 +471,42 @@ Seguridad:
 - La clave compartida `X-Api-Key` se retiró: una clave dentro del build del frontend queda
   a la vista de cualquiera.
 
-En el código: `apps/cuentas/` (serializers, vistas y `permisos.LecturaPublicaOAutenticado`);
-la configuración está en `REST_FRAMEWORK` y `SIMPLE_JWT` de `vigno/settings/base.py`.
+En el código: `apps/cuentas/` (serializers, vistas, roles y permisos); la configuración está
+en `REST_FRAMEWORK` y `SIMPLE_JWT` de `vigno/settings/base.py`.
+
+### Roles, permisos y bitácora (E1C-94)
+
+Cada cuenta tiene **un solo rol**, que es un grupo de Django. El superusuario cuenta como
+administrador aunque no tenga grupo. Una cuenta sin rol solo puede usar `/auth/*`.
+
+| Rol | Puede |
+| --- | --- |
+| `administrador` | Todo, incluida la auditoría y el admin de usuarios y estaciones |
+| `editor` (enólogo) | Leer todo, subir Excel, corregir y revertir, crear estaciones |
+| `lector` (dirección) | Solo leer |
+
+El rol se asigna en el admin de Django (Usuarios → Grupos, uno solo: el formulario rechaza
+dos) o con `asignar_rol(usuario, "editor")` de `apps/cuentas/roles.py`. Las clases
+`EsAdministrador`, `PuedeEditar`, `PuedeLeer` y la mezcla `LeerOEditar` (GET con `PuedeLeer`,
+POST con `PuedeEditar`) están en `apps/cuentas/permisos.py`.
+
+**Bitácora.** `RegistroAuditoria` (`apps/auditoria/`) guarda usuario, acción, tipo e id del
+objeto, valor anterior y nuevo (JSON), IP y fecha. Se escribe en la misma transacción que el
+cambio: si el cambio se deshace, el registro también. Registra:
+
+- inicio de sesión correcto y fallido (el fallido queda sin usuario y con el correo intentado);
+- carga de Excel por API (`ingestar_excel` por terminal no se registra);
+- corrección y reversión;
+- alta de estaciones por API, y alta, edición y baja de estaciones y usuarios desde el admin.
+
+Solo se agregan registros: ni el modelo ni el admin permiten editarlos o borrarlos. Una cuenta
+con historial no se puede borrar; para darla de baja se desactiva (`is_active`). Para
+registrar una acción nueva, llama a `registrar()` de `apps/auditoria/registro.py` dentro del
+`transaction.atomic()` del cambio.
+
+`GET /api/v1/auditoria` (solo administrador) devuelve la bitácora paginada, de la más reciente
+a la más antigua, con filtros `usuario` (id o correo), `accion` (por ejemplo `correccion`),
+`desde` y `hasta` (`AAAA-MM-DD`, ambos inclusive).
 
 ### Resultados por temporada (E1C-17)
 
@@ -503,8 +546,8 @@ El archivo tiene datos del cliente: no se sube al repo. Se puede generar a mano 
 
 ### Localidades nuevas (E1C-68)
 
-`POST /api/v1/estaciones` (con clave) da de alta una estación con `nombre`, `latitud` y
-`longitud` obligatorios, y `subzona` y `propietario` opcionales:
+`POST /api/v1/estaciones` (rol editor o administrador) da de alta una estación con
+`nombre`, `latitud` y `longitud` obligatorios, y `subzona` y `propietario` opcionales:
 
 - `201`: la estación creada, con su `id` (código) propio.
 - `409`: ya existe una con ese nombre, sin distinguir mayúsculas ni tildes. Devuelve la
@@ -529,7 +572,8 @@ los mapeos de `config/mapeos_estaciones.json`.
 | `GET /api/v1/cargas`                 | Las últimas 20 cargas                                   |
 | `GET /api/v1/cargas/<id>`            | Estado, filas y rechazos con su motivo                  |
 
-Las cuatro piden token, también al leer: muestran archivos y filas rechazadas.
+Las cuatro piden token, también al leer: muestran archivos y filas rechazadas. Subir pide
+rol editor o administrador; leer, cualquier rol (E1C-94).
 
 ```bash
 curl -H "Authorization: Bearer $ACCESS" \
@@ -551,6 +595,7 @@ curl -H "Authorization: Bearer $ACCESS" \
 - `400`: falta el archivo o la estación, la estación no existe, la extensión no es
   `.xls`/`.xlsx` o pesa más de 20 MB.
 - `401`: falta la clave o no es la correcta.
+- `403`: la cuenta no tiene rol editor o administrador.
 - `422`: el archivo no sirve y no se guardó nada. Pasa si está dañado o protegido, si no
   tiene la hoja `mensual`, si los encabezados no calzan con ningún formato (indica las
   columnas que faltan respecto del más parecido), si más del 20 % de las fechas son
@@ -580,7 +625,8 @@ está recalculando, la carga espera.
 `POST /api/v1/correcciones` guarda un valor con autor y motivo y recalcula con
 `actualizar_todo --sin-satelite`. La bitácora se consulta con GET en la misma ruta;
 `POST /api/v1/correcciones/<id>/revertir` recupera el dato anterior y recalcula. Las tres
-rutas piden la clave.
+rutas piden token: leer la bitácora, cualquier rol; corregir y revertir, editor o
+administrador (E1C-94).
 
 El valor corregido queda en `MedicionHoraria` con `origen="manual"`; lo que viene de un Excel
 tiene `origen="excel"`. El reporte de fallas conserva el problema original y lo marca con

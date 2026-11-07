@@ -1,6 +1,9 @@
 """Registro en el admin de Django para la app `clima`."""
 
 from django.contrib import admin
+from django.db import transaction
+
+from apps.auditoria.registro import Accion, instantanea_estacion, registrar
 
 from .models import ConfiguracionCalidad, Estacion, IndiceClimatico, MedicionHoraria, ResumenDiario
 
@@ -10,6 +13,36 @@ from .models import ConfiguracionCalidad, Estacion, IndiceClimatico, MedicionHor
 class EstacionAdmin(admin.ModelAdmin):
     list_display = ("nombre", "codigo", "subzona", "propietario", "latitud", "longitud")
     search_fields = ("nombre", "codigo")
+
+    # cada alta, edición o baja desde el admin queda en la bitácora. El admin ya
+    # envuelve cada guardado y cada borrado en una transacción.
+    def save_model(self, request, obj, form, change):
+        anterior = instantanea_estacion(Estacion.objects.get(pk=obj.pk)) if change else None
+        super().save_model(request, obj, form, change)
+        registrar(
+            Accion.ESTACION_EDICION if change else Accion.ESTACION_ALTA,
+            request=request,
+            objeto=obj,
+            anterior=anterior,
+            nuevo=instantanea_estacion(obj),
+        )
+
+    def delete_model(self, request, obj):
+        anterior, pk = instantanea_estacion(obj), obj.pk
+        super().delete_model(request, obj)
+        registrar(
+            Accion.ESTACION_BAJA,
+            request=request,
+            tipo_objeto="clima.Estacion",
+            id_objeto=pk,
+            anterior=anterior,
+        )
+
+    def delete_queryset(self, request, queryset):
+        # "Eliminar seleccionados": una por una, para que cada baja quede registrada.
+        with transaction.atomic():
+            for estacion in queryset:
+                self.delete_model(request, estacion)
 
 
 @admin.register(MedicionHoraria)

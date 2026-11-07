@@ -8,19 +8,18 @@ from drf_spectacular.utils import OpenApiParameter, extend_schema
 from pytz.exceptions import AmbiguousTimeError, NonExistentTimeError
 from rest_framework import serializers
 from rest_framework.generics import GenericAPIView
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.clima.correcciones import crear_correccion, revertir_correccion, valor_json
 from apps.clima.models import CorreccionManual, Estacion
 from apps.clima.rangos import VARIABLES, motivo_fuera_de_rango
+from apps.cuentas.permisos import LeerOEditar, PuedeEditar
 from apps.ingesta.models import RegistroCarga
 
 
-class AutorMotivoSerializer(serializers.Serializer):
-    # El autor ya no lo declara el cliente: se toma del token para que nadie firme por otro.
-    # Si llega en el cuerpo (frontend anterior a E1C-64) se ignora.
-    autor = serializers.CharField(max_length=100, required=False, write_only=True)
+class MotivoSerializer(serializers.Serializer):
+    # El autor no viene en el cuerpo: sale de la cuenta del token. Si un
+    # frontend antiguo todavía manda "autor", DRF lo ignora.
     motivo = serializers.CharField(max_length=1000, allow_blank=False)
 
 
@@ -28,7 +27,7 @@ def _con_autor(datos, request):
     return {**datos, "autor": request.user.email[:100]}
 
 
-class NuevaCorreccionSerializer(AutorMotivoSerializer):
+class NuevaCorreccionSerializer(MotivoSerializer):
     estacion = serializers.SlugRelatedField(slug_field="codigo", queryset=Estacion.objects.all())
     fecha = serializers.DateField()
     hora = serializers.TimeField(required=False, allow_null=True)
@@ -144,8 +143,8 @@ class ResultadoCorreccionSerializer(serializers.Serializer):
     actualizacion = serializers.JSONField()
 
 
-class CorreccionesView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
+class CorreccionesView(LeerOEditar, GenericAPIView):
+    # Leer la bitácora: cualquier rol. Corregir: editor o administrador.
     serializer_class = CorreccionSerializer
     http_method_names = ["get", "post", "head", "options"]
 
@@ -171,7 +170,9 @@ class CorreccionesView(GenericAPIView):
     def post(self, request):
         entrada = NuevaCorreccionSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
-        correccion, actualizacion = crear_correccion(_con_autor(entrada.validated_data, request))
+        correccion, actualizacion = crear_correccion(
+            _con_autor(entrada.validated_data, request), request=request
+        )
         return Response(
             {"correccion": CorreccionSerializer(correccion).data, "actualizacion": actualizacion},
             status=201 if actualizacion["ok"] else 503,
@@ -179,8 +180,8 @@ class CorreccionesView(GenericAPIView):
 
 
 class RevertirCorreccionView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = AutorMotivoSerializer
+    permission_classes = [PuedeEditar]
+    serializer_class = MotivoSerializer
     http_method_names = ["post", "options"]
 
     @extend_schema(
@@ -192,7 +193,7 @@ class RevertirCorreccionView(GenericAPIView):
         entrada = self.get_serializer(data=request.data)
         entrada.is_valid(raise_exception=True)
         correccion, actualizacion = revertir_correccion(
-            pk, _con_autor(entrada.validated_data, request)
+            pk, _con_autor(entrada.validated_data, request), request=request
         )
         return Response(
             {"correccion": CorreccionSerializer(correccion).data, "actualizacion": actualizacion},
