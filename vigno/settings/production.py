@@ -39,4 +39,5 @@ CACHES = {
 }
 
 ADMIN_HABILITADO = config("ADMIN_HABILITADO", default=False, cast=bool)
+ADMIN_POR_DEFECTO = config("ADMIN_POR_DEFECTO", default=False, cast=bool)
 DOCS_HABILITADOS = config("DOCS_HABILITADOS", default=False, cast=bool)

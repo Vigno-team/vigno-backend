@@ -52,6 +52,7 @@ def test_login_correcto_entrega_tokens_y_la_cuenta(usuario):
         "nombre": CORREO_PRUEBA,
         "email": CORREO_PRUEBA,
         "rol": "editor",
+        "debe_cambiar_clave": False,
     }
     assert con_bearer(datos["access"]).get(YO).json()["email"] == CORREO_PRUEBA
     usuario.refresh_from_db()
@@ -454,7 +455,9 @@ def test_crear_admin_inicial_rechaza_clave_debil(monkeypatch):
     assert not User.objects.filter(email="jefa@vigno.cl").exists()
 
 
-def test_crear_admin_inicial_sin_variables_no_hace_nada(monkeypatch):
+def test_crear_admin_inicial_sin_variables_ni_admin_por_defecto_no_hace_nada(monkeypatch, settings):
+    # Como en el despliegue sin ADMIN_POR_DEFECTO (E1C-138).
+    settings.ADMIN_POR_DEFECTO = False
     monkeypatch.delenv("DJANGO_SUPERUSER_EMAIL", raising=False)
     monkeypatch.delenv("DJANGO_SUPERUSER_PASSWORD", raising=False)
 

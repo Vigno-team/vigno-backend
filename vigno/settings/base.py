@@ -23,6 +23,10 @@ INSTANCIA = cargar_configuracion(_ruta_instancia)
 SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=False, cast=bool)
 ADMIN_HABILITADO = config("ADMIN_HABILITADO", default=True, cast=bool)
+# E1C-138: sin ningún administrador activo, crear_admin_inicial crea admin@sistema.local / admin
+# con cambio de clave obligatorio. production.py lo apaga salvo que se pida: en un servidor
+# expuesto, quien entre primero con esa clave pública se quedaría con la cuenta.
+ADMIN_POR_DEFECTO = config("ADMIN_POR_DEFECTO", default=True, cast=bool)
 DOCS_HABILITADOS = config("DOCS_HABILITADOS", default=True, cast=bool)
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
 
@@ -138,7 +142,8 @@ REST_FRAMEWORK = {
     # E1C-64: todo pide token salvo health, login y refresco (y las lecturas con
     # API_LECTURA_PUBLICA). Ver apps/cuentas.
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        # JWT más el cambio de clave obligatorio (E1C-138).
+        "apps.cuentas.autenticacion.JWTConClaveAlDia",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_THROTTLE_RATES": {"login": "5/min", "cambiar_clave": "5/min"},

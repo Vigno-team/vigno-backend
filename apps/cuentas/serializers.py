@@ -16,6 +16,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.utils import get_md5_hash_password
 
 from apps.auditoria.registro import Accion, registrar
+from apps.cuentas.models import debe_cambiar_clave
 from apps.cuentas.roles import rol_de
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,8 @@ def datos_usuario(usuario) -> dict:
         "nombre": usuario.get_full_name() or usuario.email,
         "email": usuario.email,
         "rol": rol_de(usuario),
+        # E1C-138: con true, el frontend muestra la pantalla de cambio de clave.
+        "debe_cambiar_clave": debe_cambiar_clave(usuario),
     }
 
 

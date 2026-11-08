@@ -12,6 +12,7 @@ from django.contrib.auth.models import User
 from django.db import transaction
 
 from apps.auditoria.registro import Accion, instantanea_usuario, registrar
+from apps.cuentas.models import debe_cambiar_clave
 from apps.cuentas.roles import ROLES
 
 
@@ -27,6 +28,18 @@ class FormularioUsuario(UserChangeForm):
 
 
 admin.site.unregister(User)
+
+# E1C-138: el admin tiene su propio login (sesión, sin token), así que la regla del cambio de
+# clave obligatorio se aplica también aquí. Sin esto, admin@sistema.local / admin entraría al
+# admin sin cambiar la clave pública.
+_permiso_del_admin = admin.site.has_permission
+
+
+def _permiso_con_clave_al_dia(request):
+    return _permiso_del_admin(request) and not debe_cambiar_clave(request.user)
+
+
+admin.site.has_permission = _permiso_con_clave_al_dia
 
 
 @admin.register(User)

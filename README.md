@@ -169,12 +169,18 @@ docker compose exec backend python manage.py cargar_instancia config/instancias/
 docker compose restart backend
 ```
 
-Para crear la primera cuenta (administrador), pon `DJANGO_SUPERUSER_EMAIL` y
-`DJANGO_SUPERUSER_PASSWORD` en tu `.env` y vuelve a levantar el backend, o usa:
+**Primer ingreso (E1C-138):** si no hay ningún administrador, al levantar se crea uno por
+defecto. Entra con:
 
-```bash
-docker compose exec backend python manage.py createsuperuser
-```
+| Correo | Clave |
+| --- | --- |
+| `admin@sistema.local` | `admin` |
+
+Esa clave es pública: **en el primer ingreso hay que cambiarla**. Hasta hacerlo, la API solo
+deja usar `/api/v1/auth/cambiar-clave`, `/auth/yo`, `/auth/refresh` y `/auth/logout`; todo lo
+demás responde 403 con `"code": "cambio_de_clave_requerido"`. Si prefieres otra cuenta, pon
+`DJANGO_SUPERUSER_EMAIL` y `DJANGO_SUPERUSER_PASSWORD` en tu `.env` antes de levantar por
+primera vez, o usa `docker compose exec backend python manage.py createsuperuser`.
 
 Se entra con el **correo**, así que ponle uno. Las rutas que escriben datos (cargas, alta de
 estaciones y correcciones) piden token: ver [Cuentas y login](#cuentas-y-login-e1c-64).
@@ -349,7 +355,8 @@ Se leen del `.env` (ver `.env.example`). El despliegue usa su propio `deploy/.en
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` | Conexión a PostgreSQL (`POSTGRES_HOST=db` con Docker, `localhost` sin Docker) |
 | `CORS_ALLOWED_ORIGINS` | Orígenes del frontend que pueden llamar a la API |
 | `API_LECTURA_PUBLICA` | `True` deja las lecturas del dashboard sin token mientras el frontend no lo mande. Si no se define, todo pide token |
-| `DJANGO_SUPERUSER_EMAIL`, `DJANGO_SUPERUSER_PASSWORD` | Primer administrador: se crea al levantar el backend si no existe. Nunca cambia la clave de una cuenta existente |
+| `DJANGO_SUPERUSER_EMAIL`, `DJANGO_SUPERUSER_PASSWORD` | Primer administrador: se crea al levantar el backend si no hay ninguno activo. Nunca cambia una cuenta existente |
+| `ADMIN_POR_DEFECTO` | Sin administrador ni las variables de arriba, crea `admin@sistema.local` / `admin` con cambio de clave obligatorio. `True` en desarrollo; en el despliegue, `False` salvo que se active |
 | `NUM_PROXIES` | Proxies delante del backend, para el límite de intentos del login: `0` en desarrollo, `1` detrás de nginx |
 | `DATOS_DIR` | Carpeta donde quedan el JSON del frontend, `actualizacion.json` y los Excel subidos (por defecto `data/cliente`) |
 | `CDSE_CLIENT_ID`, `CDSE_CLIENT_SECRET` | Credenciales de Copernicus Data Space para el mapa de calor. Sin ellas, ese paso se omite |
@@ -453,9 +460,17 @@ curl -X POST http://localhost:8000/api/v1/auth/token \
 
 Seguridad:
 
-- No hay registro público: las cuentas las crea un administrador. El primero sale de
-  `createsuperuser` o de `DJANGO_SUPERUSER_EMAIL`/`DJANGO_SUPERUSER_PASSWORD`
-  (`crear_admin_inicial`, que corre al levantar el contenedor y rechaza claves débiles).
+- No hay registro público: las cuentas las crea un administrador. El primero lo crea
+  `crear_admin_inicial` al levantar el contenedor, solo si no hay ningún administrador activo:
+  con `DJANGO_SUPERUSER_EMAIL`/`DJANGO_SUPERUSER_PASSWORD` (rechaza claves débiles) o, si no
+  están y `ADMIN_POR_DEFECTO` está activo, `admin@sistema.local` / `admin`. También sirve
+  `createsuperuser`.
+- **Cambio de clave obligatorio (E1C-138):** la cuenta por defecto queda con
+  `debe_cambiar_clave = true` (modelo `Perfil`). El login y `/auth/yo` lo devuelven en
+  `usuario.debe_cambiar_clave`. Mientras sea `true`, todo responde 403 con
+  `"code": "cambio_de_clave_requerido"`, salvo `/auth/cambiar-clave`, `/auth/yo`,
+  `/auth/refresh` y `/auth/logout`; el admin de Django tampoco deja entrar. Al cambiar la clave
+  queda en `false`. La creación y el cambio quedan en la bitácora, nunca la clave.
 - El correo es único sin distinguir mayúsculas (índice en la base). Una cuenta sin correo no
   puede entrar por la API.
 - "El correo no existe", "clave incorrecta" y "cuenta desactivada" dan la misma respuesta
@@ -860,7 +875,10 @@ Copy-Item deploy/.env.example deploy/.env
 Editar `deploy/.env`: poner claves distintas para `SECRET_KEY` (50+ caracteres, o el
 backend no arranca) y `POSTGRES_PASSWORD`, y el correo y la clave del primer administrador
 en `DJANGO_SUPERUSER_EMAIL` y `DJANGO_SUPERUSER_PASSWORD` (después de levantar se puede
-borrar la clave del archivo). Para generar una clave se puede usar
+borrar la clave del archivo). En el despliegue la cuenta por defecto `admin@sistema.local` /
+`admin` está apagada: en un servidor expuesto, quien entre primero con esa clave pública se
+quedaría con la cuenta. Solo para una máquina sin acceso desde afuera se puede activar con
+`ADMIN_POR_DEFECTO=True`. Para generar una clave se puede usar
 `python -c "import secrets; print(secrets.token_urlsafe(50))"`.
 Este archivo local está ignorado por Git y por la construcción de imágenes.
 Las credenciales de Copernicus se agregan ahí; nunca en un commit.
@@ -1204,7 +1222,7 @@ propietario/grupo 101 y permisos 640 para que nginx pueda leerla sin root.
 Completar `deploy/.env` con secretos distintos generados con el comando de su
 `.env.example`. `SECRET_KEY` (50+ caracteres) y `POSTGRES_PASSWORD` son
 obligatorios. Para crear la primera cuenta, completar `DJANGO_SUPERUSER_EMAIL`
-y `DJANGO_SUPERUSER_PASSWORD`. `API_LECTURA_PUBLICA=True` mantiene las lecturas
+y `DJANGO_SUPERUSER_PASSWORD` (o `ADMIN_POR_DEFECTO=True` en una demo sin acceso desde afuera). `API_LECTURA_PUBLICA=True` mantiene las lecturas
 del dashboard mientras el frontend incorpora el token; las escrituras exigen JWT.
 Levantar con:
 

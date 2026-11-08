@@ -598,17 +598,21 @@ público (las cuentas las crea un administrador).
 
 | Ruta | Cuerpo | Respuesta |
 | --- | --- | --- |
-| `POST /api/v1/auth/token` | `{"email", "password"}` | 200 `{"access", "refresh", "usuario": {"id", "nombre", "email", "rol"}}`; 401 `{"detail": "Correo o contraseña incorrectos."}`; 429 tras 5 intentos por minuto |
+| `POST /api/v1/auth/token` | `{"email", "password"}` | 200 `{"access", "refresh", "usuario": {"id", "nombre", "email", "rol", "debe_cambiar_clave"}}`; 401 `{"detail": "Correo o contraseña incorrectos."}`; 429 tras 5 intentos por minuto |
 | `POST /api/v1/auth/refresh` | `{"refresh"}` | 200 `{"access", "refresh"}` (el refresco rota: el usado deja de servir); 401 si venció, se cerró la sesión o cambió la clave |
 | `POST /api/v1/auth/logout` | `{"refresh"}`, con `Authorization` | 204; 400 si el refresco no sirve o es de otra cuenta |
-| `GET /api/v1/auth/yo` | — | 200 `{"id", "nombre", "email", "rol"}` |
+| `GET /api/v1/auth/yo` | — | 200 `{"id", "nombre", "email", "rol", "debe_cambiar_clave"}` |
 | `POST /api/v1/auth/cambiar-clave` | `{"clave_actual", "clave_nueva"}` | 200 `{"access", "refresh"}` nuevos (las otras sesiones se cierran); 400 con el campo que falló |
 
 - El acceso dura 15 minutos y el refresco 8 horas. Ante un 401 por token vencido, el
   frontend llama a `refresh` una vez y repite la petición; si `refresh` también da 401,
   vuelve al login.
-- `rol` es `administrador`, `editor`, `lector` o `null`. Hasta que E1C-94 cree los grupos,
-  solo el superusuario tiene rol (`administrador`); el resto llega con `null`.
+- `rol` es `administrador`, `editor`, `lector` o `null`.
+- **Cambio de clave obligatorio (E1C-138):** si `usuario.debe_cambiar_clave` es `true`, el
+  frontend muestra la pantalla de cambio de clave. Hasta cambiarla, cualquier ruta salvo
+  `cambiar-clave`, `yo`, `refresh` y `logout` responde 403
+  `{"detail": "Tienes que cambiar tu clave antes de seguir.", "code": "cambio_de_clave_requerido"}`.
+  Después de `cambiar-clave`, usar los tokens nuevos de la respuesta.
 - Los tokens no van en el código ni en variables `VITE_`. Conviene guardarlos solo en memoria
   o en `sessionStorage` y borrarlos al cerrar sesión.
 - Mientras `API_LECTURA_PUBLICA=True` (compose de desarrollo y demo), las lecturas del
