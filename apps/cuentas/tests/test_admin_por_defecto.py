@@ -12,7 +12,7 @@ from apps.cuentas.management.commands.crear_admin_inicial import (
 )
 from apps.cuentas.models import Perfil
 from apps.cuentas.roles import ADMINISTRADOR, asignar_rol
-from apps.cuentas.tests.test_auth import rutas_api
+from apps.cuentas.tests.test_auth import LECTURAS_PUBLICAS, rutas_api
 from conftest import CLAVE_PRUEBA
 
 pytestmark = pytest.mark.django_db
@@ -151,12 +151,17 @@ def test_no_convierte_en_administrador_una_cuenta_existente(django_user_model):
 # --- cambio de clave obligatorio ---------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "ruta", sorted(r for r in rutas_api() if not r.startswith("/api/v1/auth/"))
-)
-@pytest.mark.parametrize("metodo", ["get", "post"])
+def casos_con_cambio_pendiente():
+    for ruta in sorted(r for r in rutas_api() if not r.startswith("/api/v1/auth/")):
+        for metodo in ("get", "post"):
+            # Las lecturas públicas no miran el token (E1C-96): con o sin él responden igual.
+            if not (metodo == "get" and ruta in LECTURAS_PUBLICAS):
+                yield metodo, ruta
+
+
+@pytest.mark.parametrize("metodo,ruta", list(casos_con_cambio_pendiente()))
 def test_con_cambio_pendiente_todo_responde_403_salvo_auth(
-    sesion_pendiente, settings, ruta, metodo
+    sesion_pendiente, settings, metodo, ruta
 ):
     settings.API_LECTURA_PUBLICA = True  # tampoco las lecturas públicas, si manda su token
     respuesta = getattr(con_bearer(sesion_pendiente["access"]), metodo)(ruta, {}, format="json")
@@ -166,6 +171,13 @@ def test_con_cambio_pendiente_todo_responde_403_salvo_auth(
         "detail": "Tienes que cambiar tu clave antes de seguir.",
         "code": "cambio_de_clave_requerido",
     }
+
+
+def test_con_cambio_pendiente_igual_ve_la_marca(sesion_pendiente):
+    # La pantalla de cambio de clave también muestra el logo y los colores (E1C-96).
+    respuesta = con_bearer(sesion_pendiente["access"]).get("/api/v1/configuracion")
+
+    assert respuesta.status_code == 200
 
 
 def test_con_cambio_pendiente_funcionan_yo_refresh_y_logout(sesion_pendiente):

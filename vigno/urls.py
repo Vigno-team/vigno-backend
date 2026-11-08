@@ -1,6 +1,7 @@
 """Rutas raíz del servicio."""
 
 from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import (
@@ -16,6 +17,7 @@ urlpatterns = [
     path("api/v1/", include("apps.ingesta.urls")),
     path("api/v1/", include("apps.cuentas.urls")),
     path("api/v1/", include("apps.auditoria.urls")),
+    path("api/v1/", include("apps.configuracion.urls")),
 ]
 
 if settings.ADMIN_HABILITADO:
@@ -30,3 +32,7 @@ if settings.DOCS_HABILITADOS:
             name="swagger-ui",
         ),
     ]
+
+# El logo: en desarrollo lo sirve runserver. Con DEBUG=False static() no agrega
+# nada y lo sirve nginx desde el volumen media.
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

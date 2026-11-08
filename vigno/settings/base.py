@@ -52,6 +52,7 @@ LOCAL_APPS = [
     "apps.ingesta",
     "apps.cuentas",
     "apps.auditoria",
+    "apps.configuracion",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -131,6 +132,12 @@ DATOS_DIR = BASE_DIR / config("DATOS_DIR", default="data/cliente")
 # --- Archivos estaticos ---
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# --- Archivos subidos: el logo de la marca ---
+# En desarrollo quedan en media/ (ignorada por Git) y los sirve runserver; en el
+# despliegue es el volumen media, que nginx sirve en /media/.
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
