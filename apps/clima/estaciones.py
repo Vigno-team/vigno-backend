@@ -23,6 +23,7 @@ class NombreRepetido(Exception):
         self.existente = existente
         super().__init__(f"Ya existe la estación {existente.nombre}")
 
+
 class CodigoRepetido(Exception):
     def __init__(self, existente: Estacion):
         self.existente = existente
@@ -31,6 +32,7 @@ class CodigoRepetido(Exception):
 
 class EstacionConHistorico(Exception):
     """El código de una estación con mediciones no se cambia."""
+
 
 def en_territorio(latitud: float, longitud: float, limites=None) -> bool:
     limites = limites or settings.INSTANCIA["limites_geograficos"]
@@ -78,6 +80,7 @@ def crear_estacion(*, nombre, latitud, longitud, subzona=None, propietario=None)
             continue
     raise RuntimeError("No se pudo asignar un código único a la estación")
 
+
 def _revisar_repetidos(estacion: Estacion, cambios: dict) -> None:
     if "nombre" in cambios:
         existente = buscar_estacion(cambios["nombre"])
@@ -86,9 +89,7 @@ def _revisar_repetidos(estacion: Estacion, cambios: dict) -> None:
 
     if "codigo" in cambios:
         existente = (
-            Estacion.objects.filter(codigo=cambios["codigo"])
-            .exclude(pk=estacion.pk)
-            .first()
+            Estacion.objects.filter(codigo=cambios["codigo"]).exclude(pk=estacion.pk).first()
         )
         if existente is not None:
             raise CodigoRepetido(existente)

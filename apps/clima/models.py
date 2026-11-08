@@ -10,6 +10,7 @@ class Estacion(models.Model):
     latitud = models.FloatField(null=True, blank=True)
     longitud = models.FloatField(null=True, blank=True)
     activa = models.BooleanField(default=True, db_index=True)
+
     class Meta:
         verbose_name_plural = "Estaciones"
 
