@@ -344,16 +344,26 @@ def rutas_api():
 
 
 PUBLICAS = {"/api/v1/auth/token", "/api/v1/auth/refresh"}
+# Públicas solo al leer: la pantalla de login necesita la marca antes de entrar.
+# Escribir en ellas sí pide token, y eso se sigue revisando abajo.
+LECTURAS_PUBLICAS = {"/api/v1/configuracion"}
 
 
 def test_hay_rutas_para_revisar():
     rutas = set(rutas_api())
     assert {"/api/v1/datos", "/api/v1/cargas", "/api/v1/auth/yo"} <= rutas
+    assert LECTURAS_PUBLICAS <= rutas  # si una se renombra, que no quede la excepción huérfana
 
 
-@pytest.mark.parametrize("ruta", sorted(set(rutas_api()) - PUBLICAS))
-@pytest.mark.parametrize("metodo", ["get", "post"])
-def test_sin_token_todo_responde_401(ruta, metodo):
+def casos_sin_token():
+    for ruta in sorted(set(rutas_api()) - PUBLICAS):
+        for metodo in ("get", "post"):
+            if not (metodo == "get" and ruta in LECTURAS_PUBLICAS):
+                yield metodo, ruta
+
+
+@pytest.mark.parametrize("metodo,ruta", list(casos_sin_token()))
+def test_sin_token_todo_responde_401(metodo, ruta):
     respuesta = getattr(APIClient(), metodo)(ruta, {}, format="json")
 
     assert respuesta.status_code == 401, (metodo, ruta, respuesta.status_code)

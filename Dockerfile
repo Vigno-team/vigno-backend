@@ -14,8 +14,8 @@ ARG PIP_DEFAULT_TIMEOUT=120
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 RUN useradd --create-home --uid 10001 app \
-    && mkdir -p /app/staticfiles /app/data/cliente /app/data/referencia /app/apps/ml/artifacts \
-    && chown -R app:app /app/staticfiles /app/data /app/apps/ml/artifacts
+    && mkdir -p /app/staticfiles /app/media /app/data/cliente /app/data/referencia /app/apps/ml/artifacts \
+    && chown -R app:app /app/staticfiles /app/media /app/data /app/apps/ml/artifacts
 
 FROM base AS production
 COPY . .

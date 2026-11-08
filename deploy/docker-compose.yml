@@ -80,6 +80,7 @@ services:
       - datos:/app/data/cliente
       - referencia:/app/data/referencia
       - staticfiles:/app/staticfiles
+      - media:/app/media
       - ../config:/app/config:ro
       - ../data/raw:/app/data/raw:ro
     depends_on:
@@ -148,6 +149,7 @@ services:
       - "${HTTPS_PORT:-443}:8443"
     volumes:
       - staticfiles:/app/staticfiles:ro
+      - media:/app/media:ro
       - ./certs:/etc/nginx/certs:ro
     depends_on:
       backend:
@@ -166,3 +168,4 @@ volumes:
   referencia:
   modelos:
   staticfiles:
+  media:

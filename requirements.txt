@@ -23,3 +23,6 @@ openpyxl==3.1.5
 xlrd==2.0.1
 rasterio==1.4.3
 
+# --- Imágenes (logo de la marca) ---
+# Valida que el logo sea de verdad PNG, JPG o WebP; también lo exige ImageField.
+Pillow==13.0.0

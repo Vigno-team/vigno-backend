@@ -127,9 +127,11 @@ de despliegue explica cómo copiar el CSV. La procedencia científica y los
 resultados se conservan. Los comandos antiguos siguen como alias y la ruta
 `/api/v1/prediccion-ficticia` se mantiene para el frontend actual.
 
-El contrato de configuración vive en `vigno/instancia.py` y se comparte con
-E1C-96; cualquier editor de configuración debe validar con
-`validar_configuracion` y escribir el archivo de forma atómica.
+El contrato de configuración vive en `vigno/instancia.py`. La marca de la instancia
+(E1C-96) no edita este archivo: solo toma de aquí los nombres iniciales y desde ahí se
+guarda en la base (ver [Marca de la instancia](#marca-de-la-instancia-e1c-96)). Cualquier
+otro editor del archivo debe validar con `validar_configuracion` y escribirlo de forma
+atómica.
 
 ## Requisitos
 
@@ -378,6 +380,7 @@ apps/
   ingesta/              carga de Excel (carga.py), API de cargas, bitácora RegistroCarga
   cuentas/              login con correo, tokens JWT, cambio de clave y primer administrador
   auditoria/            bitácora de auditoría (RegistroAuditoria) y GET /api/v1/auditoria
+  configuracion/        marca de la instancia (ConfiguracionInstancia) y su logo
 config/                 mapeos de estaciones, rangos físicos, umbrales de validación y áreas del mapa
 deploy/                 despliegue completo: compose, nginx, frontend y servicio de tareas
 docs/                   guías por tema y contrato de datos con el frontend
@@ -422,6 +425,9 @@ modifique la forma de una respuesta necesita aviso al PO del otro equipo antes d
 | `/api/v1/correcciones` | POST | Editor | Nueva corrección manual |
 | `/api/v1/correcciones/{id}/revertir` | POST | Editor | Revierte una corrección |
 | `/api/v1/auditoria` | GET | Administrador | Bitácora de auditoría: quién cambió qué, con valor anterior y nuevo |
+| `/api/v1/configuracion` | GET | Sin token | Marca de la instancia: nombres, logo, colores, tipografía y pie. ETag y 304 si no cambió |
+| `/api/v1/configuracion` | PATCH | Administrador | Cambia textos y colores; queda en la bitácora |
+| `/api/v1/configuracion/logo` | PUT | Administrador | Reemplaza el logo (multipart, PNG/JPG/WebP hasta 1 MB); queda en la bitácora |
 
 `{temporada}` va como `2024-2025` y `{codigo}` es el `id` que devuelve `/api/v1/estaciones`
 (por ejemplo `cp-san-clemente-01`).
@@ -496,7 +502,7 @@ administrador aunque no tenga grupo. Una cuenta sin rol solo puede usar `/auth/*
 
 | Rol | Puede |
 | --- | --- |
-| `administrador` | Todo, incluida la auditoría y el admin de usuarios y estaciones |
+| `administrador` | Todo, incluida la auditoría, la marca de la instancia y el admin de usuarios y estaciones |
 | `editor` (enólogo) | Leer todo, subir Excel, corregir y revertir, crear estaciones |
 | `lector` (dirección) | Solo leer |
 
@@ -512,7 +518,8 @@ cambio: si el cambio se deshace, el registro también. Registra:
 - inicio de sesión correcto y fallido (el fallido queda sin usuario y con el correo intentado);
 - carga de Excel por API (`ingestar_excel` por terminal no se registra);
 - corrección y reversión;
-- alta de estaciones por API, y alta, edición y baja de estaciones y usuarios desde el admin.
+- alta de estaciones por API, y alta, edición y baja de estaciones y usuarios desde el admin;
+- cambio de textos, colores y logo de la marca (E1C-96).
 
 Solo se agregan registros: ni el modelo ni el admin permiten editarlos o borrarlos. Una cuenta
 con historial no se puede borrar; para darla de baja se desactiva (`is_active`). Para
@@ -522,6 +529,42 @@ registrar una acción nueva, llama a `registrar()` de `apps/auditoria/registro.p
 `GET /api/v1/auditoria` (solo administrador) devuelve la bitácora paginada, de la más reciente
 a la más antigua, con filtros `usuario` (id o correo), `accion` (por ejemplo `correccion`),
 `desde` y `hasta` (`AAAA-MM-DD`, ambos inclusive).
+
+### Marca de la instancia (E1C-96)
+
+El frontend toma nombre, logo, colores, tipografía y pie de `GET /api/v1/configuracion` en
+vez de tenerlos en su código. La ruta es pública porque la pantalla de login la necesita
+antes de entrar, y no revisa el token: uno vencido no la rompe. Lleva `ETag` y
+`Cache-Control: no-cache`, igual que `/datos`. La forma está en el
+[contrato](docs/contrato/CONTRATO_DATOS.md#marca-de-la-instancia--e1c-96).
+
+Es una sola fila de `ConfiguracionInstancia` (`apps/configuracion/`). Se crea en la
+primera consulta con `organizacion.nombre` y `organizacion.nombre_corto` de
+`instancia.json`; colores, tipografía y pie parten de valores neutros. Desde ahí manda la
+base: cambiar `instancia.json` después no la modifica.
+
+Solo un administrador la cambia, sin desplegar:
+
+- `PATCH /api/v1/configuracion` con los campos que cambian. Los colores van como
+  `#RRGGBB` y se guardan en mayúsculas; otro formato da 400.
+- `PUT /api/v1/configuracion/logo`, multipart con el campo `logo`. Solo PNG, JPG o WebP,
+  hasta 1 MB y 4096 × 4096 px. Pillow revisa el contenido, no la extensión; SVG no se
+  acepta porque puede traer scripts. Cada logo recibe un nombre nuevo y el anterior se
+  borra cuando el cambio queda guardado.
+
+Los dos quedan en la bitácora (`marca_edicion` y `logo_edicion`) con el valor anterior y
+el nuevo. El admin de Django solo la muestra, para que ningún cambio quede sin registro.
+
+```bash
+curl -X PATCH -H "Authorization: Bearer $ACCESS" -H "Content-Type: application/json" \
+  -d '{"color_primario": "#7B1E3A"}' http://localhost:8000/api/v1/configuracion
+curl -X PUT -H "Authorization: Bearer $ACCESS" -F "logo=@logo.png" \
+  http://localhost:8000/api/v1/configuracion/logo
+```
+
+El logo se guarda en `MEDIA_ROOT` (`media/`, ignorada por Git). En desarrollo lo sirve
+runserver; en el despliegue va al volumen `media`, que escribe el backend y nginx sirve en
+`/media/`. nginx corta con 413 los envíos de más de 2 MB a la ruta del logo.
 
 ### Resultados por temporada (E1C-17)
 
@@ -960,7 +1003,8 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec tareas p
 
 Backend y tareas comparten los volúmenes `datos` (DATOS_DIR fijo en
 `/app/data/cliente`) y `referencia` (`/app/data/referencia`). Las salidas y los modelos
-persisten al recrear contenedores. Para cargar el histórico ficticio local:
+persisten al recrear contenedores. El logo de la marca vive en el volumen `media`: lo
+escribe el backend y nginx lo sirve en `/media/`. Para cargar el histórico ficticio local:
 
 ```powershell
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml cp data/referencia/cosechas.csv tareas:/app/data/referencia/cosechas.csv

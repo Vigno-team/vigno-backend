@@ -657,3 +657,53 @@ la corrección ya se guardó y solo falló el recálculo: se informa sin volver 
 Los gráficos diarios marcan las fechas con `corregido_a_mano`; los promedios
 mensuales indican si incluyen alguna corrección. La tabla de días corregidos
 muestra sus valores actuales y la marca «Corregido a mano».
+
+## Marca de la instancia · E1C-96
+
+El nombre, el logo y los colores ya no van fijos en el código del frontend: se leen de
+la API. Así otra organización cambia su marca sin compilar de nuevo.
+
+| Ruta | Rol | Respuesta |
+| --- | --- | --- |
+| `GET /api/v1/configuracion` | Sin token | 200 con la marca; 304 sin cuerpo si `If-None-Match` coincide |
+| `PATCH /api/v1/configuracion` | Administrador | Cuerpo JSON con los campos que cambian; 200 con la marca completa; 400 con el campo que falló |
+| `PUT /api/v1/configuracion/logo` | Administrador | `multipart/form-data` con el campo `logo`; 200 con la marca completa; 400 `{"logo": ["..."]}` |
+
+Sin token, `PATCH` y `PUT` responden 401; con un rol distinto de administrador, 403.
+
+```json
+{
+  "nombre_organizacion": "Casas Patronales",
+  "nombre_sistema": "VIGNO",
+  "color_primario": "#1F4E79",
+  "color_secundario": "#4A7C59",
+  "color_acento": "#C9A227",
+  "color_fondo": "#FFFFFF",
+  "tipografia": "system-ui",
+  "texto_pie": "",
+  "logo": "https://localhost/media/marca/logo-3f2a9c.png",
+  "actualizado": "2026-11-08T13:00:00-03:00"
+}
+```
+
+| Campo | Tipo | Uso |
+| --- | --- | --- |
+| `nombre_organizacion` | string, hasta 100 | Nombre de la organización (pie, títulos) |
+| `nombre_sistema` | string, hasta 100 | Nombre del sistema (encabezado, pestaña del navegador) |
+| `color_primario`, `color_secundario`, `color_acento`, `color_fondo` | string `#RRGGBB` | Siempre en mayúsculas. Se sugiere aplicarlos como variables CSS |
+| `tipografia` | string, hasta 100 | Familia CSS. La fuente debe venir en el build del frontend: la CSP solo permite fuentes del mismo origen (`font-src 'self'`). Usar siempre una familia de respaldo |
+| `texto_pie` | string, hasta 200 | Puede venir vacío; en ese caso no se muestra pie |
+| `logo` | URL absoluta o `null` | `null` = sin logo: mostrar `nombre_sistema` como texto. La URL cambia con cada logo nuevo |
+| `actualizado` | fecha-hora | Último cambio de la marca |
+
+- Pedir la marca al abrir la aplicación, antes del login. No hace falta enviar
+  `Authorization`; si se envía, no se revisa, así que un token vencido no la rompe.
+- Igual que `/datos`, responde con `ETag` y `Cache-Control: no-cache`. Al revalidar con
+  `If-None-Match` (por ejemplo, junto al sondeo de `/actualizacion`), un 304 significa que
+  no cambió y un 200 trae la marca nueva. Así un cambio del administrador llega sin desplegar.
+- El logo es PNG, JPG o WebP de hasta 1 MB y 4096 × 4096 px. El servidor revisa el
+  contenido, no la extensión, y rechaza SVG. El logo no se cambia por `PATCH`.
+- Los errores 400 vienen como `{"<campo>": ["mensaje"]}`, por ejemplo
+  `{"color_fondo": ["Usa el formato #RRGGBB, por ejemplo #1F4E79."]}`.
+- Los nombres iniciales salen de `instancia.json`. Los colores parten de valores neutros:
+  después del despliegue, el administrador carga los de la organización.
