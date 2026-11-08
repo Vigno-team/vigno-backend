@@ -48,10 +48,106 @@ def test_crea_la_estacion_y_responde_201(api):
         "propietario": "Viña Nueva",
         "latitud": -35.9,
         "longitud": -72.3,
+        "recalculo": {"ok": True},
     }
     estacion = Estacion.objects.get(nombre="Villa Nueva")
     assert estacion.codigo == "villa-nueva"
     assert (estacion.latitud, estacion.longitud) == (-35.9, -72.3)
+
+
+def test_consulta_una_estacion_por_id(api):
+    estacion = Estacion.objects.create(
+        nombre="Estación de detalle",
+        codigo="detalle-01",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.5,
+        longitud=-72.0,
+    )
+
+    r = api.get(f"{URL}/{estacion.pk}")
+
+    assert r.status_code == 200
+    cuerpo = r.json()
+
+    assert cuerpo["id"] == "detalle-01"
+    assert cuerpo["nombre"] == "Estación de detalle"
+    assert cuerpo["activa"] is True
+
+
+def test_edita_una_estacion(api):
+    estacion = Estacion.objects.create(
+        nombre="Estación de detalle",
+        codigo="detalle-01",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.5,
+        longitud=-72.0,
+    )
+
+    r = api.patch(
+        f"{URL}/{estacion.pk}",
+        {
+            "nombre": "Estación actualizada",
+            "propietario": "Viña nueva",
+        },
+        format="json",
+    )
+
+    assert r.status_code == 200
+
+    cuerpo = r.json()
+    assert cuerpo["nombre"] == "Estación actualizada"
+    assert cuerpo["propietario"] == "Viña nueva"
+
+    estacion.refresh_from_db()
+    assert estacion.nombre == "Estación actualizada"
+    assert estacion.propietario == "Viña nueva"
+
+
+def test_desactiva_una_estacion(cliente_admin):
+    estacion = Estacion.objects.create(
+        nombre="Estación para desactivar",
+        codigo="desactivar-01",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.5,
+        longitud=-72.0,
+    )
+
+    r = cliente_admin.delete(f"{URL}/{estacion.pk}")
+
+    assert r.status_code == 200
+
+    cuerpo = r.json()
+    assert cuerpo["activa"] is False
+
+    estacion.refresh_from_db()
+    assert estacion.activa is False
+
+
+def test_reactiva_una_estacion(cliente_admin):
+    estacion = Estacion.objects.create(
+        nombre="Estación para reactivar",
+        codigo="reactivar-01",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.5,
+        longitud=-72.0,
+        activa=False,
+    )
+
+    r = cliente_admin.post(
+        f"{URL}/{estacion.pk}/reactivar",
+        {},
+        format="json",
+    )
+
+    assert r.status_code == 200
+    assert r.json()["activa"] is True
+
+    estacion.refresh_from_db()
+    assert estacion.activa is True
 
 
 def test_subzona_y_propietario_son_opcionales(api):
@@ -302,3 +398,170 @@ def test_un_nombre_repetido_no_deja_registro(api):
     crear(api)
     assert crear(api).status_code == 409
     assert RegistroAuditoria.objects.filter(accion=Accion.ESTACION_ALTA).count() == 1
+
+
+def test_editor_no_puede_desactivar_ni_reactivar_estaciones(api):
+    activa = Estacion.objects.create(
+        nombre="Estación protegida",
+        codigo="protegida-01",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.5,
+        longitud=-72.0,
+        activa=True,
+    )
+
+    r = api.delete(f"{URL}/{activa.pk}")
+    assert r.status_code == 403
+
+    inactiva = Estacion.objects.create(
+        nombre="Estación inactiva",
+        codigo="inactiva-01",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.6,
+        longitud=-72.1,
+        activa=False,
+    )
+
+    r = api.post(
+        f"{URL}/{inactiva.pk}/reactivar",
+        {},
+        format="json",
+    )
+    assert r.status_code == 403
+
+    activa.refresh_from_db()
+    inactiva.refresh_from_db()
+
+    assert activa.activa is True
+    assert inactiva.activa is False
+
+
+def test_lector_no_puede_editar_ni_desactivar_estaciones(cliente_lector):
+    estacion = Estacion.objects.create(
+        nombre="Estación solo lectura",
+        codigo="solo-lectura-01",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.5,
+        longitud=-72.0,
+        activa=True,
+    )
+
+    r = cliente_lector.patch(
+        f"{URL}/{estacion.pk}",
+        {"nombre": "Nombre modificado"},
+        format="json",
+    )
+    assert r.status_code == 403
+
+    r = cliente_lector.delete(f"{URL}/{estacion.pk}")
+    assert r.status_code == 403
+
+    estacion.refresh_from_db()
+
+    assert estacion.nombre == "Estación solo lectura"
+    assert estacion.activa is True
+
+
+def test_la_edicion_queda_en_la_bitacora(api, usuario):
+    estacion = Estacion.objects.create(
+        nombre="Estación original",
+        codigo="auditoria-edicion",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.5,
+        longitud=-72.0,
+    )
+
+    r = api.patch(
+        f"{URL}/{estacion.pk}",
+        {"nombre": "Estación modificada"},
+        format="json",
+    )
+
+    assert r.status_code == 200
+
+    registro = RegistroAuditoria.objects.get(accion=Accion.ESTACION_EDICION)
+
+    assert registro.usuario == usuario
+    assert registro.valor_anterior["nombre"] == "Estación original"
+    assert registro.valor_nuevo["nombre"] == "Estación modificada"
+
+
+def test_la_desactivacion_queda_en_la_bitacora(cliente_admin):
+    estacion = Estacion.objects.create(
+        nombre="Estación para baja",
+        codigo="auditoria-baja",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.5,
+        longitud=-72.0,
+        activa=True,
+    )
+
+    r = cliente_admin.delete(f"{URL}/{estacion.pk}")
+
+    assert r.status_code == 200
+
+    registro = RegistroAuditoria.objects.get(accion=Accion.ESTACION_BAJA)
+
+    assert registro.valor_anterior["activa"] is True
+    assert registro.valor_nuevo["activa"] is False
+
+
+def test_la_reactivacion_queda_en_la_bitacora(cliente_admin):
+    estacion = Estacion.objects.create(
+        nombre="Estación para reactivar",
+        codigo="auditoria-reactivacion",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.5,
+        longitud=-72.0,
+        activa=False,
+    )
+
+    r = cliente_admin.post(
+        f"{URL}/{estacion.pk}/reactivar",
+        {},
+        format="json",
+    )
+
+    assert r.status_code == 200
+
+    registro = RegistroAuditoria.objects.get(accion=Accion.ESTACION_EDICION)
+
+    assert registro.valor_anterior["activa"] is False
+    assert registro.valor_nuevo["activa"] is True
+
+
+def test_estaciones_inactivas_no_aparecen_en_listado(api):
+    activa = Estacion.objects.create(
+        nombre="Estación activa",
+        codigo="activa-listado",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.5,
+        longitud=-72.0,
+        activa=True,
+    )
+
+    Estacion.objects.create(
+        nombre="Estación inactiva",
+        codigo="inactiva-listado",
+        subzona="cauquenes",
+        propietario="Viña de prueba",
+        latitud=-35.6,
+        longitud=-72.1,
+        activa=False,
+    )
+
+    r = api.get(URL)
+
+    assert r.status_code == 200
+
+    codigos = [estacion["id"] for estacion in r.json()]
+
+    assert activa.codigo in codigos
+    assert "inactiva-listado" not in codigos

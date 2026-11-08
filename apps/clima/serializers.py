@@ -178,6 +178,7 @@ class EstacionResultadoSerializer(serializers.Serializer):
     fecha_fin = serializers.DateField(allow_null=True)
     temporadas_disponibles = serializers.IntegerField()
     calidad_dato = CalidadDatoSerializer()
+    activa = serializers.BooleanField(required=False)
 
 
 class EstacionNuevaSerializer(serializers.Serializer):
@@ -215,6 +216,39 @@ class EstacionNuevaSerializer(serializers.Serializer):
             raise serializers.ValidationError({"coordenadas": mensaje})
         return datos
 
+CODIGO_VALIDO = r"\A[a-z0-9]+(?:-[a-z0-9]+)*\Z"
+
+
+class EstacionEdicionSerializer(EstacionNuevaSerializer):
+    """PATCH: mismos campos y validaciones del alta, más el código."""
+
+    codigo = serializers.RegexField(
+        CODIGO_VALIDO,
+        max_length=estaciones.MAX_CODIGO,
+        required=False,
+        error_messages={
+            "invalid": "Usa solo minúsculas sin tildes, números y guiones."
+        },
+    )
+
+    def validate(self, datos):
+        if "latitud" in datos or "longitud" in datos:
+            completas = {
+                "latitud": datos.get("latitud", self.instance.latitud),
+                "longitud": datos.get("longitud", self.instance.longitud),
+            }
+
+            if None in completas.values():
+                raise serializers.ValidationError({
+                    "coordenadas": (
+                        "La estación no tiene coordenadas: "
+                        "envía latitud y longitud."
+                    )
+                })
+
+            super().validate(completas)
+
+        return datos
 
 class EstacionCreadaSerializer(serializers.Serializer):
     """Mismos nombres que cada elemento de GET /estaciones (`id` es el código público)."""
@@ -226,6 +260,8 @@ class EstacionCreadaSerializer(serializers.Serializer):
     latitud = serializers.FloatField(allow_null=True)
     longitud = serializers.FloatField(allow_null=True)
 
+class EstacionDetalleSerializer(EstacionCreadaSerializer):
+    activa = serializers.BooleanField()
 
 class EstacionRepetidaSerializer(serializers.Serializer):
     detail = serializers.CharField()

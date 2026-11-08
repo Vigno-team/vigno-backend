@@ -19,7 +19,7 @@ def exportar() -> dict:
     ahora = timezone.localtime()
     resumen, fichas, rachas = [], [], []
 
-    for est in Estacion.objects.order_by("nombre"):
+    for est in Estacion.objects.filter(activa=True).order_by("nombre"):
         dias = ResumenDiario.objects.filter(HAY_DATO, estacion=est)
         rango = dias.aggregate(desde=Min("fecha"), hasta=Max("fecha"))
         if rango["desde"] is None:

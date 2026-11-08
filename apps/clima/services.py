@@ -224,7 +224,8 @@ def resumen_diario(estacion: Estacion, desde: str, hasta: str) -> dict:
 
 
 def completitud_por_temporada(estacion: Estacion | None = None) -> list[dict]:
-    qs = ResumenDiario.objects.all()
+    qs = ResumenDiario.objects.filter(estacion__activa=True)
+
     if estacion is not None:
         qs = qs.filter(estacion=estacion)
 
@@ -257,41 +258,59 @@ def completitud_por_temporada(estacion: Estacion | None = None) -> list[dict]:
             "tmedia": pct(f["n_tmedia"]),
             "precipitacion": pct(f["n_precipitacion"]),
         }
+
         item = {
             "estacion_id": f["estacion__codigo"],
             "temporada": f["temporada"],
             "variables": variables,
             "confiable": variables["tmax"] >= umbral and variables["tmin"] >= umbral,
         }
+
         if variables["precipitacion"] == 0:
             item["observacion"] = "sin datos de precipitación en la temporada"
+
         resultado.append(item)
+
     return resultado
 
 
 def temporadas() -> list[str]:
     return list(
-        ResumenDiario.objects.filter(HAY_DATO)
+        ResumenDiario.objects.filter(
+            HAY_DATO,
+            estacion__activa=True,
+        )
         .order_by("temporada")
         .values_list("temporada", flat=True)
         .distinct()
     )
 
 
-def estaciones() -> list[dict]:
+def estaciones(incluir_inactivas: bool = False) -> list[dict]:
     umbral = ConfiguracionCalidad.obtener_umbral()
     resultado = []
-    for est in Estacion.objects.order_by("nombre"):
+
+    qs_estaciones = Estacion.objects.order_by("nombre")
+
+    if not incluir_inactivas:
+        qs_estaciones = qs_estaciones.filter(activa=True)
+
+    for est in qs_estaciones:
         qs = ResumenDiario.objects.filter(estacion=est)
+
         agg = qs.filter(HAY_DATO).aggregate(
             inicio=Min("fecha"),
             fin=Max("fecha"),
-            n_completos=Count("id", filter=Q(tmax__isnull=False, tmin__isnull=False)),
+            n_completos=Count(
+                "id",
+                filter=Q(tmax__isnull=False, tmin__isnull=False),
+            ),
             n_tmax=Count("tmax"),
             n_tmin=Count("tmin"),
             n_tmedia=Count("tmedia"),
             n_precipitacion=Count("precipitacion"),
         )
+
         variables = [
             nombre
             for nombre, n in [
@@ -309,6 +328,7 @@ def estaciones() -> list[dict]:
             completitud = round(agg["n_completos"] / dias_rango * 100, 1)
 
         origenes = set(qs.order_by().values_list("origen", flat=True).distinct())
+
         if len(origenes) == 1:
             resolucion = RESOLUCION[origenes.pop()]
         else:
@@ -325,16 +345,17 @@ def estaciones() -> list[dict]:
                 "latitud": est.latitud,
                 "longitud": est.longitud,
                 "variables": variables,
-                "fecha_inicio": agg["inicio"].isoformat() if agg["inicio"] else None,
-                "fecha_fin": agg["fin"].isoformat() if agg["fin"] else None,
+                "fecha_inicio": (agg["inicio"].isoformat() if agg["inicio"] else None),
+                "fecha_fin": (agg["fin"].isoformat() if agg["fin"] else None),
                 "temporadas_disponibles": n_temporadas,
                 "calidad_dato": {
                     "completitud_pct": completitud,
-                    "confiable": completitud is not None and completitud >= umbral,
+                    "confiable": (completitud is not None and completitud >= umbral),
                     "umbral_completitud_pct": umbral,
                     "resolucion_origen": resolucion,
                     "version_calculo": None,
                 },
             }
         )
+
     return resultado

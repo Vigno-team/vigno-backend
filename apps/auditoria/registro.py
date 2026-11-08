@@ -14,7 +14,7 @@ from apps.cuentas.roles import rol_de
 
 Accion = RegistroAuditoria.Accion
 
-CAMPOS_ESTACION = ("nombre", "codigo", "subzona", "propietario", "latitud", "longitud")
+CAMPOS_ESTACION = ("nombre", "codigo", "subzona", "propietario", "latitud", "longitud", "activa")
 # Nunca la clave: ni siquiera su hash entra en la bitácora.
 CAMPOS_USUARIO = (
     "username",
