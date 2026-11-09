@@ -111,11 +111,7 @@ class EstacionesView(LeerOEditar, ResultadosView):
                 status=status.HTTP_409_CONFLICT,
             )
 
-        # El recálculo se ejecuta después de confirmar la transacción.
-        resultado_recalculo = estaciones.recalcular()
-
         respuesta = serializers.EstacionCreadaSerializer(estacion).data
-        respuesta["recalculo"] = resultado_recalculo
 
         return Response(
             respuesta,
@@ -136,7 +132,7 @@ class EstacionDetalleView(APIView):
 
         return [PuedeLeer()]
 
-    def obtener_estacion(self, pk):
+    def obtener_estacion(self, codigo):
         consulta = Estacion.objects.all()
 
         # Los usuarios sin rol administrador solo pueden acceder
@@ -144,15 +140,15 @@ class EstacionDetalleView(APIView):
         if not EsAdministrador().has_permission(self.request, self):
             consulta = consulta.filter(activa=True)
 
-        return get_object_or_404(consulta, pk=pk)
+        return get_object_or_404(consulta, codigo=codigo)
 
     @extend_schema(
         summary="Consultar una estación",
         responses=serializers.EstacionDetalleSerializer,
         tags=["Estaciones"],
     )
-    def get(self, request, pk):
-        estacion = self.obtener_estacion(pk)
+    def get(self, request, codigo):
+        estacion = self.obtener_estacion(codigo)
 
         return Response(serializers.EstacionDetalleSerializer(estacion).data)
 
@@ -167,8 +163,8 @@ class EstacionDetalleView(APIView):
         },
         tags=["Estaciones"],
     )
-    def patch(self, request, pk):
-        estacion = self.obtener_estacion(pk)
+    def patch(self, request, codigo):
+        estacion = self.obtener_estacion(codigo)
 
         entrada = serializers.EstacionEdicionSerializer(
             estacion,
@@ -250,8 +246,8 @@ class EstacionDetalleView(APIView):
         },
         tags=["Estaciones"],
     )
-    def delete(self, request, pk):
-        estacion = self.obtener_estacion(pk)
+    def delete(self, request, codigo):
+        estacion = self.obtener_estacion(codigo)
         anterior = instantanea_estacion(estacion)
 
         with transaction.atomic():
@@ -291,8 +287,8 @@ class ReactivarEstacionView(GenericAPIView):
         },
         tags=["Estaciones"],
     )
-    def post(self, request, pk):
-        estacion = get_object_or_404(Estacion, pk=pk)
+    def post(self, request, codigo):
+        estacion = get_object_or_404(Estacion, codigo=codigo)
         anterior = instantanea_estacion(estacion)
 
         with transaction.atomic():

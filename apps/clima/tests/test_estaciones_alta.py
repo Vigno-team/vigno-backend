@@ -48,7 +48,6 @@ def test_crea_la_estacion_y_responde_201(api):
         "propietario": "Viña Nueva",
         "latitud": -35.9,
         "longitud": -72.3,
-        "recalculo": {"ok": True},
     }
     estacion = Estacion.objects.get(nombre="Villa Nueva")
     assert estacion.codigo == "villa-nueva"
@@ -65,7 +64,7 @@ def test_consulta_una_estacion_por_id(api):
         longitud=-72.0,
     )
 
-    r = api.get(f"{URL}/{estacion.pk}")
+    r = api.get(f"{URL}/{estacion.codigo}")
 
     assert r.status_code == 200
     cuerpo = r.json()
@@ -86,7 +85,7 @@ def test_edita_una_estacion(api):
     )
 
     r = api.patch(
-        f"{URL}/{estacion.pk}",
+        f"{URL}/{estacion.codigo}",
         {
             "nombre": "Estación actualizada",
             "propietario": "Viña nueva",
@@ -115,7 +114,7 @@ def test_desactiva_una_estacion(cliente_admin):
         longitud=-72.0,
     )
 
-    r = cliente_admin.delete(f"{URL}/{estacion.pk}")
+    r = cliente_admin.delete(f"{URL}/{estacion.codigo}")
 
     assert r.status_code == 200
 
@@ -138,7 +137,7 @@ def test_reactiva_una_estacion(cliente_admin):
     )
 
     r = cliente_admin.post(
-        f"{URL}/{estacion.pk}/reactivar",
+        f"{URL}/{estacion.codigo}/reactivar",
         {},
         format="json",
     )
@@ -411,7 +410,7 @@ def test_editor_no_puede_desactivar_ni_reactivar_estaciones(api):
         activa=True,
     )
 
-    r = api.delete(f"{URL}/{activa.pk}")
+    r = api.delete(f"{URL}/{activa.codigo}")
     assert r.status_code == 403
 
     inactiva = Estacion.objects.create(
@@ -425,7 +424,7 @@ def test_editor_no_puede_desactivar_ni_reactivar_estaciones(api):
     )
 
     r = api.post(
-        f"{URL}/{inactiva.pk}/reactivar",
+        f"{URL}/{inactiva.codigo}/reactivar",
         {},
         format="json",
     )
@@ -450,13 +449,13 @@ def test_lector_no_puede_editar_ni_desactivar_estaciones(cliente_lector):
     )
 
     r = cliente_lector.patch(
-        f"{URL}/{estacion.pk}",
+        f"{URL}/{estacion.codigo}",
         {"nombre": "Nombre modificado"},
         format="json",
     )
     assert r.status_code == 403
 
-    r = cliente_lector.delete(f"{URL}/{estacion.pk}")
+    r = cliente_lector.delete(f"{URL}/{estacion.codigo}")
     assert r.status_code == 403
 
     estacion.refresh_from_db()
@@ -476,7 +475,7 @@ def test_la_edicion_queda_en_la_bitacora(api, usuario):
     )
 
     r = api.patch(
-        f"{URL}/{estacion.pk}",
+        f"{URL}/{estacion.codigo}",
         {"nombre": "Estación modificada"},
         format="json",
     )
@@ -501,7 +500,7 @@ def test_la_desactivacion_queda_en_la_bitacora(cliente_admin):
         activa=True,
     )
 
-    r = cliente_admin.delete(f"{URL}/{estacion.pk}")
+    r = cliente_admin.delete(f"{URL}/{estacion.codigo}")
 
     assert r.status_code == 200
 
@@ -523,7 +522,7 @@ def test_la_reactivacion_queda_en_la_bitacora(cliente_admin):
     )
 
     r = cliente_admin.post(
-        f"{URL}/{estacion.pk}/reactivar",
+        f"{URL}/{estacion.codigo}/reactivar",
         {},
         format="json",
     )

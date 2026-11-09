@@ -22,12 +22,12 @@ urlpatterns = [
     path("calidad/fallas", FallasRangosView.as_view(), name="fallas-calidad"),
     path("estaciones", views.EstacionesView.as_view(), name="estaciones"),
     path(
-        "estaciones/<int:pk>",
+        "estaciones/<str:codigo>",
         views.EstacionDetalleView.as_view(),
         name="estacion-detalle",
     ),
     path(
-        "estaciones/<int:pk>/reactivar",
+        "estaciones/<str:codigo>/reactivar",
         views.ReactivarEstacionView.as_view(),
         name="estacion-reactivar",
     ),
