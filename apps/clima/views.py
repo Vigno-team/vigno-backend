@@ -5,6 +5,7 @@ from django.db import connection, transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
+from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,7 +13,12 @@ from rest_framework.views import APIView
 from apps.auditoria.registro import Accion, instantanea_estacion, registrar
 from apps.clima import estaciones, resultados, serializers, services
 from apps.clima.models import Estacion
-from apps.cuentas.permisos import LeerOEditar, PuedeLeer
+from apps.cuentas.permisos import (
+    EsAdministrador,
+    LeerOEditar,
+    PuedeEditar,
+    PuedeLeer,
+)
 
 
 class ResultadosView(APIView):
@@ -53,9 +59,13 @@ class EstacionesView(LeerOEditar, ResultadosView):
         tags=["Resultados"],
     )
     def get(self, request):
-        return Response(
-            serializers.EstacionResultadoSerializer(services.estaciones(), many=True).data
-        )
+        incluir_inactivas = request.query_params.get(
+            "incluir_inactivas"
+        ) == "1" and EsAdministrador().has_permission(request, self)
+
+        datos = services.estaciones(incluir_inactivas=incluir_inactivas)
+
+        return Response(serializers.EstacionResultadoSerializer(datos, many=True).data)
 
     @extend_schema(
         summary="Da de alta una estación nueva",
@@ -79,16 +89,19 @@ class EstacionesView(LeerOEditar, ResultadosView):
     def post(self, request):
         entrada = serializers.EstacionNuevaSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
+
         try:
             # El alta y su registro en la bitácora se guardan juntos o ninguno.
             with transaction.atomic():
                 estacion = estaciones.crear_estacion(**entrada.validated_data)
+
                 registrar(
                     Accion.ESTACION_ALTA,
                     request=request,
                     objeto=estacion,
                     nuevo=instantanea_estacion(estacion),
                 )
+
         except estaciones.NombreRepetido as repetida:
             return Response(
                 {
@@ -97,9 +110,210 @@ class EstacionesView(LeerOEditar, ResultadosView):
                 },
                 status=status.HTTP_409_CONFLICT,
             )
+
+        respuesta = serializers.EstacionCreadaSerializer(estacion).data
+
         return Response(
-            serializers.EstacionCreadaSerializer(estacion).data, status=status.HTTP_201_CREATED
+            respuesta,
+            status=status.HTTP_201_CREATED,
         )
+
+
+class EstacionDetalleView(APIView):
+    lectura_publica = True
+    http_method_names = ["get", "patch", "delete", "head", "options"]
+
+    def get_permissions(self):
+        if self.request.method == "DELETE":
+            return [EsAdministrador()]
+
+        if self.request.method == "PATCH":
+            return [PuedeEditar()]
+
+        return [PuedeLeer()]
+
+    def obtener_estacion(self, codigo):
+        consulta = Estacion.objects.all()
+
+        # Los usuarios sin rol administrador solo pueden acceder
+        # a estaciones activas.
+        if not EsAdministrador().has_permission(self.request, self):
+            consulta = consulta.filter(activa=True)
+
+        return get_object_or_404(consulta, codigo=codigo)
+
+    @extend_schema(
+        summary="Consultar una estación",
+        responses=serializers.EstacionDetalleSerializer,
+        tags=["Estaciones"],
+    )
+    def get(self, request, codigo):
+        estacion = self.obtener_estacion(codigo)
+
+        return Response(serializers.EstacionDetalleSerializer(estacion).data)
+
+    @extend_schema(
+        summary="Editar una estación",
+        request=serializers.EstacionEdicionSerializer,
+        responses={
+            200: serializers.EstacionDetalleSerializer,
+            400: None,
+            404: serializers.ErrorDetalleSerializer,
+            409: serializers.EstacionRepetidaSerializer,
+        },
+        tags=["Estaciones"],
+    )
+    def patch(self, request, codigo):
+        estacion = self.obtener_estacion(codigo)
+
+        entrada = serializers.EstacionEdicionSerializer(
+            estacion,
+            data=request.data,
+            partial=True,
+        )
+        entrada.is_valid(raise_exception=True)
+
+        if not entrada.validated_data:
+            return Response(
+                {"detail": "Debes enviar al menos un campo para actualizar."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        anterior = instantanea_estacion(estacion)
+
+        try:
+            with transaction.atomic():
+                estaciones.editar_estacion(
+                    estacion,
+                    **entrada.validated_data,
+                )
+
+                nuevo = instantanea_estacion(estacion)
+                cambio = anterior != nuevo
+
+                if cambio:
+                    registrar(
+                        Accion.ESTACION_EDICION,
+                        request=request,
+                        objeto=estacion,
+                        anterior=anterior,
+                        nuevo=nuevo,
+                    )
+
+        except estaciones.NombreRepetido as repetida:
+            return Response(
+                {
+                    "detail": f"Ya existe la estación {repetida.existente.nombre}.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        except estaciones.CodigoRepetido as repetida:
+            return Response(
+                {
+                    "detail": f"El código {repetida.existente.codigo} ya está utilizado.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        except estaciones.EstacionConHistorico:
+            return Response(
+                {
+                    "detail": (
+                        "No se puede cambiar el código de una estación " "que ya tiene mediciones."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        resultado_recalculo = None
+
+        if cambio:
+            resultado_recalculo = estaciones.recalcular()
+
+        respuesta = serializers.EstacionDetalleSerializer(estacion).data
+
+        if resultado_recalculo is not None:
+            respuesta["recalculo"] = resultado_recalculo
+
+        return Response(respuesta)
+
+    @extend_schema(
+        summary="Desactivar una estación",
+        responses={
+            200: serializers.EstacionDetalleSerializer,
+            404: serializers.ErrorDetalleSerializer,
+        },
+        tags=["Estaciones"],
+    )
+    def delete(self, request, codigo):
+        estacion = self.obtener_estacion(codigo)
+        anterior = instantanea_estacion(estacion)
+
+        with transaction.atomic():
+            cambio = estaciones.cambiar_activa(estacion, False)
+
+            if cambio:
+                registrar(
+                    Accion.ESTACION_BAJA,
+                    request=request,
+                    objeto=estacion,
+                    anterior=anterior,
+                    nuevo=instantanea_estacion(estacion),
+                )
+        resultado_recalculo = None
+
+        if cambio:
+            resultado_recalculo = estaciones.recalcular()
+
+        respuesta = serializers.EstacionDetalleSerializer(estacion).data
+
+        if resultado_recalculo is not None:
+            respuesta["recalculo"] = resultado_recalculo
+
+        return Response(respuesta)
+
+
+class ReactivarEstacionView(GenericAPIView):
+    serializer_class = serializers.EstacionDetalleSerializer
+    permission_classes = [EsAdministrador]
+    http_method_names = ["post", "options"]
+
+    @extend_schema(
+        summary="Reactivar una estación",
+        responses={
+            200: serializers.EstacionDetalleSerializer,
+            404: serializers.ErrorDetalleSerializer,
+        },
+        tags=["Estaciones"],
+    )
+    def post(self, request, codigo):
+        estacion = get_object_or_404(Estacion, codigo=codigo)
+        anterior = instantanea_estacion(estacion)
+
+        with transaction.atomic():
+            cambio = estaciones.cambiar_activa(estacion, True)
+
+            if cambio:
+                registrar(
+                    Accion.ESTACION_EDICION,
+                    request=request,
+                    objeto=estacion,
+                    anterior=anterior,
+                    nuevo=instantanea_estacion(estacion),
+                )
+
+        resultado_recalculo = None
+
+        if cambio:
+            resultado_recalculo = estaciones.recalcular()
+
+        respuesta = serializers.EstacionDetalleSerializer(estacion).data
+
+        if resultado_recalculo is not None:
+            respuesta["recalculo"] = resultado_recalculo
+
+        return Response(respuesta)
 
 
 class TemporadasView(ResultadosView):

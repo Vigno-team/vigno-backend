@@ -21,6 +21,16 @@ urlpatterns = [
     path("actualizacion", ActualizacionView.as_view(), name="actualizacion"),
     path("calidad/fallas", FallasRangosView.as_view(), name="fallas-calidad"),
     path("estaciones", views.EstacionesView.as_view(), name="estaciones"),
+    path(
+        "estaciones/<str:codigo>",
+        views.EstacionDetalleView.as_view(),
+        name="estacion-detalle",
+    ),
+    path(
+        "estaciones/<str:codigo>/reactivar",
+        views.ReactivarEstacionView.as_view(),
+        name="estacion-reactivar",
+    ),
     path("temporadas", views.TemporadasView.as_view(), name="temporadas"),
     path("temporadas/<str:temporada>", views.FichaTemporadaView.as_view(), name="ficha-temporada"),
     path("rachas/<str:temporada>", views.RachasView.as_view(), name="rachas"),

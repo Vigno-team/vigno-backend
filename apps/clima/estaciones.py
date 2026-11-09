@@ -1,13 +1,18 @@
-"""Alta de estaciones nuevas desde la API."""
+"""Alta y administración de estaciones desde la API."""
 
+import io
+import logging
 import re
 import unicodedata
 
 from django.conf import settings
+from django.core.management import call_command
 from django.db import IntegrityError, transaction
 
 from apps.clima.mapeos import buscar_estacion
-from apps.clima.models import Estacion
+from apps.clima.models import Estacion, MedicionHoraria
+
+logger = logging.getLogger(__name__)
 
 MAX_CODIGO = 50
 INTENTOS_CODIGO = 5
@@ -17,6 +22,16 @@ class NombreRepetido(Exception):
     def __init__(self, existente: Estacion):
         self.existente = existente
         super().__init__(f"Ya existe la estación {existente.nombre}")
+
+
+class CodigoRepetido(Exception):
+    def __init__(self, existente: Estacion):
+        self.existente = existente
+        super().__init__(f"El código {existente.codigo} ya es de {existente.nombre}")
+
+
+class EstacionConHistorico(Exception):
+    """El código de una estación con mediciones no se cambia."""
 
 
 def en_territorio(latitud: float, longitud: float, limites=None) -> bool:
@@ -64,3 +79,81 @@ def crear_estacion(*, nombre, latitud, longitud, subzona=None, propietario=None)
             # se vuelve a mirar y, si fue el código, se elige otro.
             continue
     raise RuntimeError("No se pudo asignar un código único a la estación")
+
+
+def _revisar_repetidos(estacion: Estacion, cambios: dict) -> None:
+    if "nombre" in cambios:
+        existente = buscar_estacion(cambios["nombre"])
+        if existente is not None and existente.pk != estacion.pk:
+            raise NombreRepetido(existente)
+
+    if "codigo" in cambios:
+        existente = (
+            Estacion.objects.filter(codigo=cambios["codigo"]).exclude(pk=estacion.pk).first()
+        )
+        if existente is not None:
+            raise CodigoRepetido(existente)
+
+
+def editar_estacion(estacion: Estacion, **cambios) -> Estacion:
+    """Aplica un PATCH y guarda únicamente los campos recibidos."""
+
+    if (
+        "codigo" in cambios
+        and cambios["codigo"] != estacion.codigo
+        and MedicionHoraria.objects.filter(estacion=estacion).exists()
+    ):
+        raise EstacionConHistorico()
+
+    _revisar_repetidos(estacion, cambios)
+
+    for campo in ("subzona", "propietario"):
+        if campo in cambios:
+            cambios[campo] = cambios[campo] or None
+
+    for campo, valor in cambios.items():
+        setattr(estacion, campo, valor)
+
+    try:
+        with transaction.atomic():
+            estacion.save(update_fields=list(cambios))
+    except IntegrityError:
+        _revisar_repetidos(estacion, cambios)
+        raise
+
+    return estacion
+
+
+def cambiar_activa(estacion: Estacion, activa: bool) -> bool:
+    """Activa o desactiva sin borrar datos."""
+
+    if estacion.activa == activa:
+        return False
+
+    estacion.activa = activa
+    estacion.save(update_fields=["activa"])
+    return True
+
+
+def recalcular() -> dict:
+    """Regenera los datos del frontend después de un cambio."""
+
+    try:
+        call_command(
+            "actualizar_todo",
+            "--sin-satelite",
+            stdout=io.StringIO(),
+            stderr=io.StringIO(),
+        )
+    except Exception:
+        logger.exception("La estación cambió, pero falló el recálculo")
+        return {
+            "ok": False,
+            "detalle": (
+                "El cambio quedó guardado. Reintenta el recálculo con: "
+                "python manage.py actualizar_todo --sin-satelite. "
+                "No repitas la petición."
+            ),
+        }
+
+    return {"ok": True}

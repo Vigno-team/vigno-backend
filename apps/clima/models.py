@@ -9,6 +9,7 @@ class Estacion(models.Model):
     propietario = models.CharField(max_length=100, null=True, blank=True)
     latitud = models.FloatField(null=True, blank=True)
     longitud = models.FloatField(null=True, blank=True)
+    activa = models.BooleanField(default=True, db_index=True)
 
     class Meta:
         verbose_name_plural = "Estaciones"

@@ -82,8 +82,8 @@ def imagen_mas_reciente(estacion):
 
 
 def bloque_mapa_calor() -> list[dict]:
-    """Una entrada por estación, en el mismo orden que `services.estaciones()`."""
+    """Una entrada por estación activa."""
     return [
         entrada_mapa_calor(estacion, imagen_mas_reciente(estacion))
-        for estacion in Estacion.objects.order_by("nombre")
+        for estacion in Estacion.objects.filter(activa=True).order_by("nombre")
     ]
