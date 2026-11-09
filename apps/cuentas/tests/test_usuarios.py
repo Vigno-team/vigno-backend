@@ -32,6 +32,7 @@ def test_editor_no_puede_listar_usuarios(cliente_con_token):
 
     assert respuesta.status_code == status.HTTP_403_FORBIDDEN
 
+
 def test_administrador_puede_crear_usuario(cliente_admin):
     datos = {
         "nombre": "Usuario Nuevo",
@@ -77,6 +78,7 @@ def test_no_se_puede_crear_usuario_con_correo_duplicado(
 
     assert respuesta.status_code == status.HTTP_400_BAD_REQUEST
     assert User.objects.filter(email=usuario.email).count() == 1
+
 
 def test_administrador_puede_consultar_usuario(cliente_admin, usuario):
     respuesta = cliente_admin.get(f"{URL_USUARIOS}/{usuario.pk}")
@@ -136,6 +138,8 @@ def test_administrador_puede_desactivar_y_reactivar_usuario(
 
     usuario.refresh_from_db()
     assert usuario.is_active is True
+
+
 def test_delete_desactiva_sin_eliminar_usuario(cliente_admin, usuario):
     respuesta = cliente_admin.delete(f"{URL_USUARIOS}/{usuario.pk}")
 
@@ -149,9 +153,7 @@ def test_delete_desactiva_sin_eliminar_usuario(cliente_admin, usuario):
 def test_administrador_no_puede_desactivarse_a_si_mismo(cliente_admin):
     administrador = User.objects.get(email="admin@vigno.cl")
 
-    respuesta = cliente_admin.delete(
-        f"{URL_USUARIOS}/{administrador.pk}"
-    )
+    respuesta = cliente_admin.delete(f"{URL_USUARIOS}/{administrador.pk}")
 
     assert respuesta.status_code == status.HTTP_400_BAD_REQUEST
 
@@ -173,6 +175,7 @@ def test_administrador_no_puede_quitarse_su_propio_rol(cliente_admin):
     administrador.refresh_from_db()
     assert administrador.groups.filter(name="administrador").exists()
 
+
 def test_administrador_puede_restablecer_clave(cliente_admin, usuario):
     respuesta = cliente_admin.post(
         f"{URL_USUARIOS}/{usuario.pk}/restablecer-clave",
@@ -186,6 +189,7 @@ def test_administrador_puede_restablecer_clave(cliente_admin, usuario):
 
     assert usuario.check_password(CLAVE_TEMPORAL)
     assert debe_cambiar_clave(usuario) is True
+
 
 def test_filtrar_usuarios_por_rol(cliente_admin, usuario):
     respuesta = cliente_admin.get(
@@ -228,6 +232,7 @@ def test_filtrar_usuarios_con_estado_invalido(cliente_admin):
     )
 
     assert respuesta.status_code == status.HTTP_400_BAD_REQUEST
+
 
 def test_creacion_usuario_registra_auditoria(cliente_admin):
     cliente_admin.post(
@@ -306,6 +311,7 @@ def test_restablecimiento_no_guarda_clave_en_auditoria(
 
     assert "password" not in str(registro.valor_nuevo).lower()
     assert CLAVE_TEMPORAL not in str(registro.valor_nuevo)
+
 
 @pytest.mark.parametrize(
     "cliente_fixture",
