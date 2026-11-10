@@ -122,6 +122,7 @@ Las respuestas de creación, detalle, edición, desactivación y reactivación c
 | `latitud` | Número o `null` | Coordenada de latitud. |
 | `longitud` | Número o `null` | Coordenada de longitud. |
 | `activa` | Booleano | Estado de la estación. |
+| `tipo` | Texto | `propia` o `referencia`. Identifica si participa en los cálculos climáticos. |
 
 La respuesta de creación es `201`. Las consultas y modificaciones responden `200`. La desactivación y reactivación devuelven el detalle de la estación, pudiendo incluir información adicional del recálculo.
 
@@ -131,6 +132,27 @@ La respuesta de creación es `201`. Las consultas y modificaciones responden `20
 - `403`: el usuario no tiene permisos suficientes.
 - `404`: estación no encontrada.
 - `409`: ya existe una estación con un nombre equivalente.
+
+### Tipo de estación
+
+Las estaciones se clasifican en dos tipos:
+
+- **`propia`:** participa en los cálculos de índices climáticos, clasificación de temporadas y selección de años análogos de la instancia.
+- **`referencia`:** estación externa utilizada para consultar y contrastar datos climáticos. No participa en estos cálculos.
+
+El campo `tipo` es opcional durante la creación. Si no se envía, se utiliza `propia`. Las estaciones existentes también mantienen este valor por defecto.
+
+El tipo puede modificarse mediante `PATCH /api/v1/estaciones/{codigo}`:
+
+```json
+{
+  "tipo": "referencia"
+}
+```
+
+Al cambiar una estación a `referencia`, se eliminan sus índices climáticos almacenados. Las mediciones y los resúmenes diarios se conservan. El cambio queda registrado en la bitácora de auditoría.
+
+El campo `tipo` aparece tanto en el listado como en el detalle de estaciones y en las respuestas del CRUD.
 
 ## 3.2 Administración de usuarios (E1C-133)
 
@@ -166,6 +188,7 @@ Para crear un usuario (`POST`):
 | `email` | Correo electrónico | Sí | Correo único de la cuenta. |
 | `rol` | Texto | Sí | `administrador`, `editor` o `lector`. |
 | `clave_temporal` | Texto | Sí | Contraseña temporal inicial. |
+| `tipo` | `propia` o `referencia` | No | Tipo de estación. Por defecto `propia`. |
 
 Para editar un usuario (`PATCH`), todos los campos son opcionales:
 
@@ -250,8 +273,9 @@ Cada elemento de `archivos`:
 | `fecha_inicio` / `fecha_fin` | fecha          | Primer y último día **con dato**                                                  |
 | `temporadas_disponibles`     | número         | Temporadas con algún dato                                                         |
 | `calidad_dato`               | objeto         | Ver §3. `completitud_pct` es la de Tmáx y Tmín entre `fecha_inicio` y `fecha_fin` |
+| `tipo` | `"propia"` o `"referencia"` | Tipo de estación. Las estaciones de referencia se mantienen disponibles para consulta y contraste de datos. |
 
-**Alta de una estación (E1C-68):** `POST /api/v1/estaciones` con token (`Authorization: Bearer`, ver §Autenticación). Cuerpo: `nombre` (único sin distinguir mayúsculas ni tildes), `latitud` y `longitud` (dentro de Chile) y, opcionales, `subzona` y `propietario`. Responde `201` con la estación (`id`, `nombre`, `subzona`, `propietario`, `latitud`, `longitud`); `409` con `{"detail", "estacion"}` si el nombre ya existe (`estacion` es la existente); `400` si faltan datos o las coordenadas no sirven; `401` sin token o con uno inválido. El `id` es el código que se usa en `estacion=`. Una estación nueva aparece vacía (`variables: []`, fechas `null`) hasta que se le cargue un Excel; sin mapeo propio usa el formato estándar (`formato_estandar` en `config/mapeos_estaciones.json`).
+**Alta de una estación:** `POST /api/v1/estaciones` con token (`Authorization: Bearer`, ver §Autenticación). Cuerpo: `nombre` (único sin distinguir mayúsculas ni tildes), `latitud` y `longitud` (dentro del territorio configurado) y, opcionales, `subzona`, `propietario` y `tipo` (`"propia"` o `"referencia"`, por defecto `"propia"`). Responde `201` con la estación (`id`, `nombre`, `subzona`, `propietario`, `latitud`, `longitud`, `tipo`); `409` con `{"detail", "estacion"}` si el nombre ya existe (`estacion` es la existente); `400` si faltan datos, las coordenadas no sirven o el tipo es inválido; `401` sin token o con uno inválido. El `id` es el código que se usa en `estacion=`. Una estación nueva aparece vacía (`variables: []`, fechas `null`) hasta que se le cargue un Excel; sin mapeo propio usa el formato estándar (`formato_estandar` en `config/mapeos_estaciones.json`).
 
 **Marcador en el mapa:** se pone solo si `latitud` y `longitud` son distintas de `null`. Las coordenadas son aproximadas: vienen de la ubicación de las planillas del cliente, con precisión de 1 minuto (1 a 2 km), y no sirven para medir distancias. Una vez cargado `config/areas_mapa.json` con `cargar_areas_mapa`, San Clemente tiene las dos coordenadas. El Arenal no tiene ubicación: su `longitud` es `null` y su `latitud` es una aproximación heredada, así que no lleva marcador. El marcador muestra el último dato de la estación: el último elemento de `dias` de su `resumen_diario` (§4.5), que se une por `estacion_id`.
 
@@ -324,15 +348,20 @@ No disponibles con los datos actuales: valores horarios e intensidad horaria de 
 | `estacion_id` | texto | Estación consultada |
 | `subzona` | texto | Subzona de la estación |
 | `periodo` | objeto | `inicio` y `fin` de acumulación de los índices |
-| `indices.winkler` | objeto | `valor`, `region` (I–V), `calidad_dato` |
-| `indices.huglin` | objeto | `valor`, `clasificacion`, `calidad_dato` |
+| `indices` | objeto o `null` | Contiene los índices Winkler y Huglin. Es `null` cuando la estación es de tipo `referencia`. |
+| `indices.winkler` | objeto | `valor`, `region` (I–V), `calidad_dato`. Solo aparece si `indices` no es `null`. |
+| `indices.huglin` | objeto | `valor`, `clasificacion`, `calidad_dato`. Solo aparece si `indices` no es `null`. |
 | `lluvia_invernal` | objeto | `acumulado_mm`, `promedio_historico_mm`, `diferencia_pct` |
 | `lluvia_fuera_invierno` | objeto | Lluvia del año agrícola, septiembre, crecimiento, etapas, días intensos y meses inusuales; calidad por ventana |
 | `calor` | objeto | `dias_sobre_umbral`, `umbral_c`, `rachas_con_incidencia`, `racha_maxima_dias` |
-| `clasificacion` | objeto o `null` | `termica` (`calida` \| `normal` \| `fria`), `hidrica` (`lluviosa` \| `normal` \| `seca`), `criterio` (regla numérica usada). Viene `null` solo si no se puede clasificar ningún eje; si falta uno, ese eje viene `null` y se explica en `motivo_nulo`. Incluye `en_curso` y `parcial_hasta`. |
+| `clasificacion` | objeto o `null` | `termica` (`calida` \| `normal` \| `fria`), `hidrica` (`lluviosa` \| `normal` \| `seca`), `criterio` (regla numérica usada). Es `null` cuando la estación es de tipo `referencia` o no se puede clasificar ningún eje. Si solo falta un eje, ese eje viene `null` y se explica en `motivo_nulo`. Incluye `en_curso` y `parcial_hasta`. |
 | `dias_criticos` | lista | Máximo 10 elementos: `fecha`, `tmax`, de mayor a menor |
 
-Parámetros de Winkler, Huglin y del período de acumulación: por confirmar con el enólogo. El valor usado queda en `version_calculo`.
+**Estaciones de referencia:** cuando una estación tiene `tipo: "referencia"`, su ficha conserva los datos climáticos consultables, pero devuelve `indices: null` y `clasificacion: null`.
+
+Esto no significa que la estación no tenga mediciones o que sus datos sean inválidos. Significa que está excluida de los cálculos de índices y clasificación de la instancia.
+
+Para estaciones de tipo `propia`, se conserva el contrato anterior, incluyendo los campos de calidad y motivos de datos faltantes.
 
 #### Lluvia fuera del invierno
 
@@ -449,6 +478,23 @@ L.imageOverlay(lienzo.toDataURL(), limites, { opacity: 0.7 }).addTo(mapa);
 ---
 
 ## 6. Estado de implementación en el backend
+
+### Estaciones propias y de referencia
+
+El modelo `Estacion` incorpora el campo `tipo`, con valores `propia` y `referencia`.
+
+Las estaciones de referencia:
+
+- Se incluyen en el listado de estaciones y en el JSON consolidado `/api/v1/datos`.
+- Conservan sus mediciones, resúmenes diarios y datos de calidad.
+- No generan índices climáticos ni clasificación de temporadas.
+- No participan en la selección de años análogos de la instancia.
+- No aportan índices a las predicciones de la instancia.
+- Se pueden crear y editar desde la API de estaciones y Django Admin.
+
+La predicción demostrativa del dataset histórico independiente de California conserva su funcionamiento.
+
+El frontend debe utilizar el campo `tipo` para identificar visualmente las estaciones de referencia y no interpretar la ausencia de índices como un error de calidad.
 
 ### E1C-17 — API de resultados (Sprint 3)
 

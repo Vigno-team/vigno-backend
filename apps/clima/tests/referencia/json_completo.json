@@ -22,7 +22,8 @@
         "umbral_completitud_pct": 80.0,
         "resolucion_origen": "diaria",
         "version_calculo": null
-      }
+      },
+      "tipo": "propia"
     },
     {
       "id": "sint-sur-01",
@@ -46,7 +47,8 @@
         "umbral_completitud_pct": 80.0,
         "resolucion_origen": "diaria",
         "version_calculo": null
-      }
+      },
+      "tipo": "propia"
     }
   ],
   "temporadas": [

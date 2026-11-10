@@ -16,9 +16,14 @@ class Command(BaseCommand):
         nombre_estacion = options.get("estacion")
 
         if nombre_estacion:
-            estaciones = Estacion.objects.filter(nombre=nombre_estacion)
+            estaciones = Estacion.objects.filter(
+                nombre=nombre_estacion,
+                tipo=Estacion.Tipo.PROPIA,
+            )
         else:
-            estaciones = Estacion.objects.all()
+            estaciones = Estacion.objects.filter(
+                tipo=Estacion.Tipo.PROPIA,
+            )
 
         for estacion in estaciones:
             temporadas = set(

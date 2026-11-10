@@ -1,6 +1,6 @@
 """cada acción deja su registro y la bitácora solo crece."""
 
-from datetime import timedelta
+from datetime import date, timedelta
 
 import pytest
 from django.contrib import admin
@@ -12,7 +12,7 @@ from rest_framework.test import APIClient
 from apps.auditoria.models import RegistroAuditoria, SoloAgregar
 from apps.auditoria.registro import Accion, registrar
 from apps.clima import views as vistas_clima
-from apps.clima.models import Estacion
+from apps.clima.models import Estacion, IndiceClimatico, ResumenDiario
 from apps.cuentas.roles import LECTOR, asignar_rol
 from conftest import CLAVE_PRUEBA, CORREO_PRUEBA
 
@@ -201,3 +201,51 @@ def test_la_bitacora_filtra_y_pagina(cliente_admin, usuario):
 )
 def test_filtros_invalidos_dan_400(cliente_admin, filtros):
     assert cliente_admin.get(URL, filtros).status_code == 400
+
+
+def test_admin_cambia_estacion_a_referencia_y_limpia_indices(superusuario):
+    estacion = Estacion.objects.create(
+        nombre="Referencia desde admin",
+        codigo="referencia-admin",
+    )
+
+    ResumenDiario.objects.create(
+        estacion=estacion,
+        fecha=date(2024, 10, 1),
+        temporada="2024-2025",
+        tmedia=20,
+    )
+
+    IndiceClimatico.objects.create(
+        estacion=estacion,
+        temporada="2024-2025",
+        indice="Winkler",
+        valor=1500,
+        confiable=True,
+    )
+
+    estacion.tipo = Estacion.Tipo.REFERENCIA
+
+    modelo = admin.site._registry[Estacion]
+    modelo.save_model(
+        peticion_admin(superusuario),
+        estacion,
+        None,
+        change=True,
+    )
+
+    estacion.refresh_from_db()
+
+    assert estacion.tipo == Estacion.Tipo.REFERENCIA
+
+    assert not IndiceClimatico.objects.filter(estacion=estacion).exists()
+
+    assert ResumenDiario.objects.filter(estacion=estacion).count() == 1
+
+    registro = RegistroAuditoria.objects.get(
+        accion=Accion.ESTACION_EDICION,
+        id_objeto=str(estacion.pk),
+    )
+
+    assert registro.valor_anterior["tipo"] == "propia"
+    assert registro.valor_nuevo["tipo"] == "referencia"

@@ -108,3 +108,38 @@ def test_lee_winkler_y_huglin_confiables_de_indice_climatico():
     ]
     assert res[0]["indices"] == {"wi": 1500, "hi": 2200}
     assert res[0]["anios_analogos"][0]["origen"] == "Región I 1935"
+
+
+@pytest.mark.django_db
+def test_estacion_referencia_no_participa_en_analogos():
+    propia = Estacion.objects.create(
+        nombre="Estación propia análogos",
+        codigo="propia-analogos",
+    )
+
+    referencia = Estacion.objects.create(
+        nombre="Estación referencia análogos",
+        codigo="referencia-analogos",
+        tipo=Estacion.Tipo.REFERENCIA,
+    )
+
+    # Ambas estaciones tienen índices confiables guardados.
+    for estacion in (propia, referencia):
+        for indice, valor in (
+            ("Winkler", 1500),
+            ("Huglin", 2200),
+        ):
+            IndiceClimatico.objects.create(
+                estacion=estacion,
+                temporada="2024-2025",
+                indice=indice,
+                valor=valor,
+                confiable=True,
+            )
+
+    resultados = obtener_analogos_instancia(_historico())
+
+    codigos = {r["estacion_id"] for r in resultados}
+
+    assert propia.codigo in codigos
+    assert referencia.codigo not in codigos

@@ -627,6 +627,27 @@ plantilla `formato_estandar` (la misma de San Clemente y El Arenal). Si la estac
 la carga responde "La estación X no existe; créala primero". Apenas tiene datos,
 `actualizar_todo` la incluye en `/api/v1/datos`.
 
+### Estaciones propias y de referencia
+
+Cada estación tiene un campo `tipo` con dos valores posibles:
+
+- `propia`: participa en los cálculos de índices climáticos, clasificación de temporadas y selección de años análogos.
+- `referencia`: estación externa utilizada para consultar y contrastar datos climáticos, sin participar en esos cálculos.
+
+El valor por defecto es `propia`, tanto para las estaciones existentes como para las nuevas que no indiquen un tipo.
+
+El campo `tipo` está disponible en `GET /api/v1/estaciones`, `GET /api/v1/estaciones/{codigo}`, `POST /api/v1/estaciones` y `PATCH /api/v1/estaciones/{codigo}`.
+
+Para crear una estación externa, se incluye `"tipo": "referencia"` en el cuerpo del POST. Para modificar una estación existente, se utiliza PATCH con ese mismo campo.
+
+Las estaciones de referencia conservan sus mediciones, resúmenes diarios y resultados de calidad de datos. Sin embargo, sus fichas de temporada devuelven `indices: null` y `clasificacion: null`.
+
+Cuando una estación cambia a `referencia`, se eliminan sus índices anteriores y el cambio queda registrado en la bitácora.
+
+El JSON consolidado de `/api/v1/datos` también identifica las estaciones mediante el campo `tipo`. Los años análogos de la instancia excluyen las estaciones de referencia.
+
+El modelo predictivo basado en el dataset histórico independiente de California no se modifica.
+
 ### Carga de Excel por API (E1C-66)
 
 Un Excel de estación se sube desde la plataforma, se valida antes de guardar y el sistema
