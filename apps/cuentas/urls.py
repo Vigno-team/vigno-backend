@@ -12,4 +12,11 @@ urlpatterns = [
     path("auth/logout", views.CerrarSesionView.as_view(), name="logout"),
     path("auth/yo", views.YoView.as_view(), name="yo"),
     path("auth/cambiar-clave", views.CambiarClaveView.as_view(), name="cambiar-clave"),
+    path("usuarios", views.UsuariosView.as_view(), name="usuarios"),
+    path("usuarios/<int:pk>", views.UsuarioDetalleView.as_view(), name="usuario-detalle"),
+    path(
+        "usuarios/<int:pk>/restablecer-clave",
+        views.RestablecerClaveView.as_view(),
+        name="usuario-restablecer-clave",
+    ),
 ]

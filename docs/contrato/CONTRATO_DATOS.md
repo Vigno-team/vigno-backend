@@ -71,6 +71,145 @@ El archivo con datos reales lo genera `python manage.py exportar_json` (E1C-48).
 | `version_calculo`        | texto o `null`                         | Fórmula y parámetros usados. `null` en bloques que no calculan índices                                                                                       |
 
 ---
+## 3.1 Administración de estaciones (E1C-68)
+
+Estas rutas permiten crear, consultar, editar, desactivar y reactivar estaciones.
+
+### Rutas
+
+| Método y ruta | Permiso | Descripción |
+| --- | --- | --- |
+| `GET /api/v1/estaciones` | Lectura | Lista estaciones y sus datos de calidad. |
+| `GET /api/v1/estaciones?incluir_inactivas=1` | Administrador | Incluye estaciones inactivas en el listado. |
+| `POST /api/v1/estaciones` | Editor o administrador | Crea una estación. |
+| `GET /api/v1/estaciones/{codigo}` | Lectura | Consulta el detalle de una estación. |
+| `PATCH /api/v1/estaciones/{codigo}` | Editor | Modifica los datos de una estación. |
+| `DELETE /api/v1/estaciones/{codigo}` | Administrador | Desactiva una estación sin eliminarla físicamente. |
+| `POST /api/v1/estaciones/{codigo}/reactivar` | Administrador | Reactiva una estación. |
+
+El parámetro `incluir_inactivas` solo tiene efecto para administradores cuando su valor es `1`. Los demás usuarios siguen viendo únicamente estaciones activas.
+
+### Campos de entrada
+
+Para crear una estación (`POST`):
+
+| Campo | Tipo | Obligatorio | Descripción |
+| --- | --- | --- | --- |
+| `nombre` | Texto (máx. 100) | Sí | Nombre de la estación. |
+| `latitud` | Número decimal | Sí | Latitud dentro del territorio permitido. |
+| `longitud` | Número decimal | Sí | Longitud dentro del territorio permitido. |
+| `subzona` | Texto (máx. 50) | No | Subzona asociada. |
+| `propietario` | Texto (máx. 100) | No | Propietario de la estación. |
+
+Para editar (`PATCH`), se admiten los mismos campos y, adicionalmente:
+
+| Campo | Tipo | Obligatorio | Descripción |
+| --- | --- | --- | --- |
+| `codigo` | Texto | No | Código válido de la estación. Solo minúsculas sin tildes, números y guiones. |
+
+La edición es parcial: solo se modifican los campos enviados. Si se modifica una coordenada, se valida el par de latitud y longitud.
+
+### Respuesta de estación
+
+Las respuestas de creación, detalle, edición, desactivación y reactivación contienen:
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `id` | Texto o `null` | Código de la estación. |
+| `nombre` | Texto | Nombre de la estación. |
+| `subzona` | Texto o `null` | Subzona asociada. |
+| `propietario` | Texto o `null` | Propietario. |
+| `latitud` | Número o `null` | Coordenada de latitud. |
+| `longitud` | Número o `null` | Coordenada de longitud. |
+| `activa` | Booleano | Estado de la estación. |
+
+La respuesta de creación es `201`. Las consultas y modificaciones responden `200`. La desactivación y reactivación devuelven el detalle de la estación, pudiendo incluir información adicional del recálculo.
+
+**Errores principales:**
+- `400`: campos inválidos, coordenadas incorrectas o solicitud de edición vacía.
+- `401`: falta autenticación o el token no es válido.
+- `403`: el usuario no tiene permisos suficientes.
+- `404`: estación no encontrada.
+- `409`: ya existe una estación con un nombre equivalente.
+
+## 3.2 Administración de usuarios (E1C-133)
+
+Todas las rutas de esta sección requieren autenticación y rol de administrador.
+
+### Rutas
+
+| Método y ruta | Descripción |
+| --- | --- |
+| `GET /api/v1/usuarios` | Lista usuarios. |
+| `POST /api/v1/usuarios` | Crea un usuario. |
+| `GET /api/v1/usuarios/{id}` | Consulta el detalle de un usuario. |
+| `PATCH /api/v1/usuarios/{id}` | Modifica los datos de un usuario. |
+| `DELETE /api/v1/usuarios/{id}` | Desactiva un usuario sin eliminarlo físicamente. |
+| `POST /api/v1/usuarios/{id}/restablecer-clave` | Establece una nueva clave temporal. |
+
+### Listado y filtros
+
+El listado admite los siguientes parámetros opcionales:
+
+| Parámetro | Tipo | Descripción |
+| --- | --- | --- |
+| `rol` | Texto | Filtra por `administrador`, `editor` o `lector`. |
+| `activo` | Booleano (`true` o `false`) | Filtra por estado de la cuenta. |
+
+### Campos de entrada
+
+Para crear un usuario (`POST`):
+
+| Campo | Tipo | Obligatorio | Descripción |
+| --- | --- | --- | --- |
+| `nombre` | Texto (máx. 150) | Sí | Nombre del usuario. |
+| `email` | Correo electrónico | Sí | Correo único de la cuenta. |
+| `rol` | Texto | Sí | `administrador`, `editor` o `lector`. |
+| `clave_temporal` | Texto | Sí | Contraseña temporal inicial. |
+
+Para editar un usuario (`PATCH`), todos los campos son opcionales:
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `nombre` | Texto (máx. 150) | Nombre del usuario. |
+| `email` | Correo electrónico | Correo de la cuenta. |
+| `rol` | Texto | Nuevo rol. |
+| `activo` | Booleano | Activa o desactiva la cuenta. |
+
+Para restablecer una contraseña (`POST /usuarios/{id}/restablecer-clave`):
+
+| Campo | Tipo | Obligatorio | Descripción |
+| --- | --- | --- | --- |
+| `clave_temporal` | Texto | Sí | Nueva contraseña temporal. |
+
+### Respuesta de usuario
+
+Las respuestas de listado, creación, consulta y edición contienen:
+
+| Campo | Tipo | Descripción |
+| --- | --- | --- |
+| `id` | Entero | Identificador del usuario. |
+| `nombre` | Texto | Nombre completo o correo si no hay nombre registrado. |
+| `email` | Texto | Correo electrónico. |
+| `rol` | Texto o `null` | Rol asignado. |
+| `activo` | Booleano | Estado de la cuenta. |
+| `debe_cambiar_clave` | Booleano | Indica si debe cambiar su contraseña. |
+
+La creación responde `201`; el listado, consulta y edición responden `200`. La desactivación y el restablecimiento de contraseña responden `204` sin cuerpo.
+
+**Reglas de negocio:**
+- Las contraseñas nunca se incluyen en las respuestas.
+- Al crear una cuenta o restablecer su contraseña, se establece `debe_cambiar_clave = true`.
+- No se permite desactivar la propia cuenta ni quitarse el rol de administrador.
+- Debe existir al menos un administrador activo.
+- La desactivación es lógica: la cuenta permanece registrada.
+- Los cambios administrativos quedan registrados en la bitácora de auditoría.
+
+**Errores principales:**
+- `400`: datos inválidos, correo duplicado o intento de desactivar al último administrador activo.
+- `401`: falta autenticación o el token no es válido.
+- `403`: el usuario no tiene permisos de administrador.
+- `404`: usuario no encontrado.
 
 ## 4. Bloques del Sprint 1 — disponibles ya
 

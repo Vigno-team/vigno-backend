@@ -17,7 +17,7 @@ from rest_framework_simplejwt.utils import get_md5_hash_password
 
 from apps.auditoria.registro import Accion, registrar
 from apps.cuentas.models import debe_cambiar_clave
-from apps.cuentas.roles import rol_de
+from apps.cuentas.roles import ROLES, rol_de
 
 logger = logging.getLogger(__name__)
 
@@ -147,3 +147,108 @@ class CambiarClaveSerializer(serializers.Serializer):
         except DjangoValidationError as error:
             raise serializers.ValidationError({"clave_nueva": list(error.messages)}) from error
         return attrs
+
+
+class UsuarioAdminSerializer(serializers.Serializer):
+    """Datos de usuario visibles para la administración."""
+
+    id = serializers.IntegerField(read_only=True)
+    nombre = serializers.CharField(read_only=True)
+    email = serializers.EmailField(read_only=True)
+    rol = serializers.ChoiceField(choices=list(ROLES), allow_null=True, read_only=True)
+    activo = serializers.BooleanField(source="is_active", read_only=True)
+    debe_cambiar_clave = serializers.BooleanField(read_only=True)
+
+    def to_representation(self, instance):
+        return {
+            "id": instance.pk,
+            "nombre": instance.get_full_name() or instance.email,
+            "email": instance.email,
+            "rol": rol_de(instance),
+            "activo": instance.is_active,
+            "debe_cambiar_clave": debe_cambiar_clave(instance),
+        }
+
+
+class CrearUsuarioSerializer(serializers.Serializer):
+    """Validación para crear una cuenta desde la administración."""
+
+    nombre = serializers.CharField(max_length=150)
+    email = serializers.EmailField(max_length=254)
+    rol = serializers.ChoiceField(choices=list(ROLES))
+    clave_temporal = serializers.CharField(
+        max_length=LARGO_MAXIMO_CLAVE,
+        trim_whitespace=False,
+        write_only=True,
+    )
+
+    def validate_email(self, valor):
+        correo = valor.strip().lower()
+
+        if User.objects.filter(email__iexact=correo).exists():
+            raise serializers.ValidationError("Ya existe una cuenta con ese correo.")
+
+        if User.objects.filter(username__iexact=correo).exists():
+            raise serializers.ValidationError("El correo ya está utilizado como nombre de usuario.")
+
+        return correo
+
+    def validate(self, attrs):
+        usuario = User(
+            username=attrs["email"],
+            email=attrs["email"],
+            first_name=attrs["nombre"],
+        )
+
+        try:
+            validate_password(attrs["clave_temporal"], usuario)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError({"clave_temporal": list(error.messages)}) from error
+
+        return attrs
+
+
+class EditarUsuarioSerializer(serializers.Serializer):
+    """Validación para modificar los datos administrativos de una cuenta."""
+
+    nombre = serializers.CharField(max_length=150, required=False)
+    email = serializers.EmailField(max_length=254, required=False)
+    rol = serializers.ChoiceField(choices=list(ROLES), required=False)
+    activo = serializers.BooleanField(required=False)
+
+    def validate_email(self, valor):
+        correo = valor.strip().lower()
+        existentes = User.objects.filter(email__iexact=correo).exclude(pk=self.instance.pk)
+
+        if existentes.exists():
+            raise serializers.ValidationError("Ya existe otra cuenta con ese correo.")
+
+        usernames = User.objects.filter(username__iexact=correo).exclude(pk=self.instance.pk)
+
+        if usernames.exists():
+            raise serializers.ValidationError("El correo ya está utilizado como nombre de usuario.")
+
+        return correo
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("Debes indicar al menos un campo para modificar.")
+        return attrs
+
+
+class RestablecerClaveSerializer(serializers.Serializer):
+    """Validación de una nueva clave temporal."""
+
+    clave_temporal = serializers.CharField(
+        max_length=LARGO_MAXIMO_CLAVE,
+        trim_whitespace=False,
+        write_only=True,
+    )
+
+    def validate_clave_temporal(self, valor):
+        try:
+            validate_password(valor, self.context["usuario_objetivo"])
+        except DjangoValidationError as error:
+            raise serializers.ValidationError(list(error.messages)) from error
+
+        return valor
