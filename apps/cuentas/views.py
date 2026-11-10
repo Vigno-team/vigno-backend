@@ -315,7 +315,9 @@ class UsuarioDetalleView(APIView):
 
             if pierde_administracion:
                 administradores = list(
-                    _administradores_activos().select_for_update().values_list("pk", flat=True)
+                    User.objects.select_for_update()
+                    .filter(pk__in=_administradores_activos().values("pk"))
+                    .values_list("pk", flat=True)
                 )
 
                 if len(administradores) <= 1:
@@ -386,8 +388,8 @@ class UsuarioDetalleView(APIView):
 
             if usuario.is_active and rol_de(usuario) == ADMINISTRADOR:
                 administradores = list(
-                    _administradores_activos()
-                    .select_for_update()
+                    User.objects.select_for_update()
+                    .filter(pk__in=_administradores_activos().values("pk"))
                     .order_by("pk")
                     .values_list("pk", flat=True)
                 )

@@ -4,7 +4,7 @@ from rest_framework import status
 
 from apps.auditoria.models import RegistroAuditoria
 from apps.cuentas.models import debe_cambiar_clave
-from apps.cuentas.roles import EDITOR, LECTOR
+from apps.cuentas.roles import ADMINISTRADOR, EDITOR, LECTOR, asignar_rol
 
 pytestmark = pytest.mark.django_db
 
@@ -174,6 +174,48 @@ def test_administrador_no_puede_quitarse_su_propio_rol(cliente_admin):
 
     administrador.refresh_from_db()
     assert administrador.groups.filter(name="administrador").exists()
+
+
+def test_administrador_puede_quitar_rol_a_otro_administrador(
+    cliente_admin,
+):
+    otro_admin = User.objects.create_user(
+        username="otro_admin@vigno.cl",
+        email="otro_admin@vigno.cl",
+        password=CLAVE_TEMPORAL,
+    )
+    asignar_rol(otro_admin, ADMINISTRADOR)
+
+    respuesta = cliente_admin.patch(
+        f"{URL_USUARIOS}/{otro_admin.pk}",
+        {"rol": EDITOR},
+        format="json",
+    )
+
+    assert respuesta.status_code == status.HTTP_200_OK
+
+    otro_admin.refresh_from_db()
+    assert otro_admin.groups.filter(name=EDITOR).exists()
+    assert not otro_admin.groups.filter(name=ADMINISTRADOR).exists()
+
+
+def test_administrador_puede_eliminar_otro_administrador(
+    cliente_admin,
+):
+    otro_admin = User.objects.create_user(
+        username="otro_admin@vigno.cl",
+        email="otro_admin@vigno.cl",
+        password=CLAVE_TEMPORAL,
+    )
+    asignar_rol(otro_admin, ADMINISTRADOR)
+
+    respuesta = cliente_admin.delete(f"{URL_USUARIOS}/{otro_admin.pk}")
+
+    assert respuesta.status_code == status.HTTP_204_NO_CONTENT
+
+    otro_admin.refresh_from_db()
+    assert otro_admin.is_active is False
+    assert User.objects.filter(pk=otro_admin.pk).exists()
 
 
 def test_administrador_puede_restablecer_clave(cliente_admin, usuario):

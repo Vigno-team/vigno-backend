@@ -413,8 +413,18 @@ modifique la forma de una respuesta necesita aviso al PO del otro equipo antes d
 | `/api/v1/datos` | GET | Lectura | JSON completo; si falta, lo exporta desde la base y lo guarda. ETag y 304 si no cambió |
 | `/api/v1/prediccion-ficticia` | GET | Lectura | JSON de E1C-124; 404 con motivo si no existe |
 | `/api/v1/actualizacion` | GET | Lectura | Última ejecución de E1C-129, o `{"generado": null}` si aún no ha corrido |
-| `/api/v1/estaciones` | GET | Lectura | Estaciones y calidad de sus datos |
-| `/api/v1/estaciones` | POST | Editor | Da de alta una localidad nueva |
+| `/api/v1/estaciones` | GET | Lectura | Estaciones y calidad de sus datos; admite `incluir_inactivas=1` para administradores |
+| `/api/v1/estaciones` | POST | Editor / administrador | Crea una estación |
+| `/api/v1/estaciones/{codigo}` | GET | Lectura | Consulta el detalle de una estación |
+| `/api/v1/estaciones/{codigo}` | PATCH | Editor | Edita los datos de una estación |
+| `/api/v1/estaciones/{codigo}` | DELETE | Administrador | Desactiva una estación |
+| `/api/v1/estaciones/{codigo}/reactivar` | POST | Administrador | Reactiva una estación |
+| `/api/v1/usuarios` | GET | Administrador | Lista usuarios; admite filtros `rol` y `activo` |
+| `/api/v1/usuarios` | POST | Administrador | Crea un usuario |
+| `/api/v1/usuarios/{id}` | GET | Administrador | Consulta un usuario |
+| `/api/v1/usuarios/{id}` | PATCH | Administrador | Edita nombre, correo, rol o estado |
+| `/api/v1/usuarios/{id}` | DELETE | Administrador | Desactiva un usuario |
+| `/api/v1/usuarios/{id}/restablecer-clave` | POST | Administrador | Restablece la clave mediante una clave temporal |
 | `/api/v1/temporadas` | GET | Lectura | Temporadas con datos, de la más antigua a la más reciente |
 | `/api/v1/temporadas/{temporada}?estacion={codigo}` | GET | Lectura | Ficha de una estación y temporada |
 | `/api/v1/rachas/{temporada}?estacion={codigo}` | GET | Lectura | Rachas de calor de la temporada |
