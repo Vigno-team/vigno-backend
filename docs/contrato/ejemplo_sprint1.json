@@ -160,7 +160,10 @@
         "tmax": 49.5,
         "tmin": 49.5,
         "tmedia": 49.5,
-        "precipitacion": 49.5
+        "precipitacion": 49.5,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": false
     },
@@ -171,7 +174,10 @@
         "tmax": 98.9,
         "tmin": 98.9,
         "tmedia": 98.9,
-        "precipitacion": 98.4
+        "precipitacion": 98.4,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": true
     },
@@ -182,7 +188,10 @@
         "tmax": 100.0,
         "tmin": 100.0,
         "tmedia": 100.0,
-        "precipitacion": 100.0
+        "precipitacion": 100.0,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": true
     },
@@ -193,7 +202,10 @@
         "tmax": 97.3,
         "tmin": 97.3,
         "tmedia": 97.3,
-        "precipitacion": 96.4
+        "precipitacion": 96.4,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": true
     },
@@ -204,7 +216,10 @@
         "tmax": 100.0,
         "tmin": 100.0,
         "tmedia": 100.0,
-        "precipitacion": 100.0
+        "precipitacion": 100.0,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": true
     },
@@ -215,7 +230,10 @@
         "tmax": 99.7,
         "tmin": 99.7,
         "tmedia": 99.7,
-        "precipitacion": 99.7
+        "precipitacion": 99.7,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": true
     },
@@ -226,7 +244,10 @@
         "tmax": 100.0,
         "tmin": 100.0,
         "tmedia": 100.0,
-        "precipitacion": 100.0
+        "precipitacion": 100.0,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": true
     },
@@ -237,7 +258,10 @@
         "tmax": 51.8,
         "tmin": 51.8,
         "tmedia": 51.8,
-        "precipitacion": 51.8
+        "precipitacion": 51.8,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": false
     },
@@ -248,7 +272,10 @@
         "tmax": 91.2,
         "tmin": 91.2,
         "tmedia": 91.2,
-        "precipitacion": 90.7
+        "precipitacion": 90.7,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": true
     },
@@ -259,7 +286,10 @@
         "tmax": 99.4,
         "tmin": 99.4,
         "tmedia": 99.4,
-        "precipitacion": 99.4
+        "precipitacion": 99.4,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": true
     },
@@ -270,7 +300,10 @@
         "tmax": 78.6,
         "tmin": 78.6,
         "tmedia": 78.6,
-        "precipitacion": 0.0
+        "precipitacion": 0.0,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": false,
       "observacion": "sin datos de precipitación en la temporada"
@@ -282,7 +315,10 @@
         "tmax": 99.2,
         "tmin": 99.2,
         "tmedia": 99.2,
-        "precipitacion": 98.9
+        "precipitacion": 98.9,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": true
     },
@@ -293,7 +329,10 @@
         "tmax": 100.0,
         "tmin": 100.0,
         "tmedia": 100.0,
-        "precipitacion": 100.0
+        "precipitacion": 100.0,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": true
     },
@@ -304,7 +343,10 @@
         "tmax": 33.5,
         "tmin": 33.5,
         "tmedia": 33.5,
-        "precipitacion": 33.5
+        "precipitacion": 33.5,
+        "humedad_media": 0,
+        "radiacion_maxima": 0,
+        "viento_maximo": 0
       },
       "confiable": false
     }
@@ -321,7 +363,10 @@
         "tmedia": 21.6,
         "amplitud": 20.7,
         "precipitacion": 0.0,
-        "corregido_a_mano": false
+        "corregido_a_mano": false,
+        "humedad_media": null,
+        "radiacion_maxima": null,
+        "viento_maximo": null
       },
       {
         "fecha": "2025-01-26",
@@ -330,7 +375,10 @@
         "tmedia": 24.1,
         "amplitud": 22.6,
         "precipitacion": 0.0,
-        "corregido_a_mano": false
+        "corregido_a_mano": false,
+        "humedad_media": null,
+        "radiacion_maxima": null,
+        "viento_maximo": null
       },
       {
         "fecha": "2025-01-27",
@@ -339,7 +387,10 @@
         "tmedia": 25.9,
         "amplitud": 22.4,
         "precipitacion": 0.0,
-        "corregido_a_mano": false
+        "corregido_a_mano": false,
+        "humedad_media": null,
+        "radiacion_maxima": null,
+        "viento_maximo": null
       },
       {
         "fecha": "2025-01-28",
@@ -348,7 +399,10 @@
         "tmedia": 25.2,
         "amplitud": 22.1,
         "precipitacion": 0.0,
-        "corregido_a_mano": false
+        "corregido_a_mano": false,
+        "humedad_media": null,
+        "radiacion_maxima": null,
+        "viento_maximo": null
       },
       {
         "fecha": "2025-01-29",
@@ -358,7 +412,10 @@
         "amplitud": null,
         "precipitacion": null,
         "motivo_nulo": "Dato en blanco en origen",
-        "corregido_a_mano": false
+        "corregido_a_mano": false,
+        "humedad_media": null,
+        "radiacion_maxima": null,
+        "viento_maximo": null
       },
       {
         "fecha": "2025-01-30",
@@ -367,7 +424,10 @@
         "tmedia": 22.7,
         "amplitud": 20.2,
         "precipitacion": 1.4,
-        "corregido_a_mano": false
+        "corregido_a_mano": false,
+        "humedad_media": null,
+        "radiacion_maxima": null,
+        "viento_maximo": null
       },
       {
         "fecha": "2025-01-31",
@@ -376,7 +436,10 @@
         "tmedia": 21.0,
         "amplitud": 18.5,
         "precipitacion": 0.2,
-        "corregido_a_mano": false
+        "corregido_a_mano": false,
+        "humedad_media": null,
+        "radiacion_maxima": null,
+        "viento_maximo": null
       }
     ]
   }

@@ -66,6 +66,7 @@ def eventos_lluvia(
             estacion=estacion,
             frecuencia="H",
             variable="precipitacion",
+            excluido=False,
             timestamp__gte=inicio_rango.to_pydatetime(),
             timestamp__lt=fin_rango.to_pydatetime(),
         )

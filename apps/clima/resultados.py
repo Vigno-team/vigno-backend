@@ -16,6 +16,7 @@ from apps.clima.lluvia_fuera_invierno import lluvia_fuera_invierno
 from apps.clima.metricas import calidad_metrica, valor_metrica, version_calculo
 from apps.clima.models import ConfiguracionCalidad, IndiceClimatico, ResumenDiario
 from apps.clima.rachas import identificar_rachas
+from apps.clima.services import MOTIVO_EXCLUIDO
 from apps.clima.temporadas import (
     rango_dias_calor,
     rango_huglin,
@@ -67,6 +68,15 @@ def _bloque_indice(estacion, temporada, tipo, indice, umbral):
     }
     if indice is None:
         resultado["motivo_nulo"] = "No hay un resultado calculado para este índice y temporada."
+        if ResumenDiario.objects.filter(
+            estacion=estacion,
+            fecha__range=(inicio, fin),
+            motivo_nulo__contains=MOTIVO_EXCLUIDO,
+        ).exists():
+            resultado["motivo_nulo"] = (
+                "Sin temperaturas suficientes para calcular el índice; "
+                "hay variables excluidas por el administrador."
+            )
     return resultado
 
 

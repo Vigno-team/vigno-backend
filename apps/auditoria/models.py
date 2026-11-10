@@ -26,6 +26,7 @@ class RegistroAuditoria(models.Model):
         LOGIN_CORRECTO = "login_correcto", "Inicio de sesión correcto"
         LOGIN_FALLIDO = "login_fallido", "Inicio de sesión fallido"
         CARGA_EXCEL = "carga_excel", "Carga de Excel"
+        CARGA_SELECCION = "carga_seleccion", "Selección de variables de una carga"
         CORRECCION = "correccion", "Corrección manual"
         REVERSION = "reversion", "Reversión de una corrección"
         ESTACION_ALTA = "estacion_alta", "Alta de estación"
