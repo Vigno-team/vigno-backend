@@ -5,7 +5,9 @@ import logging
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.models import update_last_login
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
@@ -29,6 +31,9 @@ CREDENCIALES_INVALIDAS = "Correo o contraseña incorrectos."
 # Las claves largas se aceptan, pero sin límite alguien podría mandar megas para cansar al
 # servidor con el hash.
 LARGO_MAXIMO_CLAVE = 4096
+# Enlace del correo de recuperación alterado, vencido o ya usado: el mismo mensaje,
+# porque en los tres casos lo único que queda es pedir otro.
+ENLACE_INVALIDO = "El enlace no es válido o ya venció. Pide uno nuevo."
 
 
 def datos_usuario(usuario) -> dict:
@@ -252,3 +257,45 @@ class RestablecerClaveSerializer(serializers.Serializer):
             raise serializers.ValidationError(list(error.messages)) from error
 
         return valor
+
+
+class RecuperarClaveSerializer(serializers.Serializer):
+    # Correo de la cuenta que olvidó su clave.
+
+    email = serializers.EmailField(max_length=254)
+
+
+def cuenta_del_enlace(uid, token):
+    """La cuenta activa del enlace si el token sirve; None si está alterado, vencido o ya se usó.
+
+    default_token_generator firma el token con la clave y el último ingreso de la cuenta: al
+    cambiar la clave (o entrar) deja de servir, y vence según PASSWORD_RESET_TIMEOUT.
+    """
+    try:
+        pk = urlsafe_base64_decode(uid).decode()
+        usuario = User.objects.get(pk=pk, is_active=True)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist, DjangoValidationError):
+        return None
+    if not default_token_generator.check_token(usuario, token):
+        return None
+    return usuario
+
+
+class RestablecerClavePorCorreoSerializer(serializers.Serializer):
+    # Clave nueva elegida con el enlace del correo.
+
+    uid = serializers.CharField(max_length=100)
+    token = serializers.CharField(max_length=100)
+    clave_nueva = serializers.CharField(
+        max_length=LARGO_MAXIMO_CLAVE, trim_whitespace=False, write_only=True
+    )
+
+    def validate(self, attrs):
+        usuario = cuenta_del_enlace(attrs["uid"], attrs["token"])
+        if usuario is None:
+            raise serializers.ValidationError({"token": [ENLACE_INVALIDO]})
+        try:
+            validate_password(attrs["clave_nueva"], usuario)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError({"clave_nueva": list(error.messages)}) from error
+        return {**attrs, "usuario": usuario}
