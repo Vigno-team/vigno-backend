@@ -18,9 +18,11 @@ from rest_framework.views import APIView
 from apps.clima.management.commands.actualizar_todo import candado
 from apps.clima.mapeos import EstacionNoExiste, estacion_y_mapeo
 from apps.clima.models import Estacion
-from apps.cuentas.permisos import LeerOEditar, PuedeLeer
+from apps.cuentas.permisos import EsAdministrador, LeerOEditar, PuedeLeer
 from apps.ingesta import carga
 from apps.ingesta.models import RegistroCarga
+from apps.ingesta.seleccion import cambiar_seleccion
+from apps.ingesta.variables import DEPENDENCIAS_INDICADORES, catalogo_variables
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,8 @@ def _resumen(c: RegistroCarga) -> dict:
         "temporada": c.temporada,
         "formato": c.formato_detectado,
         "estado": c.estado,
+        "variables_procesadas": c.variables_procesadas,
+        "variables_excluidas": c.variables_excluidas,
         "fecha_desde": c.fecha_desde.isoformat() if c.fecha_desde else None,
         "fecha_hasta": c.fecha_hasta.isoformat() if c.fecha_hasta else None,
         "filas": {
@@ -95,6 +99,14 @@ class CargasView(LeerOEditar, APIView):
     # Subir: editor o administrador.
     parser_classes = [MultiPartParser, FormParser]
 
+    def check_permissions(self, request):
+        # Autenticar antes de leer el multipart: sin token siempre corresponde 401.
+        super().check_permissions(request)
+        if request.method == "POST" and "variables" in request.data:
+            permiso = EsAdministrador()
+            if not permiso.has_permission(request, self):
+                self.permission_denied(request, message=permiso.message)
+
     @extend_schema(
         summary="Últimas cargas de Excel",
         operation_id="cargas_listar",
@@ -112,7 +124,9 @@ class CargasView(LeerOEditar, APIView):
             "Multipart con `archivo` (.xls o .xlsx), `estacion` (código o nombre de una "
             "estación registrada) y `temporada` opcional (año). Con `?solo_validar=1` devuelve "
             "lo que pasaría sin guardar nada. El mismo archivo ya cargado responde 200 sin "
-            "procesarlo de nuevo. Requiere token."
+            "procesarlo de nuevo si conserva la selección. `variables` acepta una lista de "
+            "nombres como JSON o campos multipart repetidos; solo el administrador puede "
+            "elegirla. Sin `variables` se procesan todas. Requiere token."
         ),
         parameters=[OpenApiParameter("solo_validar", bool)],
         request={
@@ -122,16 +136,25 @@ class CargasView(LeerOEditar, APIView):
                     "archivo": {"type": "string", "format": "binary"},
                     "estacion": {"type": "string"},
                     "temporada": {"type": "integer"},
+                    "variables": {"type": "array", "items": {"type": "string"}},
                 },
                 "required": ["archivo", "estacion"],
             }
         },
-        responses={200: dict, 201: dict, 400: dict, 401: dict, 422: dict},
+        responses={200: dict, 201: dict, 400: dict, 401: dict, 403: dict, 422: dict},
         tags=["Cargas"],
     )
     def post(self, request):
         umbrales = carga.cargar_umbrales()
         solo_validar = request.query_params.get("solo_validar", "").lower() in ("1", "true", "si")
+        variables = None
+        if "variables" in request.data:
+            variables = request.data.getlist("variables")
+            if len(variables) == 1 and variables[0].lstrip().startswith("["):
+                try:
+                    variables = json.loads(variables[0])
+                except ValueError:
+                    return _rechazo(400, ["variables debe ser una lista de nombres de variables."])
 
         archivo = request.FILES.get("archivo")
         nombre_estacion = (request.data.get("estacion") or "").strip()
@@ -179,6 +202,7 @@ class CargasView(LeerOEditar, APIView):
                 temporada,
                 umbrales,
                 solo_validar=True,
+                variables=variables,
             )
         # La carga por API y las tareas programadas no se pisan (mismo candado que actualizar_todo).
         with candado():
@@ -192,6 +216,7 @@ class CargasView(LeerOEditar, APIView):
                 temporada,
                 umbrales,
                 solo_validar=False,
+                variables=variables,
             )
 
     def _procesar(
@@ -205,6 +230,7 @@ class CargasView(LeerOEditar, APIView):
         temporada,
         umbrales,
         solo_validar,
+        variables=None,
     ):
         previa = (
             RegistroCarga.objects.filter(
@@ -215,12 +241,6 @@ class CargasView(LeerOEditar, APIView):
             .order_by("-pk")
             .first()
         )
-        if previa is not None and not solo_validar:
-            return Response(
-                {"valido": True, "repetida": True, **_detalle(previa), "recalculo": None},
-                status=status.HTTP_200_OK,
-            )
-
         try:
             prep = carga.preparar(
                 io.BytesIO(contenido), nombre, estacion, config, temporada, "indicada en la carga"
@@ -234,11 +254,31 @@ class CargasView(LeerOEditar, APIView):
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 ["No se pudo leer el archivo: revisa que sea un Excel de la estación sin daños."],
             )
-        errores = carga.validar_umbrales(prep, umbrales)
+        try:
+            seleccionadas = carga.seleccionar_variables(prep, variables)
+        except carga.ErrorCarga as error:
+            return _rechazo(400, error.errores)
+        columnas = carga.diagnosticar_columnas(prep)
+        if (
+            previa is not None
+            and not solo_validar
+            and set(seleccionadas)
+            == set(previa.variables_procesadas or carga.seleccionar_variables(prep))
+        ):
+            return Response(
+                {
+                    "valido": True,
+                    "repetida": True,
+                    **_detalle(previa),
+                    "columnas": columnas,
+                    "recalculo": None,
+                }
+            )
+        errores = carga.validar_umbrales(prep, umbrales, variables=seleccionadas)
         if errores:
-            return _rechazo(status.HTTP_422_UNPROCESSABLE_ENTITY, errores)
+            return Response({"valido": False, "errores": errores, "columnas": columnas}, status=422)
 
-        clasificacion = carga.clasificar(prep)
+        clasificacion = carga.clasificar(prep, variables=seleccionadas)
         advertencias = prep.advertencias()
         if clasificacion.conservados:
             advertencias.append(
@@ -254,6 +294,11 @@ class CargasView(LeerOEditar, APIView):
                 {
                     "valido": True,
                     "solo_validar": True,
+                    "columnas": columnas,
+                    "variables_procesadas": seleccionadas,
+                    "variables_excluidas": [
+                        v for v in prep.map_cols if v != "timestamp" and v not in seleccionadas
+                    ],
                     "estacion": estacion.nombre,
                     "estacion_id": estacion.codigo,
                     "temporada": prep.temporada,
@@ -293,10 +338,12 @@ class CargasView(LeerOEditar, APIView):
             usuario=self.request.user.email[:100],
             # con la petición, la carga queda en la bitácora con su usuario e IP
             request=self.request,
+            variables=seleccionadas,
         )
         return Response(
             {
                 "valido": True,
+                "columnas": columnas,
                 "repetida": False,
                 **_detalle(registro),
                 "estacion_id": estacion.codigo,
@@ -312,6 +359,11 @@ class CargaView(APIView):
     # Cualquier rol, nunca público: muestra archivos y filas rechazadas.
     permission_classes = [PuedeLeer]
 
+    def get_permissions(self):
+        if self.request.method == "PATCH":
+            return [EsAdministrador()]
+        return super().get_permissions()
+
     @extend_schema(
         summary="Detalle de una carga: estado, filas y rechazos con su motivo",
         operation_id="cargas_obtener",
@@ -320,3 +372,40 @@ class CargaView(APIView):
     )
     def get(self, request, pk):
         return Response(_detalle(get_object_or_404(RegistroCarga, pk=pk)))
+
+    @extend_schema(
+        summary="Excluye o reincorpora las variables de una carga",
+        operation_id="cargas_seleccionar_variables",
+        description="Solo administrador. No borra mediciones; registra el cambio y recalcula.",
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "variables_excluidas": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["variables_excluidas"],
+            }
+        },
+        responses={200: dict, 400: dict, 401: dict, 403: dict, 404: dict, 409: dict},
+        tags=["Cargas"],
+    )
+    def patch(self, request, pk):
+        with candado():
+            registro = cambiar_seleccion(pk, request.data, request=request)
+            recalculo = _recalcular()
+        return Response({**_detalle(registro), "recalculo": recalculo})
+
+
+class VariablesView(APIView):
+    permission_classes = [PuedeLeer]
+
+    @extend_schema(
+        summary="Variables del Excel y dependencias de los indicadores",
+        operation_id="variables_listar",
+        responses={200: dict, 401: dict},
+        tags=["Cargas"],
+    )
+    def get(self, request):
+        return Response(
+            {"variables": catalogo_variables(), "indicadores": DEPENDENCIAS_INDICADORES}
+        )

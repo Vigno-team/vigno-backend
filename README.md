@@ -430,7 +430,10 @@ modifique la forma de una respuesta necesita aviso al PO del otro equipo antes d
 | `/api/v1/rachas/{temporada}?estacion={codigo}` | GET | Lectura | Rachas de calor de la temporada |
 | `/api/v1/calidad/fallas?estacion={codigo}&temporada={temporada}` | GET | Lectura | Reporte de datos con falla (`&formato=csv` para CSV) |
 | `/api/v1/cargas` | POST | Editor | Sube un Excel, lo valida, lo guarda y recalcula |
+| `/api/v1/cargas` con `variables` | POST | Administrador | Procesa solo las columnas elegidas |
 | `/api/v1/cargas`, `/api/v1/cargas/{id}` | GET | Lector | Historial y detalle de las cargas |
+| `/api/v1/cargas/{id}` | PATCH | Administrador | Cambia las variables excluidas y recalcula |
+| `/api/v1/variables` | GET | Lector | Catálogo de variables, unidades y dependencias de los indicadores |
 | `/api/v1/correcciones` | GET | Lector | Bitácora de correcciones |
 | `/api/v1/correcciones` | POST | Editor | Nueva corrección manual |
 | `/api/v1/correcciones/{id}/revertir` | POST | Editor | Revierte una corrección |
@@ -659,16 +662,17 @@ curl -H "Authorization: Bearer $ACCESS" \
   `rechazos` con su motivo, las `celdas_vacias_conservadas` y el `recalculo` (lo que dejó
   `actualizacion.json`).
 - `200` con `"repetida": true`: ese mismo archivo (mismo SHA-256) ya se cargó bien en esa
-  estación; no se procesa de nuevo ni se recalcula.
+  estación con las mismas variables procesadas; no se procesa de nuevo ni se recalcula.
 - `400`: falta el archivo o la estación, la estación no existe, la extensión no es
   `.xls`/`.xlsx` o pesa más de 20 MB.
-- `401`: falta la clave o no es la correcta.
-- `403`: la cuenta no tiene rol editor o administrador.
+- `401`: falta el token o no es válido.
+- `403`: la cuenta no tiene el rol necesario; la selección explícita de variables pide administrador.
 - `422`: el archivo no sirve y no se guardó nada. Pasa si está dañado o protegido, si no
   tiene la hoja `mensual`, si los encabezados no calzan con ningún formato (indica las
   columnas que faltan respecto del más parecido), si más del 20 % de las fechas son
-  inválidas, si temperatura máxima, mínima o media vienen vacías o no numéricas en más
-  del 50 % de las filas, o si no queda ninguna fila válida.
+  inválidas, si una temperatura seleccionada viene vacía o no numérica en más
+  del 50 % de las filas, o si no queda ninguna fila válida. Una temperatura excluida
+  no impide confirmar las otras variables.
 
 Los errores vienen como `{"valido": false, "errores": ["..."]}`, con motivos legibles. Los
 umbrales están en `config/validacion_cargas.json` para ajustarlos sin tocar código. Lo que
@@ -687,6 +691,60 @@ y aparece en el reporte de fallas como siempre. Aplica a la API y a `ingestar_ex
 El archivo subido queda en `DATOS_DIR/cargas/<hash>.<ext>` (dentro de `data/cliente/`,
 ignorado por Git). La carga usa el mismo candado que `actualizar_todo`: si el programador
 está recalculando, la carga espera.
+
+### Elegir columnas de un Excel (E1C-136)
+
+La prevalidación devuelve `columnas`: por variable, el encabezado original, las filas
+con dato, vacías, no numéricas y fuera de rango, el porcentaje válido y los indicadores
+que la usan. También se devuelve cuando el archivo se puede leer pero no pasa los
+umbrales, para poder excluir la columna problemática y validar otra selección.
+
+El administrador puede enviar `variables` al confirmar, como lista JSON en el campo
+multipart (por ejemplo `["humedad_media"]`) o repitiendo el campo por cada variable.
+Si se omite, se procesan todas y sigue permitida la carga por un editor. Una lista
+vacía o una variable desconocida da 400. Las columnas no elegidas no crean mediciones
+ni modifican valores anteriores. El detalle de la carga incluye `variables_procesadas`
+(las que se han incorporado) y `variables_excluidas` (la selección excluida actual).
+
+Para cambiar una carga existente, un administrador envía:
+
+```http
+PATCH /api/v1/cargas/42
+Authorization: Bearer <access>
+Content-Type: application/json
+
+{"variables_excluidas": ["temperatura_media", "temperatura_maxima", "temperatura_minima"]}
+```
+
+La lista sustituye la selección excluida anterior: `[]` vuelve a incluir todo. El cambio
+no borra mediciones; marca las de esa carga y conserva el valor original. Las mediciones
+reemplazadas por otra carga o corregidas a mano no se alteran. Si una columna nunca se
+procesó, se recupera del Excel archivado solo donde no hay otro dato; si falta el archivo,
+la API responde 409. Para cargas antiguas sin procedencia se usa estación y período,
+pero se responde 409 si varias cargas podrían ser el origen de la misma medición.
+
+Cada cambio queda en la auditoría con usuario, IP y selecciones anterior/nueva, y ejecuta
+`actualizar_todo --sin-satelite`. Un editor o lector recibe 403 en el PATCH. Revisar
+`recalculo.ok` antes de dar por actualizado el dashboard; si es false, el cambio quedó
+guardado pero el recálculo falló.
+
+`GET /api/v1/variables`, con token de cualquier rol, entrega nombres, unidades y
+dependencias. Temperatura media permite Winkler; también sirven máxima y mínima juntas.
+Huglin necesita máxima y media o mínima. Los indicadores sin las variables necesarias
+quedan con valor `null` y motivo. Humedad, radiación y viento se muestran en la serie diaria
+sin usarse para calcular índices térmicos: `humedad_media` (%), `radiacion_maxima` (W/m²)
+y `viento_maximo` (m/s). Sus faltantes siguen siendo `null`.
+
+Al actualizar una instalación con datos, aplica las migraciones y vuelve a generar
+los resúmenes para que esos sensores ya cargados aparezcan en el dashboard:
+
+```bash
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py actualizar_todo --sin-satelite
+```
+
+El contrato completo de los campos está en
+[CONTRATO_DATOS.md](docs/contrato/CONTRATO_DATOS.md#selección-de-columnas--e1c-136).
 
 ### Correcciones manuales (E1C-131)
 

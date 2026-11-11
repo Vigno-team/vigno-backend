@@ -255,7 +255,9 @@ Cada elemento de `archivos`:
 
 **Marcador en el mapa:** se pone solo si `latitud` y `longitud` son distintas de `null`. Las coordenadas son aproximadas: vienen de la ubicación de las planillas del cliente, con precisión de 1 minuto (1 a 2 km), y no sirven para medir distancias. Una vez cargado `config/areas_mapa.json` con `cargar_areas_mapa`, San Clemente tiene las dos coordenadas. El Arenal no tiene ubicación: su `longitud` es `null` y su `latitud` es una aproximación heredada, así que no lleva marcador. El marcador muestra el último dato de la estación: el último elemento de `dias` de su `resumen_diario` (§4.5), que se une por `estacion_id`.
 
-**Próxima versión:** se agregará `observaciones` (lista de texto) con notas sobre la fuente, por ejemplo cuando una variable viene de otra estación. Hoy `variables` lista solo las 4 del resumen diario; humedad, radiación y viento se sumarán cuando se agreguen al resumen.
+`variables` lista las variables con datos disponibles en los resúmenes, incluida humedad,
+radiación y viento. Las excluidas no cuentan como disponibles. Queda pendiente
+`observaciones` (lista de texto) para notas sobre la fuente de una variable.
 
 ### 4.3 Temporadas (`/temporadas`)
 
@@ -267,7 +269,7 @@ Lista de texto, de la más antigua a la más reciente. Alimenta el selector de a
 | ------------- | ---------------- | -------------------------------------------------------------------------------------- |
 | `estacion_id` | texto            | Estación                                                                               |
 | `temporada`   | texto            | Temporada agrícola                                                                     |
-| `variables`   | objeto           | % de completitud por variable: `tmax`, `tmin`, `tmedia`, `precipitacion`               |
+| `variables`   | objeto           | % de completitud por variable: `tmax`, `tmin`, `tmedia`, `precipitacion`, `humedad_media`, `radiacion_maxima`, `viento_maximo` |
 | `confiable`   | booleano         | Se decide por la **temperatura**: `tmax` y `tmin` ≥ umbral. La precipitación no decide |
 | `observacion` | texto (opcional) | Nota cuando una variable no tiene datos en la temporada                                |
 
@@ -285,7 +287,7 @@ Uso sugerido: tabla o mapa de calor estación × temporada, en verde, amarillo o
 | ----------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `estacion_id`     | texto | Estación                                                                                                                             |
 | `desde` / `hasta` | fecha | Rango consultado                                                                                                                     |
-| `dias`            | lista | Por día: `fecha`, `tmax`, `tmin`, `tmedia`, `amplitud`, `precipitacion`; y `motivo_nulo` **solo** cuando el día no tiene temperatura |
+| `dias`            | lista | Por día: `fecha`, `tmax`, `tmin`, `tmedia`, `amplitud`, `precipitacion`, `humedad_media`, `radiacion_maxima`, `viento_maximo`, `corregido_a_mano`; `motivo_nulo` cuando hay datos faltantes, inválidos o excluidos |
 
 Uso sugerido: gráfico de líneas con Tmáx, Tmín y Tmedia, barras de lluvia en un gráfico aparte, y una línea horizontal en 35 °C como referencia del umbral de estrés.
 
@@ -298,11 +300,15 @@ Uso sugerido: gráfico de líneas con Tmáx, Tmín y Tmedia, barras de lluvia en
 | `tmedia`        | Temperatura media           | °C     | Excel                    | Sí                  |
 | `amplitud`      | Amplitud térmica            | °C     | Calculada: `tmax − tmin` | Sí                  |
 | `precipitacion` | Precipitación diaria        | mm     | Excel                    | Sí                  |
-| `humedad`       | Humedad relativa media      | %      | Excel                    | Próxima versión     |
-| `radiacion`     | Radiación máxima            | W/m²   | Excel                    | Próxima versión     |
-| `viento`        | Velocidad máxima del viento | m/s    | Excel                    | Próxima versión     |
+| `humedad_media` | Humedad relativa media      | %      | Excel                    | Sí                  |
+| `radiacion_maxima` | Radiación máxima         | W/m²   | Excel                    | Sí                  |
+| `viento_maximo` | Velocidad máxima del viento | m/s    | Excel                    | Sí                  |
 
-Humedad, radiación y viento ya están cargadas en la base, pero todavía no salen en el resumen diario. Cuando se agreguen llegarán como campos nuevos de cada día, sin romper nada.
+Humedad, radiación y viento se entregan como número o `null` en cada día de
+`resumen_diario` y de `GET /api/v1/datos`. Para datos diarios se conserva el valor
+del Excel; para horarios se calcula la media de humedad y el máximo de radiación
+y viento. Se ignoran las mediciones excluidas o fuera de rango. Estos sensores no
+determinan la confiabilidad térmica ni sustituyen una temperatura ausente.
 
 No disponibles con los datos actuales: valores horarios e intensidad horaria de lluvia. Llegarán cuando el cliente entregue datos horarios.
 
@@ -729,6 +735,79 @@ El token va en `Authorization: Bearer <access>` (ver §Autenticación). CORS adm
 `authorization` y `content-type` desde los orígenes configurados, además de la revalidación
 del ETag. Sin token válido, las operaciones protegidas responden 401. «Lectura» quiere decir
 que pide token salvo con `API_LECTURA_PUBLICA=True`.
+
+### Selección de columnas · E1C-136
+
+| Operación | Rol | Cuerpo / respuesta |
+| --- | --- | --- |
+| `GET /api/v1/variables` | Cualquier rol autenticado | `variables[]` y `indicadores` con sus dependencias |
+| `POST /api/v1/cargas?solo_validar=1` | Editor o administrador; administrador si envía `variables` | Vista previa con `columnas[]`, sin guardar |
+| `POST /api/v1/cargas` con `variables` | Administrador | Multipart: lista JSON o campos `variables` repetidos; guarda solo esas variables |
+| `PATCH /api/v1/cargas/{id}` | Administrador | JSON `{"variables_excluidas": ["temperatura_media"]}`; 200 con detalle y `recalculo` |
+
+En las selecciones se usan los nombres canónicos del Excel (`temperatura_media`,
+`temperatura_maxima`, `temperatura_minima`), no los alias `tmedia`, `tmax`, `tmin`
+de la serie diaria. Omitir `variables` en el POST conserva el procesamiento de todas
+las columnas. Una lista vacía, un valor que no sea una lista o una variable que no
+exista en ese Excel devuelve 400. No seleccionar una variable no borra ni pisa los
+datos que ya estaban cargados.
+
+Cada entrada de `columnas` describe una variable reconocida del archivo:
+
+| Campo | Tipo | Significado |
+| --- | --- | --- |
+| `variable` | string | Nombre canónico |
+| `columna` | string | Encabezado original del Excel; una barra vertical separa sus niveles |
+| `filas_total` | integer | Filas con contenido, incluidas las de fecha rechazada; no cuenta el relleno vacío de la plantilla |
+| `filas_con_dato` | integer | Celdas no vacías, incluidas las no numéricas o fuera de rango |
+| `filas_vacias` | integer | Celdas sin valor |
+| `filas_no_numericas` | integer | Celdas con contenido que no se puede usar como número finito |
+| `filas_fuera_de_rango` | integer | Valores fuera de los límites de `config/rangos_variables.json` |
+| `filas_validas` | integer | Valores numéricos finitos dentro del rango, cuando la variable tiene rango configurado |
+| `porcentaje_valido` | number | `filas_validas / filas_total × 100`, o 0 si no hay filas |
+| `indicadores` | string[] | Indicadores que dependen directa o indirectamente de la variable |
+
+El diagnóstico evalúa el contenido de la columna, no promete que todas sus filas se
+guarden: las fechas inválidas siguen en `rechazos`. Las variables sin rango configurado
+se revisan como números finitos; no se les inventa un límite físico. Si falla un umbral
+después de leer el archivo, la respuesta 422 conserva `columnas` para permitir otra
+selección. Los umbrales de columnas principales se aplican solo a las elegidas.
+
+El historial y detalle añaden `variables_procesadas` (lista de variables incorporadas
+alguna vez en esa carga) y `variables_excluidas` (estado actual). El PATCH sustituye la
+lista completa de excluidas. `[]` vuelve a incluir todo. Las mediciones existentes
+siguen guardadas, con su procedencia y marca de exclusión; los cálculos ignoran los valores marcados.
+No se alteran las mediciones que una carga posterior o una corrección manual reemplazó.
+Si se incluye una variable que se omitió al subir, se relee el Excel original archivado
+y se incorporan solo los huecos, sin sobrescribir otros orígenes.
+
+El PATCH devuelve 401 sin token, 403 para editor o lector, 404 si no existe la carga,
+400 por una selección inválida y 409 si no se puede identificar la procedencia o recuperar
+el archivo requerido. En cargas antiguas sin FK se usa la estación y el período; fechas
+solapadas entre varios posibles archivos requieren aclarar la procedencia antes de cambiarla.
+La auditoría registra las listas anteriores y nuevas, el usuario y la IP. Después se
+recalcula; `recalculo.ok: false` significa que la selección quedó guardada pero los
+resultados aún necesitan un recálculo correcto.
+
+`GET /variables` devuelve `variables[]` con `variable`, `nombre`, `unidad` e
+`indicadores[]`. `indicadores` es un objeto: cada clave contiene alternativas; una
+lista interior exige todos sus elementos, y basta cumplir una alternativa exterior.
+Por ejemplo, `"winkler": [["temperatura_media"], ["temperatura_maxima", "temperatura_minima"]]`.
+Por eso excluir media no necesariamente elimina Winkler si quedan máxima y mínima.
+
+| Indicador | Requisitos |
+| --- | --- |
+| Winkler | Media, o máxima y mínima |
+| Huglin | Máxima y media, o máxima y mínima |
+| Días críticos, calor extremo y rachas | Máxima |
+| Amplitud térmica | Máxima y mínima |
+| Lluvia invernal y fuera del invierno | Precipitación |
+| Clasificación, años análogos y predicción | Winkler, Huglin y lluvia invernal |
+| Humedad, radiación y viento | Se muestran; no alimentan esos indicadores |
+
+El frontend conserva el valor numérico de los sensores disponibles y muestra los
+indicadores sin entrada como `null`, con su `motivo_nulo`. No convierte el nulo en cero
+ni infiere una predicción a partir de humedad sola.
 
 ### Autenticación (E1C-64)
 

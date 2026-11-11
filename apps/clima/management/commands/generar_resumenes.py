@@ -2,7 +2,7 @@ import pandas as pd
 from django.core.management.base import BaseCommand
 
 from apps.clima.models import MedicionHoraria
-from apps.clima.services import derivar_resumenes_diarios
+from apps.clima.services import VARIABLES_RESUMEN, derivar_resumenes_diarios
 
 
 class Command(BaseCommand):
@@ -12,14 +12,9 @@ class Command(BaseCommand):
         parser.add_argument("--estacion", type=str, required=False, help="Nombre de la estación")
 
     def handle(self, *args, **options):
-        qs = MedicionHoraria.objects.filter(
-            variable__in=[
-                "temperatura_maxima",
-                "temperatura_minima",
-                "temperatura_media",
-                "precipitacion",
-            ]
-        )
+        # Se conservan las filas excluidas para reemplazar los resúmenes anteriores
+        # por null; sus valores se enmascaran antes de agregar.
+        qs = MedicionHoraria.objects.filter(variable__in=VARIABLES_RESUMEN)
 
         if options["estacion"]:
             qs = qs.filter(estacion__nombre=options["estacion"])
@@ -37,6 +32,7 @@ class Command(BaseCommand):
                 "valor",
                 "motivo_nulo",
                 "fuera_de_rango",
+                "excluido",
                 "origen",
             )
         )
@@ -46,12 +42,14 @@ class Command(BaseCommand):
         motivos = df.groupby(claves)["motivo_nulo"].first()
         marcas = df.set_index(claves + ["variable"])["fuera_de_rango"].unstack("variable")
         marcas = marcas.add_suffix("_fuera_de_rango")
+        exclusiones = df.set_index(claves + ["variable"])["excluido"].unstack("variable")
+        exclusiones = exclusiones.add_suffix("_excluido")
         manual = (
-            df.assign(origen_manual=df["origen"].eq("manual"))
+            df.assign(origen_manual=df["origen"].eq("manual") & ~df["excluido"])
             .groupby(claves)["origen_manual"]
             .any()
         )
-        ancho = valores.join(motivos).join(marcas).join(manual).reset_index()
+        ancho = valores.join(motivos).join(marcas).join(exclusiones).join(manual).reset_index()
         ancho.columns.name = None
 
         registros = derivar_resumenes_diarios(ancho)

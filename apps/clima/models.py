@@ -64,6 +64,7 @@ class MedicionHoraria(models.Model):
 
     fuera_de_rango = models.BooleanField(default=False, db_index=True)
     motivo_fuera_de_rango = models.CharField(max_length=255, null=True, blank=True)
+    excluido = models.BooleanField(default=False, db_index=True)
 
     temporada = models.PositiveSmallIntegerField(
         null=True, blank=True, help_text="Temporada del archivo de origen (ej: 2024)"
@@ -129,6 +130,9 @@ class ResumenDiario(models.Model):
     tmedia = models.FloatField(null=True, blank=True)
     amplitud_termica = models.FloatField(null=True, blank=True)
     precipitacion = models.FloatField(null=True, blank=True)
+    humedad_media = models.FloatField(null=True, blank=True)
+    radiacion_maxima = models.FloatField(null=True, blank=True)
+    viento_maximo = models.FloatField(null=True, blank=True)
 
     origen = models.CharField(
         max_length=1, choices=[("D", "Diario"), ("H", "Horario")], default="D"

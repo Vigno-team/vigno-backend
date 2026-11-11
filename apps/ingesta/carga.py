@@ -5,6 +5,7 @@ Lo comparten el comando ingestar_excel (terminal) y POST /api/v1/cargas (E1C-66)
 
 import hashlib
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import date
@@ -20,6 +21,7 @@ from apps.auditoria.registro import Accion, registrar
 from apps.clima.models import CorreccionManual, Estacion, MedicionHoraria
 from apps.clima.rangos import cargar_rangos, motivo_fuera_de_rango
 from apps.ingesta.models import RegistroCarga
+from apps.ingesta.variables import indicadores_de
 
 MOTIVO_FECHA_INVALIDA = "Fecha vacía o inválida en una fila con datos"
 MOTIVO_FECHA_REPETIDA = "Fecha repetida en el archivo"
@@ -296,7 +298,9 @@ def limpiar_y_rechazar(
 
     # 4. Valores numericos
     for col in columnas_variables:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+        df[col] = pd.to_numeric(df[col], errors="coerce").replace(
+            [float("inf"), float("-inf")], float("nan")
+        )
 
     # 5. Dias futuros
     hoy = timezone.localdate()
@@ -359,8 +363,66 @@ def _pct(parte: int, total: int) -> float:
     return 100 * parte / total if total else 0.0
 
 
-def validar_umbrales(prep: Preparacion, umbrales: dict) -> list[str]:
+def seleccionar_variables(prep: Preparacion, variables=None) -> list[str]:
+    disponibles = [variable for variable in prep.map_cols if variable != "timestamp"]
+    if variables is None:
+        return disponibles
+    if not isinstance(variables, list) or not variables:
+        raise ErrorCarga("variables debe ser una lista no vacía de variables del archivo.")
+    if any(not isinstance(variable, str) for variable in variables):
+        raise ErrorCarga("Cada variable debe ser un nombre de texto.")
+    desconocidas = set(variables) - set(disponibles)
+    if desconocidas:
+        raise ErrorCarga("Variables que no están en el archivo: " + ", ".join(sorted(desconocidas)))
+    return [variable for variable in disponibles if variable in variables]
+
+
+def diagnosticar_columnas(prep: Preparacion) -> list[dict]:
+    """Cuenta celdas originales, incluso en filas rechazadas por su fecha.
+
+    Las filas totalmente vacías de la plantilla ya se quitaron de `crudo`.
+    Una celda fuera de rango o no numérica cuenta como dato, pero no como válida.
+    """
+    catalogo = cargar_rangos()
+    resultado = []
+    for variable, columna in prep.map_cols.items():
+        if variable == "timestamp":
+            continue
+        originales = prep.limpieza.crudo[columna]
+        vacias = originales.isna() | originales.map(
+            lambda valor: isinstance(valor, str) and not valor.strip()
+        )
+        numericas = pd.to_numeric(originales, errors="coerce")
+        finitas = numericas.map(lambda valor: pd.notna(valor) and math.isfinite(valor))
+        no_numericas = ~vacias & ~finitas
+        fuera_rango = numericas.map(
+            lambda valor, variable=variable: bool(
+                motivo_fuera_de_rango(variable, float(valor), prep.frecuencia, catalogo)
+            )
+            if pd.notna(valor) and math.isfinite(valor)
+            else False
+        )
+        validas = finitas & ~fuera_rango
+        resultado.append(
+            {
+                "variable": variable,
+                "columna": columna,
+                "filas_total": len(originales),
+                "filas_con_dato": int((~vacias).sum()),
+                "filas_vacias": int(vacias.sum()),
+                "filas_no_numericas": int(no_numericas.sum()),
+                "filas_fuera_de_rango": int(fuera_rango.sum()),
+                "filas_validas": int(validas.sum()),
+                "porcentaje_valido": round(_pct(int(validas.sum()), len(originales)), 2),
+                "indicadores": indicadores_de(variable),
+            }
+        )
+    return resultado
+
+
+def validar_umbrales(prep: Preparacion, umbrales: dict, variables=None) -> list[str]:
     """Reglas de E1C-66 para rechazar el archivo completo; los umbrales van en el JSON."""
+    elegidas = seleccionar_variables(prep, variables)
     errores = []
     limpieza = prep.limpieza
     con_datos = limpieza.filas_leidas - limpieza.filas_vacias_ignoradas
@@ -379,6 +441,8 @@ def validar_umbrales(prep: Preparacion, umbrales: dict) -> list[str]:
         return errores
 
     for variable in umbrales["columnas_principales"]:
+        if variable not in elegidas:
+            continue
         columna = prep.map_cols.get(variable)
         if columna is None:
             continue
@@ -401,6 +465,7 @@ def clasificar_cambios(
     frecuencia: str,
     temporada: int,
     offset_fila: int = 0,
+    variables=None,
 ) -> ClasificacionResult:
     col_fecha = map_cols["timestamp"]
     existentes = {}
@@ -420,10 +485,11 @@ def clasificar_cambios(
             "fuera_de_rango",
             "motivo_fuera_de_rango",
             "origen",
+            "excluido",
         )
         existentes = {
-            (ts, var): (val, temp, flag, razon, origen)
-            for ts, var, val, temp, flag, razon, origen in filas_bd
+            (ts, var): (val, temp, flag, razon, origen, excluido)
+            for ts, var, val, temp, flag, razon, origen, excluido in filas_bd
         }
 
     a_guardar = []
@@ -434,14 +500,16 @@ def clasificar_cambios(
         timestamp_local = row[col_fecha].to_pydatetime()
 
         for variable_canonica, col_excel in map_cols.items():
-            if variable_canonica == "timestamp":
+            if variable_canonica == "timestamp" or (
+                variables is not None and variable_canonica not in variables
+            ):
                 continue
 
             valor_nuevo = row[col_excel]
             original = crudo.at[idx, col_excel]
             if pd.isna(valor_nuevo):
                 valor_final = None
-                if pd.isna(original):
+                if pd.isna(original) or (isinstance(original, str) and not original.strip()):
                     motivo = "Dato en blanco en origen"
                 else:
                     motivo = f"Valor no numérico en origen: {original!r}"[:255]
@@ -456,7 +524,14 @@ def clasificar_cambios(
             if previo is None:
                 insertados += 1
             else:
-                valor_previo, temporada_previa, flag_previo, motivo_previo, origen_previo = previo
+                (
+                    valor_previo,
+                    temporada_previa,
+                    flag_previo,
+                    motivo_previo,
+                    origen_previo,
+                    excluido_previo,
+                ) = previo
                 if temporada_previa is not None and temporada_previa > temporada:
                     omitidos += 1
                     continue
@@ -480,6 +555,7 @@ def clasificar_cambios(
                     and flag_previo == bool(motivo_rango)
                     and motivo_previo == motivo_rango
                     and origen_previo == "excel"
+                    and not excluido_previo
                 ):
                     sin_cambio += 1
                     continue
@@ -500,6 +576,7 @@ def clasificar_cambios(
                     motivo_fuera_de_rango=motivo_rango,
                     temporada=temporada,
                     origen="excel",
+                    excluido=False,
                 )
             )
 
@@ -508,7 +585,7 @@ def clasificar_cambios(
     )
 
 
-def clasificar(prep: Preparacion) -> ClasificacionResult:
+def clasificar(prep: Preparacion, variables=None) -> ClasificacionResult:
     limpieza = prep.limpieza
     return clasificar_cambios(
         limpieza.df_limpio,
@@ -518,7 +595,42 @@ def clasificar(prep: Preparacion) -> ClasificacionResult:
         prep.frecuencia,
         prep.temporada,
         prep.offset_fila,
+        seleccionar_variables(prep, variables),
     )
+
+
+def incorporar_variables(prep: Preparacion, registro: RegistroCarga, variables):
+    """Agrega columnas omitidas de un archivo guardado sin reemplazar otros orígenes.
+
+    El llamador mantiene el candado y la transacción del cambio de selección. Los datos
+    existentes, también los manuales o provenientes de otra carga, siempre prevalecen.
+    """
+    elegidas = seleccionar_variables(prep, variables)
+    clasificacion = clasificar(prep, elegidas)
+    desde, hasta = prep.rango_fechas()
+    ocupadas = set(
+        MedicionHoraria.objects.filter(
+            estacion=prep.estacion,
+            frecuencia=prep.frecuencia,
+            timestamp__date__range=(desde, hasta),
+            variable__in=elegidas,
+        ).values_list("timestamp", "variable")
+    )
+    nuevas = [
+        medicion
+        for medicion in clasificacion.a_guardar
+        if (medicion.timestamp, medicion.variable) not in ocupadas
+    ]
+    for medicion in nuevas:
+        medicion.carga = registro
+    # No actualizar conflictos: una escritura concurrente tampoco puede ser sobrescrita.
+    MedicionHoraria.objects.bulk_create(nuevas, batch_size=1000, ignore_conflicts=True)
+    procesadas = set(registro.variables_procesadas) | set(elegidas)
+    registro.variables_procesadas = [
+        variable for variable in seleccionar_variables(prep) if variable in procesadas
+    ]
+    registro.save(update_fields=["variables_procesadas"])
+    return len(nuevas)
 
 
 def guardar(
@@ -528,8 +640,14 @@ def guardar(
     hash_del_archivo: str | None = None,
     usuario: str | None = None,
     request=None,
+    variables=None,
 ) -> RegistroCarga:
     """Guarda la carga. Con `request` (la API) también la deja en la bitácora."""
+    elegidas = seleccionar_variables(prep, variables)
+    excluidas = [variable for variable in seleccionar_variables(prep) if variable not in elegidas]
+    # Defender la selección aunque el llamador haya clasificado todas las columnas.
+    if any(m.variable not in elegidas for m in r_clas.a_guardar):
+        raise ErrorCarga("La clasificación contiene variables que no fueron seleccionadas.")
     r_limp = prep.limpieza
     if r_limp.columnas_abejas:
         notas_descarte = (
@@ -557,6 +675,8 @@ def guardar(
         detalle_rechazos=r_limp.rechazos,
         celdas_vacias_conservadas=r_clas.conservados,
         columnas_descartadas=notas_descarte,
+        variables_procesadas=elegidas,
+        variables_excluidas=excluidas,
         **extra,
     )
 
@@ -578,6 +698,7 @@ def guardar(
                     "fuera_de_rango",
                     "motivo_fuera_de_rango",
                     "origen",
+                    "excluido",
                 ],
             )
             # La medición y su auditoría cambian juntas o ninguna cambia.
@@ -619,6 +740,8 @@ def guardar(
                         "sin_cambio": r_clas.sin_cambio,
                         "omitidos": r_clas.omitidos,
                         "correcciones_reemplazadas": ids,
+                        "variables_procesadas": elegidas,
+                        "variables_excluidas": excluidas,
                     },
                 )
     except Exception as e:
