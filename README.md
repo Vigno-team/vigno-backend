@@ -362,6 +362,8 @@ Se leen del `.env` (ver `.env.example`). El despliegue usa su propio `deploy/.en
 | `NUM_PROXIES` | Proxies delante del backend, para el límite de intentos del login: `0` en desarrollo, `1` detrás de nginx |
 | `DATOS_DIR` | Carpeta donde quedan el JSON del frontend, `actualizacion.json` y los Excel subidos (por defecto `data/cliente`) |
 | `CDSE_CLIENT_ID`, `CDSE_CLIENT_SECRET` | Credenciales de Copernicus Data Space para el mapa de calor. Sin ellas, ese paso se omite |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | Servidor de correo para recuperar la clave (E1C-137). Opcionales: sin `EMAIL_HOST`, en desarrollo el correo se escribe en la consola y en el despliegue la opción no aparece |
+| `FRONTEND_URL` | Dirección del frontend, para el enlace del correo de recuperación. Por defecto `http://localhost:5173`; en el despliegue, `https://localhost` |
 
 Opcionales, con valor por defecto en `vigno/settings/base.py`: `UMBRAL_CALOR_C` (35),
 `MINIMO_DIAS_INCIDENCIA` (5), `UMBRAL_LLUVIA_INTENSA_MM` (10) y `FACTOR_MES_INUSUAL` (2).
@@ -410,6 +412,9 @@ modifique la forma de una respuesta necesita aviso al PO del otro equipo antes d
 | `/api/v1/auth/logout` | POST | Cualquier cuenta | Cierra la sesión: el refresco deja de servir |
 | `/api/v1/auth/yo` | GET | Cualquier cuenta | Datos de la cuenta del token |
 | `/api/v1/auth/cambiar-clave` | POST | Cualquier cuenta | Cambia la clave y cierra las demás sesiones |
+| `/api/v1/auth/recuperacion` | GET | Sin token | `{"disponible": true}` si la instalación ofrece recuperar la clave por correo |
+| `/api/v1/auth/recuperar-clave` | POST | Sin token | Pide el enlace por correo; responde siempre 202 |
+| `/api/v1/auth/restablecer-clave` | POST | Sin token | Elige la clave nueva con el `uid` y el `token` del enlace |
 | `/api/v1/datos` | GET | Lectura | JSON completo; si falta, lo exporta desde la base y lo guarda. ETag y 304 si no cambió |
 | `/api/v1/prediccion-ficticia` | GET | Lectura | JSON de E1C-124; 404 con motivo si no existe |
 | `/api/v1/actualizacion` | GET | Lectura | Última ejecución de E1C-129, o `{"generado": null}` si aún no ha corrido |
@@ -508,6 +513,59 @@ Seguridad:
 En el código: `apps/cuentas/` (serializers, vistas, roles y permisos); la configuración está
 en `REST_FRAMEWORK` y `SIMPLE_JWT` de `vigno/settings/base.py`.
 
+### Recuperar la clave por correo (E1C-137)
+
+Es opcional: solo funciona si la instalación tiene un servidor de correo. Sin él, el sistema se
+instala y funciona igual, el frontend no muestra "¿Olvidaste tu clave?" y la clave la
+restablece un administrador (`POST /api/v1/usuarios/{id}/restablecer-clave`).
+
+1. `GET /api/v1/auth/recuperacion` responde `{"disponible": true}` o `false`.
+2. `POST /api/v1/auth/recuperar-clave` con `{"email"}` responde siempre 202 con el mismo
+   mensaje, para no revelar qué correos tienen cuenta. Si la cuenta existe y está activa, le
+   llega un correo con `{FRONTEND_URL}/restablecer-clave?uid=...&token=...`. Máximo 3 pedidos
+   por hora por IP y 3 por correo (429 después). Con la recuperación apagada, 503.
+3. `POST /api/v1/auth/restablecer-clave` con `{"uid", "token", "clave_nueva"}` valida la clave
+   con las mismas reglas que el cambio de clave, la guarda, deja `debe_cambiar_clave = false` y
+   cierra todas las sesiones de la cuenta. Responde 204. Un enlace alterado, vencido o ya usado
+   da 400 en `token`.
+
+El enlace sale de `default_token_generator` de Django: vence en 1 hora
+(`PASSWORD_RESET_TIMEOUT`) y deja de servir apenas se cambia la clave o la persona entra. El
+correo lleva el nombre de la organización de la marca (E1C-96), el enlace y cuánto dura. La
+bitácora registra `recuperacion_solicitada` (solo si la cuenta existe, con `correo_enviado`) y
+`clave_restablecida`, nunca el token ni la clave. Si el servidor de correo falla, la respuesta
+sigue siendo 202 y el error queda en el log del backend.
+
+**Activar el correo.** Completar las variables en el `.env` (o en `deploy/.env` para el
+despliegue) y reiniciar el backend. Con Gmail, la cuenta necesita la verificación en dos pasos
+y una [contraseña de aplicación](https://myaccount.google.com/apppasswords) (16 letras, sin
+espacios); la clave normal de la cuenta no sirve.
+
+```env
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=cuenta@gmail.com
+EMAIL_HOST_PASSWORD=abcdefghijklmnop
+DEFAULT_FROM_EMAIL=cuenta@gmail.com
+FRONTEND_URL=http://localhost:5173
+```
+
+En el despliegue, `FRONTEND_URL` es la dirección con que se abre el sistema (por defecto
+`https://localhost`).
+
+**Probar en desarrollo sin servidor de correo.** Sin `EMAIL_HOST`, el backend de desarrollo
+escribe el correo en la consola en vez de enviarlo:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/recuperar-clave \
+  -H "Content-Type: application/json" -d '{"email": "tu@correo.cl"}'
+docker compose logs backend    # ahí aparece el correo, con el enlace
+curl -X POST http://localhost:8000/api/v1/auth/restablecer-clave \
+  -H "Content-Type: application/json" \
+  -d '{"uid": "...", "token": "...", "clave_nueva": "Una-clave-nueva-2026"}'
+```
+
 ### Roles, permisos y bitácora (E1C-94)
 
 Cada cuenta tiene **un solo rol**, que es un grupo de Django. El superusuario cuenta como
@@ -532,7 +590,8 @@ cambio: si el cambio se deshace, el registro también. Registra:
 - carga de Excel por API (`ingestar_excel` por terminal no se registra);
 - corrección y reversión;
 - alta de estaciones por API, y alta, edición y baja de estaciones y usuarios desde el admin;
-- cambio de textos, colores y logo de la marca (E1C-96).
+- cambio de textos, colores y logo de la marca (E1C-96);
+- pedido de recuperación de clave y clave restablecida con el enlace del correo (E1C-137).
 
 Solo se agregan registros: ni el modelo ni el admin permiten editarlos o borrarlos. Una cuenta
 con historial no se puede borrar; para darla de baja se desactiva (`is_active`). Para

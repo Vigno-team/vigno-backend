@@ -1,10 +1,15 @@
-"""Rutas de /api/v1/auth (E1C-64). Solo el login y el refresco funcionan sin token."""
+"""Rutas de /api/v1/auth (E1C-64).
 
+Sin token funcionan el login, el refresco y la recuperación de la clave por correo (E1C-137).
+"""
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
 from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
 from rest_framework import serializers, status
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -13,6 +18,7 @@ from rest_framework_simplejwt.views import TokenViewBase
 from apps.auditoria.registro import Accion, instantanea_usuario, registrar
 from apps.cuentas.models import Perfil, debe_cambiar_clave
 from apps.cuentas.permisos import EsAdministrador
+from apps.cuentas.recuperacion import LimitePorCorreo, enviar_enlace
 from apps.cuentas.roles import ADMINISTRADOR, ROLES, asignar_rol, rol_de
 from apps.cuentas.serializers import (
     CambiarClaveSerializer,
@@ -20,7 +26,9 @@ from apps.cuentas.serializers import (
     CrearUsuarioSerializer,
     EditarUsuarioSerializer,
     LoginSerializer,
+    RecuperarClaveSerializer,
     RefrescoSerializer,
+    RestablecerClavePorCorreoSerializer,
     RestablecerClaveSerializer,
     UsuarioAdminSerializer,
     datos_usuario,
@@ -468,4 +476,111 @@ class RestablecerClaveView(APIView):
                 nuevo=nuevo,
             )
 
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# Recuperar la clave por correo. Las tres rutas son públicas y no miran el token:
+# las usa quien no puede entrar, y uno vencido guardado en el navegador no debe estorbar.
+
+RECUPERACION_PEDIDA = (
+    "Si el correo corresponde a una cuenta activa, te enviamos un enlace para elegir una clave "
+    "nueva. Revisa también la carpeta de spam."
+)
+RECUPERACION_APAGADA = (
+    "La recuperación de clave por correo no está disponible en esta instalación. "
+    "Pídele a un administrador que restablezca tu clave."
+)
+MENSAJE = inline_serializer("MensajeAuth", {"detail": serializers.CharField()})
+DisponibleSerializer = inline_serializer(
+    "RecuperacionDisponible", {"disponible": serializers.BooleanField()}
+)
+
+
+class RecuperacionView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Saber si se puede recuperar la clave por correo",
+        description=(
+            "Con false la instalación no tiene servidor de correo: el frontend oculta "
+            '"¿Olvidaste tu clave?" y la clave la restablece un administrador.'
+        ),
+        responses={200: DisponibleSerializer},
+        auth=[],
+        tags=["Cuentas"],
+    )
+    def get(self, request):
+        return Response({"disponible": settings.RECUPERACION_CLAVE_HABILITADA})
+
+
+class RecuperarClaveView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    # 3 pedidos por hora por IP y 3 por correo: nadie puede llenar de correos una casilla.
+    throttle_classes = [ScopedRateThrottle, LimitePorCorreo]
+    throttle_scope = "recuperar_clave"
+    throttle_scope_correo = "recuperar_clave_correo"
+
+    @extend_schema(
+        summary="Pedir un enlace para recuperar la clave",
+        description=(
+            "Responde siempre 202 con el mismo mensaje, exista o no la cuenta. Si existe y está "
+            "activa, le envía un correo con un enlace que vence en 1 hora. Máximo 3 pedidos por "
+            "hora por IP y 3 por correo. 503 si la instalación no tiene servidor de correo."
+        ),
+        request=RecuperarClaveSerializer,
+        responses={202: MENSAJE, 400: None, 429: ERROR, 503: MENSAJE},
+        auth=[],
+        tags=["Cuentas"],
+    )
+    def post(self, request):
+        if not settings.RECUPERACION_CLAVE_HABILITADA:
+            return Response(
+                {"detail": RECUPERACION_APAGADA}, status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        entrada = RecuperarClaveSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        cuenta = User.objects.filter(email__iexact=entrada.validated_data["email"]).first()
+        if cuenta is not None:
+            # Una cuenta desactivada no recibe el correo, pero la respuesta es la misma.
+            enviado = cuenta.is_active and enviar_enlace(cuenta)
+            # Sin usuario: quien lo pidió no entró. Nunca el enlace ni el token.
+            registrar(
+                Accion.RECUPERACION_SOLICITADA,
+                request=request,
+                objeto=cuenta,
+                nuevo={"correo_enviado": enviado},
+            )
+        return Response({"detail": RECUPERACION_PEDIDA}, status=status.HTTP_202_ACCEPTED)
+
+
+class RestablecerClavePorCorreoView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Elegir una clave nueva con el enlace del correo",
+        description=(
+            "Recibe uid y token tal como vienen en el enlace y la clave nueva, que se valida con "
+            "las reglas de Django. Cierra todas las sesiones de la cuenta. Un enlace alterado, "
+            "vencido o ya usado da 400 en token."
+        ),
+        request=RestablecerClavePorCorreoSerializer,
+        responses={204: OpenApiResponse(description="Clave restablecida"), 400: None},
+        auth=[],
+        tags=["Cuentas"],
+    )
+    def post(self, request):
+        entrada = RestablecerClavePorCorreoSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        usuario = entrada.validated_data["usuario"]
+        with transaction.atomic():
+            usuario.set_password(entrada.validated_data["clave_nueva"])
+            usuario.save(update_fields=["password"])
+            # Los refrescos van a la lista negra; los accesos caen por CHECK_REVOKE_TOKEN.
+            invalidar_refrescos(usuario)
+            Perfil.objects.update_or_create(usuario=usuario, defaults={"debe_cambiar_clave": False})
+            # Nunca la clave ni el token: solo que se restableció.
+            registrar(Accion.CLAVE_RESTABLECIDA, request=request, usuario=usuario, objeto=usuario)
         return Response(status=status.HTTP_204_NO_CONTENT)

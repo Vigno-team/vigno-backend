@@ -925,3 +925,38 @@ Sin token, `PATCH` y `PUT` responden 401; con un rol distinto de administrador, 
   `{"color_fondo": ["Usa el formato #RRGGBB, por ejemplo #1F4E79."]}`.
 - Los nombres iniciales salen de `instancia.json`. Los colores parten de valores neutros:
   después del despliegue, el administrador carga los de la organización.
+
+## Recuperar la clave por correo · E1C-137
+
+Es opcional: solo existe si la instalación tiene un servidor de correo. Sin él, la clave la
+restablece un administrador (§3.2) y el frontend no muestra nada nuevo.
+
+| Ruta | Cuerpo | Respuesta |
+| --- | --- | --- |
+| `GET /api/v1/auth/recuperacion` | — | 200 `{"disponible": true}` o `{"disponible": false}` |
+| `POST /api/v1/auth/recuperar-clave` | `{"email"}` | 202 `{"detail": "..."}`, igual exista o no la cuenta; 400 `{"email": ["..."]}` si no es un correo válido; 429 tras 3 pedidos en una hora desde la misma IP o para el mismo correo; 503 `{"detail": "..."}` si la recuperación está apagada |
+| `POST /api/v1/auth/restablecer-clave` | `{"uid", "token", "clave_nueva"}` | 204 sin cuerpo; 400 `{"token": ["El enlace no es válido o ya venció. Pide uno nuevo."]}` o `{"clave_nueva": ["..."]}` |
+
+Las tres son públicas: no hace falta `Authorization` y, si se envía, no se revisa.
+
+### Pantalla "¿Olvidaste tu clave?"
+
+- Al abrir el login, pedir `GET /auth/recuperacion`. Con `disponible: false`, no mostrar el
+  enlace "¿Olvidaste tu clave?".
+- La pantalla pide solo el correo y envía `POST /auth/recuperar-clave`. Con 202, mostrar el
+  `detail` de la respuesta: no dice si la cuenta existe, y el frontend tampoco debe decirlo.
+- Con 429, pedir que espere antes de intentar de nuevo. Con 503, mostrar el `detail` (hay que
+  pedirle la clave a un administrador).
+
+### Pantalla "Restablecer clave"
+
+- La abre el enlace del correo: `/restablecer-clave?uid=...&token=...`. Es una ruta pública del
+  frontend (sin sesión); en el despliegue, nginx ya la entrega al frontend.
+- Pide la clave nueva (conviene pedirla dos veces y compararlas en el navegador) y envía
+  `POST /auth/restablecer-clave` con `uid` y `token` tal como vienen en la URL.
+- Con 204, la clave quedó cambiada y todas las sesiones de la cuenta se cerraron: llevar al
+  login con un aviso y borrar los tokens que hubiera guardados.
+- Con 400 en `token`, el enlace se alteró, venció (dura 1 hora) o ya se usó: ofrecer pedir uno
+  nuevo. También deja de servir si la persona entra con su clave anterior antes de usarlo.
+- Con 400 en `clave_nueva`, mostrar los mensajes. Son las mismas reglas que al cambiar la
+  clave: 8 o más caracteres, no común, no solo números y no parecida al correo.
