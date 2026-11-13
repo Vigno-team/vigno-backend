@@ -46,7 +46,9 @@ trap 'echo "La restauración falló; se vuelve a levantar la aplicación." >&2; 
 echo "Deteniendo la aplicación..."
 "${COMPOSE[@]}" stop web tareas backend respaldos
 "${COMPOSE[@]}" up -d --wait db
-"${COMPOSE[@]}" --profile restaurar run --rm --build "${montaje[@]}" restaurador "$ruta"
+# Así y no "${montaje[@]}": en bash 3.2 (el de macOS) un arreglo vacío con set -u da
+# "unbound variable", y montaje queda vacío al restaurar una copia del volumen.
+"${COMPOSE[@]}" --profile restaurar run --rm --build ${montaje[@]+"${montaje[@]}"} restaurador "$ruta"
 echo "Levantando la aplicación..."
 "${COMPOSE[@]}" up -d --wait --wait-timeout 600
 echo "Restauración completa en $(($(date +%s) - inicio)) segundos."
