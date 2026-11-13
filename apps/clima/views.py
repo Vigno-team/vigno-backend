@@ -1,5 +1,7 @@
 """API de solo lectura y health check del entorno."""
 
+import json
+
 from django.conf import settings
 from django.db import connection, transaction
 from django.shortcuts import get_object_or_404
@@ -359,6 +361,21 @@ class RachasView(ResultadosView):
         return Response(serializers.RachasTemporadaSerializer(datos).data)
 
 
+def ultima_actualizacion() -> tuple[str | None, bool | None]:
+    """Fecha y resultado del último actualizar_todo, según actualizacion.json (E1C-140).
+
+    (None, None) si todavía no ha corrido o el archivo no se puede leer: el health no debe
+    fallar por eso.
+    """
+    try:
+        datos = json.loads((settings.DATOS_DIR / "actualizacion.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None, None
+    if not isinstance(datos, dict):
+        return None, None
+    return datos.get("generado"), datos.get("ok")
+
+
 class HealthCheckView(APIView):
     """Verifica que la API responde y que la base de datos esta accesible."""
 
@@ -368,7 +385,9 @@ class HealthCheckView(APIView):
     @extend_schema(
         summary="Estado del servicio",
         description=(
-            "Devuelve el estado de la API y de la conexion a PostgreSQL. "
+            "Devuelve el estado de la API y de la conexion a PostgreSQL, y cuándo terminó el "
+            "último recálculo (`ultima_actualizacion` y `ultima_actualizacion_ok`, null si aún "
+            "no corre). "
             "Lo usa el equipo para confirmar que el entorno levanto bien."
         ),
         responses={200: None, 503: None},
@@ -388,5 +407,7 @@ class HealthCheckView(APIView):
             "version": "0.1.0",
             "base_datos": "conectada" if db_ok else "sin conexion",
         }
+        # E1C-140: para saber de un vistazo si el recálculo programado sigue corriendo.
+        payload["ultima_actualizacion"], payload["ultima_actualizacion_ok"] = ultima_actualizacion()
         codigo = status.HTTP_200_OK if db_ok else status.HTTP_503_SERVICE_UNAVAILABLE
         return Response(payload, status=codigo)

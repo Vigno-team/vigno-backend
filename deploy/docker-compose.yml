@@ -8,6 +8,14 @@ x-seguridad: &seguridad
     - /tmp:rw,noexec,nosuid,size=256m,mode=1777
   pids_limit: 256
 
+# E1C-140: los logs rotan, para que no llenen el disco (5 archivos de 10 MB por servicio).
+x-logs: &logs
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
 x-entorno: &entorno
   DJANGO_SETTINGS_MODULE: vigno.settings.production
   DEBUG: "False"
@@ -30,7 +38,7 @@ x-entorno: &entorno
 
 services:
   db:
-    <<: *seguridad
+    <<: [*seguridad, *logs]
     build:
       context: ..
       dockerfile: deploy/postgres.Dockerfile
@@ -53,7 +61,7 @@ services:
       timeout: 5s
       retries: 20
   backend:
-    <<: *seguridad
+    <<: [*seguridad, *logs]
     user: "10001:10001"
     mem_limit: 1g
     cpus: 2.0
@@ -101,7 +109,7 @@ services:
       retries: 12
       start_period: 30s
   tareas:
-    <<: *seguridad
+    <<: [*seguridad, *logs]
     user: "10001:10001"
     mem_limit: 2g
     cpus: 2.0
@@ -137,7 +145,7 @@ services:
       start_period: 180s
     stop_grace_period: 30s
   web:
-    <<: *seguridad
+    <<: [*seguridad, *logs]
     user: nginx
     mem_limit: 128m
     cpus: 0.5
@@ -169,6 +177,65 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+  # E1C-140: un respaldo diario de la base, DATOS_DIR y media/; se conservan los últimos 14.
+  respaldos:
+    <<: [*seguridad, *logs]
+    # Misma imagen que restaurador: "up --build" la reconstruye y restaurador nunca queda con una
+    # versión vieja (Docker copia el dueño de la imagen en un volumen vacío al montarlo).
+    image: ${COMPOSE_PROJECT_NAME:-agroclima-produccion}-respaldos
+    build:
+      context: ..
+      dockerfile: deploy/respaldos.Dockerfile
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+    init: true
+    environment: &entorno-respaldos
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${POSTGRES_DB:-agroclima}
+      POSTGRES_USER: ${POSTGRES_USER:-agroclima}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD}
+      RESPALDOS_CONSERVAR: ${RESPALDOS_CONSERVAR:-14}
+      RESPALDOS_CADA_HORAS: ${RESPALDOS_CADA_HORAS:-24}
+    volumes:
+      - respaldos:/respaldos
+      - datos:/datos:ro
+      - media:/media:ro
+    depends_on:
+      # El backend queda sano después de aplicar las migraciones: así el primer respaldo de una
+      # instalación nueva ya tiene las tablas.
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # Falla si el último respaldo tiene más de 26 horas.
+      test: ["CMD", "respaldos", "salud"]
+      interval: 5m
+      timeout: 10s
+      retries: 1
+      start_period: 10m
+  # Solo para deploy/restaurar.sh y restaurar.ps1: no arranca con "up" (perfil restaurar).
+  # Corre como el usuario de la aplicación para poder escribir en datos y media.
+  restaurador:
+    <<: [*seguridad, *logs]
+    profiles: [restaurar]
+    image: ${COMPOSE_PROJECT_NAME:-agroclima-produccion}-respaldos
+    build:
+      context: ..
+      dockerfile: deploy/respaldos.Dockerfile
+    user: "10001:10001"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=2g,mode=1777
+    entrypoint: ["respaldos", "restaurar"]
+    environment:
+      <<: *entorno-respaldos
+      HOME: /tmp
+    volumes:
+      - respaldos:/respaldos:ro
+      - datos:/destino/datos
+      - media:/destino/media
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:
@@ -177,3 +244,4 @@ volumes:
   modelos:
   staticfiles:
   media:
+  respaldos:
