@@ -14,6 +14,7 @@ from apps.clima.clasificacion import (
 )
 from apps.clima.lluvia import comparar_lluvia_invernal
 from apps.clima.models import Estacion, ResumenDiario
+from apps.clima.resultados import _clasificacion
 from apps.clima.temporadas import temporada_de
 
 pytestmark = pytest.mark.django_db
@@ -223,3 +224,30 @@ def test_temporada_terminada_no_queda_marcada_como_parcial(estacion):
     c = clasificar_temporada(estacion, "2024-2025", hoy=HOY)
     assert c["en_curso"] is False and c["parcial_hasta"] is None
     assert "Temporada en curso" not in c["criterio"]
+
+
+def test_estacion_referencia_no_se_clasifica(estacion):
+    veranos(
+        estacion,
+        {
+            2021: 20,
+            2022: 20,
+            2023: 20,
+            2025: 22,
+        },
+    )
+
+    estacion.tipo = Estacion.Tipo.REFERENCIA
+    estacion.save(update_fields=["tipo"])
+
+    resultado = clasificar_temporada(
+        estacion,
+        "2025-2026",
+        hoy=HOY,
+    )
+
+    assert resultado is None
+    assert _clasificacion(estacion, "2025-2026") is None
+
+    # Sus datos diarios siguen disponibles.
+    assert ResumenDiario.objects.filter(estacion=estacion).exists()

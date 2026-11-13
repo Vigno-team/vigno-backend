@@ -2,6 +2,17 @@ from django.db import models
 
 
 class Estacion(models.Model):
+    class Tipo(models.TextChoices):
+        PROPIA = "propia", "Propia"
+        REFERENCIA = "referencia", "Referencia"
+
+    tipo = models.CharField(
+        max_length=10,
+        choices=Tipo.choices,
+        default=Tipo.PROPIA,
+        db_index=True,
+    )
+
     nombre = models.CharField(max_length=100, unique=True)
     # Campos agregados (Punto 2.2)
     codigo = models.CharField(max_length=50, unique=True, null=True, blank=True)
