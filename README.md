@@ -10,6 +10,188 @@ repositorio [`vigno-fronted`](https://github.com/Vigno-team/vigno-fronted) (rama
 
 ---
 
+## Instalación y traspaso (E1C-135)
+
+Esta sección explica, paso a paso, cómo instalar el sistema en un computador nuevo y cómo
+cuidarlo. No hace falta saber programar. El resto de este documento es para el equipo técnico.
+
+### 1. Instalar el sistema
+
+**Antes de empezar**, instala estos dos programas gratuitos:
+
+- **Git**, para descargar el sistema: https://git-scm.com/downloads
+- **Docker Desktop**, que es donde corre el sistema: https://www.docker.com/products/docker-desktop/
+  (en Linux, Docker Engine con Docker Compose). Ábrelo y espera a que diga que está listo.
+
+**Paso a paso:**
+
+1. Abre una ventana de comandos: **PowerShell** en Windows, o la aplicación **Terminal** en Mac y
+   Linux.
+2. Copia y pega estas tres líneas, una por una. Descargan el sistema en dos carpetas,
+   `vigno-backend` y `frontend`, que quedan una al lado de la otra:
+
+   ```bash
+   git clone https://github.com/Vigno-team/vigno-backend.git
+   git clone --branch develop https://github.com/Vigno-team/vigno-fronted.git frontend
+   cd vigno-backend
+   ```
+
+3. Instala con un solo comando:
+
+   | En | Copia y pega |
+   | --- | --- |
+   | Windows | `powershell -ExecutionPolicy Bypass -File deploy\instalar.ps1` |
+   | Mac y Linux | `bash deploy/instalar.sh` |
+
+   La primera vez tarda varios minutos. El instalador prepara todo solo: crea las claves internas
+   del sistema y lo deja funcionando. Si algo falta (por ejemplo, Docker Desktop cerrado), lo dice
+   en pantalla y explica qué hacer.
+
+4. Cuando aparezca **"Listo"**, abre en el navegador **https://localhost**. El navegador va a
+   mostrar un aviso de seguridad, porque el certificado es de prueba: elige **"Configuración
+   avanzada"** y luego **"Continuar a localhost"**.
+
+Se puede volver a correr el instalador cuantas veces se quiera: no borra ni cambia nada de lo ya
+instalado.
+
+**Si el frontend está en otra carpeta:** el instalador lo busca en la carpeta `frontend`, al lado
+de `vigno-backend`. Si lo guardaste en otro lugar, abre el archivo `deploy/.env` con el Bloc de
+notas y escribe su ubicación en la línea `FRONTEND_DIR=` (por ejemplo
+`FRONTEND_DIR=C:/Users/ana/Documentos/frontend`). Después vuelve a correr el instalador.
+
+### 2. Primer ingreso
+
+Entra con:
+
+| Correo | Clave |
+| --- | --- |
+| `admin@sistema.local` | `admin` |
+
+La primera vez, el sistema te pide **cambiar la clave** antes de dejarte usarlo. Elige una clave
+segura y guárdala.
+
+> **Importante:** si el sistema va a estar en un servidor al que se puede entrar desde internet,
+> no uses esta cuenta. Pídele al equipo técnico que configure el administrador antes de instalar
+> (ver [Seguridad](#seguridad-e1c-134)).
+
+### 3. Organización nueva y marca
+
+El sistema viene vacío, sin estaciones. Para usar los datos de Casas Patronales:
+
+1. Abre `deploy/.env` con el Bloc de notas y deja la línea así:
+   `INSTANCIA_CONFIG=config/instancias/casas-patronales/instancia.json`
+2. Copia y pega, una por una:
+
+   ```bash
+   docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --wait
+   docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec backend python manage.py cargar_instancia config/instancias/casas-patronales --sin-activar
+   docker compose --env-file deploy/.env -f deploy/docker-compose.yml restart backend tareas
+   ```
+
+Para otra organización, el equipo técnico crea su perfil (estaciones, calendario y formato de los
+Excel) siguiendo [Configurar una organización nueva](#configurar-una-organización-nueva).
+
+**Marca:** el nombre, el logo, los colores y el pie de página que se ven en la plataforma los
+cambia un administrador, sin reinstalar nada. Detalle técnico en
+[Marca de la instancia](#marca-de-la-instancia-e1c-96).
+
+### 4. Usuarios y roles
+
+Cada persona entra con su propio correo y clave. Hay tres tipos de cuenta:
+
+| Rol | Qué puede hacer |
+| --- | --- |
+| Administrador | Todo: crear y desactivar cuentas, cambiar claves, configurar el sistema |
+| Editor | Ver la información, subir planillas Excel, corregir datos y crear estaciones |
+| Lector | Solo ver la información |
+
+Un administrador crea las cuentas de las demás personas desde la plataforma. Si alguien olvida su
+clave, el administrador le puede dar una nueva. Detalle técnico en
+[Roles, permisos y bitácora](#roles-permisos-y-bitácora-e1c-94).
+
+### 5. Columnas del Excel
+
+Al subir una planilla Excel, el sistema muestra primero una vista previa con cada columna y cuántos
+datos buenos tiene. Un administrador puede elegir qué columnas cargar y dejar fuera las que vienen
+con errores, también después de haber cargado la planilla. Detalle técnico en
+[Elegir columnas de un Excel](#elegir-columnas-de-un-excel-e1c-136).
+
+### 6. Recuperar la clave
+
+Si la organización tiene un correo configurado para el sistema, cada persona puede pedir un enlace
+para crear una clave nueva con la opción **"¿Olvidaste tu clave?"**. Si no hay correo configurado,
+esa opción no aparece y la clave la restablece un administrador. Cómo configurar el correo:
+[Recuperar la clave por correo](#recuperar-la-clave-por-correo-e1c-137).
+
+### 7. Respaldos y restauración
+
+**El sistema guarda solo una copia de seguridad cada día** y conserva las **últimas 14** (dos
+semanas). Cada copia incluye todos los datos: las mediciones, las planillas subidas, las cuentas y
+el logo.
+
+Comandos útiles (copia y pega desde la carpeta `vigno-backend`):
+
+| Para | Comando |
+| --- | --- |
+| Ver las copias guardadas | `docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec respaldos respaldos listar` |
+| Hacer una copia ahora | `docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec respaldos respaldos respaldar` |
+| Sacar una copia a la carpeta actual | `docker compose --env-file deploy/.env -f deploy/docker-compose.yml cp respaldos:/respaldos/<nombre-de-la-copia> .` |
+
+> **Importante:** las copias se guardan en el mismo computador. Si el computador se daña, se
+> pierden también. Saca una copia una vez por semana y guárdala en otro lugar (un disco externo o
+> la nube de la organización).
+
+**Para volver a una copia** (por ejemplo, si se borró algo por error, o para pasar los datos a un
+computador nuevo, con el sistema ya instalado):
+
+| En | Copia y pega |
+| --- | --- |
+| Windows | `powershell -ExecutionPolicy Bypass -File deploy\restaurar.ps1 <nombre-o-ubicación-de-la-copia>` |
+| Mac y Linux | `bash deploy/restaurar.sh <nombre-o-ubicación-de-la-copia>` |
+
+El sistema pide escribir `RESTAURAR` para confirmar, se detiene un momento, vuelve los datos a
+como estaban en esa copia y se levanta de nuevo. **Todo lo que se haya cargado después de esa copia
+se pierde.**
+
+**Prueba realizada** (13-11-2026, Windows 11): con las 13 planillas Excel de Casas Patronales
+cargadas, se hizo una copia, se borró la instalación completa, se instaló de nuevo y se restauró la
+copia. Volvieron todos los datos, el logo y las cuentas con sus claves. Pasos:
+
+1. Hacer una copia (tardó 1 segundo).
+2. Sacarla del sistema con el comando de la tabla.
+3. Borrar la instalación y volver a instalar (45 segundos).
+4. Restaurar la copia: **42 segundos**, durante los cuales el sistema no estuvo disponible.
+
+### 8. Seguridad
+
+El sistema funciona solo con conexión segura (https), y por defecto tiene cerradas las partes de
+administración técnica. Para dejarlo en un servidor accesible desde internet, el equipo técnico
+debe: configurar el administrador en vez de usar `admin@sistema.local`, poner un certificado
+verdadero en lugar del de prueba y revisar la sección [Seguridad](#seguridad-e1c-134).
+
+### 9. Actualizar a una versión nueva
+
+1. Haz una copia de seguridad (ver la tabla de la sección 7, "Hacer una copia ahora").
+2. Descarga la versión nueva: en la carpeta `vigno-backend` y en la carpeta `frontend`, copia y
+   pega `git pull`.
+3. Vuelve a correr el instalador (sección 1, paso 3). Conserva los datos, las claves y la
+   configuración.
+4. Entra a la plataforma y revisa que todo se vea bien. Si algo falló, vuelve a la copia del
+   paso 1 (sección 7).
+
+### 10. Qué se probó y en qué equipo
+
+Pruebas del 13-11-2026, instalando desde cero y cargando las 13 planillas Excel de Casas
+Patronales:
+
+| Equipo | Qué se probó | Resultado |
+| --- | --- | --- |
+| Windows 11 con Docker Desktop | Instalar, entrar con el administrador por defecto, cargar las planillas, hacer una copia, borrar todo y restaurarla | Funcionó |
+| Linux (Alpine, con Docker), simulado dentro del mismo computador | Lo mismo, partiendo sin nada descargado (la instalación tardó unos 3 minutos) | Funcionó |
+| Mac con chip Apple | No se probó en un Mac, porque nadie del equipo tenía uno. Se comprobó que el sistema se puede preparar para ese tipo de computador | Falta probarlo en un Mac |
+
+---
+
 ## Cómo fluyen los datos
 
 ```
@@ -1151,10 +1333,7 @@ Después de cambiar credenciales o variables, recrear backend y tareas:
 `docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --force-recreate backend tareas`.
 No usar `down -v` para una base que se quiera conservar: elimina los volúmenes.
 
-Esta entrega cubre disponibilidad y conexión en vivo del sprint 6. El respaldo
-diario con restauración y el monitoreo con alertas quedan pendientes; los
-healthchecks y los volúmenes persistentes no equivalen a un respaldo ni prueban
-el objetivo mensual de disponibilidad del 99 %.
+El respaldo diario y la restauración (E1C-140) están en [Respaldos y restauración](#7-respaldos-y-restauración).
 
 ---
 

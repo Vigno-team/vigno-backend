@@ -21,7 +21,7 @@ drf-spectacular==0.30.0
 pandas==2.2.3
 openpyxl==3.1.5
 xlrd==2.0.1
-rasterio==1.4.3
+rasterio==1.4.4
 
 # --- Imágenes (logo de la marca) ---
 # Valida que el logo sea de verdad PNG, JPG o WebP; también lo exige ImageField.

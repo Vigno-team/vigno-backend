@@ -1,0 +1,17 @@
+# E1C-141: finales de línea fijos para que nada se rompa al clonar en Windows.
+# Los scripts .sh y lo que corre dentro de los contenedores Linux necesitan LF aunque el equipo
+# tenga core.autocrlf=true; PowerShell prefiere CRLF.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+
+# Binarios: nunca convertir.
+*.xlsx binary
+*.xls binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pdf binary
+*.gz binary
+*.dump binary
+*.joblib binary
