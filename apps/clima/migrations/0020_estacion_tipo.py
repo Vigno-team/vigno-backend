@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('clima', '0018_estacion_activa'),
+        ("clima", "0019_seleccion_columnas"),
     ]
 
     operations = [
