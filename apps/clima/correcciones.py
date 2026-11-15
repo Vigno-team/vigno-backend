@@ -21,6 +21,7 @@ from apps.clima.models import (
     ResumenDiario,
 )
 from apps.clima.temporadas import temporada_de
+from apps.ingesta.models import RegistroCarga
 
 logger = logging.getLogger(__name__)
 CAMPOS_DATO = (
@@ -31,6 +32,7 @@ CAMPOS_DATO = (
     "origen",
     "temporada",
     "carga_id",
+    "excluido",
 )
 
 
@@ -241,6 +243,7 @@ def crear_correccion(datos, request=None):
                     "origen": "manual",
                     "motivo_nulo": None,
                     "fuera_de_rango": False,
+                    "excluido": False,
                     "motivo_fuera_de_rango": None,
                     "temporada": dato.temporada if dato else None,
                     "carga": dato.carga if dato else carga,
@@ -274,6 +277,33 @@ def _comprobar_actual(correccion, dato):
         )
 
 
+def _restaurar_seleccion(dato):
+    """Una corrección anterior al FK también respeta la selección vigente del Excel."""
+    if dato.origen != "excel":
+        return
+    if not dato.carga_id:
+        fecha = timezone.localdate(dato.timestamp)
+        candidatas = [
+            carga
+            for carga in RegistroCarga.objects.filter(
+                estacion=dato.estacion.nombre,
+                estado=RegistroCarga.ESTADO_OK,
+                fecha_desde__lte=fecha,
+                fecha_hasta__gte=fecha,
+            )
+            if not carga.variables_procesadas or dato.variable in carga.variables_procesadas
+        ]
+        if len(candidatas) == 1:
+            dato.carga = candidatas[0]
+        elif any(dato.variable in carga.variables_excluidas for carga in candidatas):
+            raise ConflictoCorreccion(
+                "El dato original coincide con varias cargas antiguas y alguna lo excluye. "
+                "Identifica su procedencia antes de revertir la corrección."
+            )
+    if dato.carga_id:
+        dato.excluido = dato.variable in dato.carga.variables_excluidas
+
+
 def revertir_correccion(correccion_id, datos, request=None):
     from django.shortcuts import get_object_or_404
 
@@ -294,12 +324,16 @@ def revertir_correccion(correccion_id, datos, request=None):
             previo = correccion.dato_anterior
             if previo["existe"]:
                 for campo in CAMPOS_DATO:
-                    valor = previo[campo]
+                    # Las correcciones anteriores a E1C-136 no tenían esta marca.
+                    valor = previo.get(campo, False) if campo == "excluido" else previo[campo]
                     setattr(
                         dato,
                         campo,
                         float(valor) if campo == "valor" and valor is not None else valor,
                     )
+                # La selección pudo cambiar mientras la corrección estaba vigente.
+                # Al volver al Excel rige la selección actual de su carga.
+                _restaurar_seleccion(dato)
                 dato.save()
             else:
                 dato.delete()

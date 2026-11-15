@@ -4,7 +4,7 @@ from decouple import Csv, config
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F401,F403
-from .base import SECRET_KEY
+from .base import EMAIL_HOST, SECRET_KEY
 
 DEBUG = False
 
@@ -41,3 +41,8 @@ CACHES = {
 ADMIN_HABILITADO = config("ADMIN_HABILITADO", default=False, cast=bool)
 ADMIN_POR_DEFECTO = config("ADMIN_POR_DEFECTO", default=False, cast=bool)
 DOCS_HABILITADOS = config("DOCS_HABILITADOS", default=False, cast=bool)
+
+# sin servidor de correo no hay cómo mandar el enlace. La opción no aparece y la clave
+# la restablece un administrador.
+if not EMAIL_HOST:
+    RECUPERACION_CLAVE_HABILITADA = False

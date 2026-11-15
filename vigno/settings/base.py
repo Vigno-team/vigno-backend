@@ -129,6 +129,31 @@ API_LECTURA_PUBLICA = config("API_LECTURA_PUBLICA", default=False, cast=bool)
 # Carpeta donde quedan los datos listos para el frontend.
 DATOS_DIR = BASE_DIR / config("DATOS_DIR", default="data/cliente")
 
+# --- Correo: recuperar la clave ---
+# Opcional. Con EMAIL_HOST el correo sale por SMTP. Sin él, en desarrollo se escribe en la
+# consola (aparece en `docker compose logs backend`) y production.py apaga la recuperación:
+# la clave la restablece un administrador. Las variables vacías valen como no definidas.
+EMAIL_HOST = config("EMAIL_HOST", default="")
+EMAIL_PORT = int(config("EMAIL_PORT", default="") or 587)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default="True").lower() not in ("false", "0", "no")
+DEFAULT_FROM_EMAIL = (
+    config("DEFAULT_FROM_EMAIL", default="") or EMAIL_HOST_USER or "webmaster@localhost"
+)
+# Un servidor de correo colgado no deja la petición esperando para siempre.
+EMAIL_TIMEOUT = 10
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST
+    else "django.core.mail.backends.console.EmailBackend"
+)
+RECUPERACION_CLAVE_HABILITADA = True
+# Dirección del frontend: con ella se arma el enlace del correo.
+FRONTEND_URL = (config("FRONTEND_URL", default="") or "http://localhost:5173").rstrip("/")
+# El enlace vence en 1 hora y deja de servir apenas se cambia la clave (default_token_generator).
+PASSWORD_RESET_TIMEOUT = 60 * 60
+
 # --- Archivos estaticos ---
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
@@ -153,7 +178,13 @@ REST_FRAMEWORK = {
         "apps.cuentas.autenticacion.JWTConClaveAlDia",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
-    "DEFAULT_THROTTLE_RATES": {"login": "5/min", "cambiar_clave": "5/min"},
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "5/min",
+        "cambiar_clave": "5/min",
+        # pedidos del enlace para recuperar la clave, por IP y por correo.
+        "recuperar_clave": "3/hour",
+        "recuperar_clave_correo": "3/hour",
+    },
     # Detrás de nginx la IP real es la última de X-Forwarded-For. Sin proxy delante (por
     # ejemplo runserver expuesto directo) debe ser 0: si no, el cliente elige su propia IP
     # escribiendo esa cabecera y se salta el límite de intentos.

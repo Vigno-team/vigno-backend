@@ -7,6 +7,7 @@ from apps.ingesta import views
 app_name = "ingesta"
 
 urlpatterns = [
+    path("variables", views.VariablesView.as_view(), name="variables"),
     path("cargas", views.CargasView.as_view(), name="cargas"),
     path("cargas/<int:pk>", views.CargaView.as_view(), name="carga"),
 ]

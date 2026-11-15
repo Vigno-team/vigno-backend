@@ -343,7 +343,14 @@ def rutas_api():
             yield "/" + ruta.replace("<int:pk>", "1").replace("<str:temporada>", "2024-2025")
 
 
-PUBLICAS = {"/api/v1/auth/token", "/api/v1/auth/refresh"}
+PUBLICAS = {
+    "/api/v1/auth/token",
+    "/api/v1/auth/refresh",
+    # recuperar la clave es justo para quien no puede entrar.
+    "/api/v1/auth/recuperacion",
+    "/api/v1/auth/recuperar-clave",
+    "/api/v1/auth/restablecer-clave",
+}
 # Públicas solo al leer: la pantalla de login necesita la marca antes de entrar.
 # Escribir en ellas sí pide token, y eso se sigue revisando abajo.
 LECTURAS_PUBLICAS = {"/api/v1/configuracion"}

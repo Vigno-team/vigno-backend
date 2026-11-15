@@ -44,6 +44,12 @@ class RegistroCarga(models.Model):
     columnas_descartadas = models.CharField(
         max_length=255, null=True, blank=True, help_text="Constancia del descarte de Abejas"
     )
+    variables_procesadas = models.JSONField(
+        default=list, blank=True, help_text="Variables que se han ingerido desde este archivo"
+    )
+    variables_excluidas = models.JSONField(
+        default=list, blank=True, help_text="Variables omitidas o desactivadas por el administrador"
+    )
 
     registros_insertados = models.IntegerField(default=0)
     registros_actualizados = models.IntegerField(

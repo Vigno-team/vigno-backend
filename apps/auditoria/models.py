@@ -26,6 +26,7 @@ class RegistroAuditoria(models.Model):
         LOGIN_CORRECTO = "login_correcto", "Inicio de sesión correcto"
         LOGIN_FALLIDO = "login_fallido", "Inicio de sesión fallido"
         CARGA_EXCEL = "carga_excel", "Carga de Excel"
+        CARGA_SELECCION = "carga_seleccion", "Selección de variables de una carga"
         CORRECCION = "correccion", "Corrección manual"
         REVERSION = "reversion", "Reversión de una corrección"
         ESTACION_ALTA = "estacion_alta", "Alta de estación"
@@ -37,6 +38,8 @@ class RegistroAuditoria(models.Model):
         CLAVE_CAMBIADA = "clave_cambiada", "Cambio de clave"
         MARCA_EDICION = "marca_edicion", "Edición de textos y colores de la marca"
         LOGO_EDICION = "logo_edicion", "Cambio del logo"
+        RECUPERACION_SOLICITADA = "recuperacion_solicitada", "Pedido de recuperación de clave"
+        CLAVE_RESTABLECIDA = "clave_restablecida", "Clave restablecida por correo"
 
     # PROTECT: una cuenta con historial no se borra, se desactiva (is_active=False).
     usuario = models.ForeignKey(

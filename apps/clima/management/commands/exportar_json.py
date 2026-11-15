@@ -10,7 +10,7 @@ from apps.clima import resultados, serializers, services
 from apps.clima.archivos import escribir_json_atomico
 from apps.clima.mapa_calor import bloque_mapa_calor
 from apps.clima.models import Estacion, ResumenDiario
-from apps.clima.services import HAY_DATO
+from apps.clima.services import HAY_INFORMACION
 from apps.clima.temporadas import temporada_de
 from vigno.instancia import nombre_salida
 
@@ -20,7 +20,7 @@ def exportar() -> dict:
     resumen, fichas, rachas = [], [], []
 
     for est in Estacion.objects.filter(activa=True).order_by("nombre"):
-        dias = ResumenDiario.objects.filter(HAY_DATO, estacion=est)
+        dias = ResumenDiario.objects.filter(HAY_INFORMACION, estacion=est)
         rango = dias.aggregate(desde=Min("fecha"), hasta=Max("fecha"))
         if rango["desde"] is None:
             continue

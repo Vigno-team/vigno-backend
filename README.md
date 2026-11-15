@@ -10,6 +10,188 @@ repositorio [`vigno-fronted`](https://github.com/Vigno-team/vigno-fronted) (rama
 
 ---
 
+## Instalación y traspaso (E1C-135)
+
+Esta sección explica, paso a paso, cómo instalar el sistema en un computador nuevo y cómo
+cuidarlo. No hace falta saber programar. El resto de este documento es para el equipo técnico.
+
+### 1. Instalar el sistema
+
+**Antes de empezar**, instala estos dos programas gratuitos:
+
+- **Git**, para descargar el sistema: https://git-scm.com/downloads
+- **Docker Desktop**, que es donde corre el sistema: https://www.docker.com/products/docker-desktop/
+  (en Linux, Docker Engine con Docker Compose). Ábrelo y espera a que diga que está listo.
+
+**Paso a paso:**
+
+1. Abre una ventana de comandos: **PowerShell** en Windows, o la aplicación **Terminal** en Mac y
+   Linux.
+2. Copia y pega estas tres líneas, una por una. Descargan el sistema en dos carpetas,
+   `vigno-backend` y `frontend`, que quedan una al lado de la otra:
+
+   ```bash
+   git clone https://github.com/Vigno-team/vigno-backend.git
+   git clone --branch develop https://github.com/Vigno-team/vigno-fronted.git frontend
+   cd vigno-backend
+   ```
+
+3. Instala con un solo comando:
+
+   | En | Copia y pega |
+   | --- | --- |
+   | Windows | `powershell -ExecutionPolicy Bypass -File deploy\instalar.ps1` |
+   | Mac y Linux | `bash deploy/instalar.sh` |
+
+   La primera vez tarda varios minutos. El instalador prepara todo solo: crea las claves internas
+   del sistema y lo deja funcionando. Si algo falta (por ejemplo, Docker Desktop cerrado), lo dice
+   en pantalla y explica qué hacer.
+
+4. Cuando aparezca **"Listo"**, abre en el navegador **https://localhost**. El navegador va a
+   mostrar un aviso de seguridad, porque el certificado es de prueba: elige **"Configuración
+   avanzada"** y luego **"Continuar a localhost"**.
+
+Se puede volver a correr el instalador cuantas veces se quiera: no borra ni cambia nada de lo ya
+instalado.
+
+**Si el frontend está en otra carpeta:** el instalador lo busca en la carpeta `frontend`, al lado
+de `vigno-backend`. Si lo guardaste en otro lugar, abre el archivo `deploy/.env` con el Bloc de
+notas y escribe su ubicación en la línea `FRONTEND_DIR=` (por ejemplo
+`FRONTEND_DIR=C:/Users/ana/Documentos/frontend`). Después vuelve a correr el instalador.
+
+### 2. Primer ingreso
+
+Entra con:
+
+| Correo | Clave |
+| --- | --- |
+| `admin@sistema.local` | `admin` |
+
+La primera vez, el sistema te pide **cambiar la clave** antes de dejarte usarlo. Elige una clave
+segura y guárdala.
+
+> **Importante:** si el sistema va a estar en un servidor al que se puede entrar desde internet,
+> no uses esta cuenta. Pídele al equipo técnico que configure el administrador antes de instalar
+> (ver [Seguridad](#seguridad-e1c-134)).
+
+### 3. Organización nueva y marca
+
+El sistema viene vacío, sin estaciones. Para usar los datos de Casas Patronales:
+
+1. Abre `deploy/.env` con el Bloc de notas y deja la línea así:
+   `INSTANCIA_CONFIG=config/instancias/casas-patronales/instancia.json`
+2. Copia y pega, una por una:
+
+   ```bash
+   docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --wait
+   docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec backend python manage.py cargar_instancia config/instancias/casas-patronales --sin-activar
+   docker compose --env-file deploy/.env -f deploy/docker-compose.yml restart backend tareas
+   ```
+
+Para otra organización, el equipo técnico crea su perfil (estaciones, calendario y formato de los
+Excel) siguiendo [Configurar una organización nueva](#configurar-una-organización-nueva).
+
+**Marca:** el nombre, el logo, los colores y el pie de página que se ven en la plataforma los
+cambia un administrador, sin reinstalar nada. Detalle técnico en
+[Marca de la instancia](#marca-de-la-instancia-e1c-96).
+
+### 4. Usuarios y roles
+
+Cada persona entra con su propio correo y clave. Hay tres tipos de cuenta:
+
+| Rol | Qué puede hacer |
+| --- | --- |
+| Administrador | Todo: crear y desactivar cuentas, cambiar claves, configurar el sistema |
+| Editor | Ver la información, subir planillas Excel, corregir datos y crear estaciones |
+| Lector | Solo ver la información |
+
+Un administrador crea las cuentas de las demás personas desde la plataforma. Si alguien olvida su
+clave, el administrador le puede dar una nueva. Detalle técnico en
+[Roles, permisos y bitácora](#roles-permisos-y-bitácora-e1c-94).
+
+### 5. Columnas del Excel
+
+Al subir una planilla Excel, el sistema muestra primero una vista previa con cada columna y cuántos
+datos buenos tiene. Un administrador puede elegir qué columnas cargar y dejar fuera las que vienen
+con errores, también después de haber cargado la planilla. Detalle técnico en
+[Elegir columnas de un Excel](#elegir-columnas-de-un-excel-e1c-136).
+
+### 6. Recuperar la clave
+
+Si la organización tiene un correo configurado para el sistema, cada persona puede pedir un enlace
+para crear una clave nueva con la opción **"¿Olvidaste tu clave?"**. Si no hay correo configurado,
+esa opción no aparece y la clave la restablece un administrador. Cómo configurar el correo:
+[Recuperar la clave por correo](#recuperar-la-clave-por-correo-e1c-137).
+
+### 7. Respaldos y restauración
+
+**El sistema guarda solo una copia de seguridad cada día** y conserva las **últimas 14** (dos
+semanas). Cada copia incluye todos los datos: las mediciones, las planillas subidas, las cuentas y
+el logo.
+
+Comandos útiles (copia y pega desde la carpeta `vigno-backend`):
+
+| Para | Comando |
+| --- | --- |
+| Ver las copias guardadas | `docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec respaldos respaldos listar` |
+| Hacer una copia ahora | `docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec respaldos respaldos respaldar` |
+| Sacar una copia a la carpeta actual | `docker compose --env-file deploy/.env -f deploy/docker-compose.yml cp respaldos:/respaldos/<nombre-de-la-copia> .` |
+
+> **Importante:** las copias se guardan en el mismo computador. Si el computador se daña, se
+> pierden también. Saca una copia una vez por semana y guárdala en otro lugar (un disco externo o
+> la nube de la organización).
+
+**Para volver a una copia** (por ejemplo, si se borró algo por error, o para pasar los datos a un
+computador nuevo, con el sistema ya instalado):
+
+| En | Copia y pega |
+| --- | --- |
+| Windows | `powershell -ExecutionPolicy Bypass -File deploy\restaurar.ps1 <nombre-o-ubicación-de-la-copia>` |
+| Mac y Linux | `bash deploy/restaurar.sh <nombre-o-ubicación-de-la-copia>` |
+
+El sistema pide escribir `RESTAURAR` para confirmar, se detiene un momento, vuelve los datos a
+como estaban en esa copia y se levanta de nuevo. **Todo lo que se haya cargado después de esa copia
+se pierde.**
+
+**Prueba realizada** (13-11-2026, Windows 11): con las 13 planillas Excel de Casas Patronales
+cargadas, se hizo una copia, se borró la instalación completa, se instaló de nuevo y se restauró la
+copia. Volvieron todos los datos, el logo y las cuentas con sus claves. Pasos:
+
+1. Hacer una copia (tardó 1 segundo).
+2. Sacarla del sistema con el comando de la tabla.
+3. Borrar la instalación y volver a instalar (45 segundos).
+4. Restaurar la copia: **42 segundos**, durante los cuales el sistema no estuvo disponible.
+
+### 8. Seguridad
+
+El sistema funciona solo con conexión segura (https), y por defecto tiene cerradas las partes de
+administración técnica. Para dejarlo en un servidor accesible desde internet, el equipo técnico
+debe: configurar el administrador en vez de usar `admin@sistema.local`, poner un certificado
+verdadero en lugar del de prueba y revisar la sección [Seguridad](#seguridad-e1c-134).
+
+### 9. Actualizar a una versión nueva
+
+1. Haz una copia de seguridad (ver la tabla de la sección 7, "Hacer una copia ahora").
+2. Descarga la versión nueva: en la carpeta `vigno-backend` y en la carpeta `frontend`, copia y
+   pega `git pull`.
+3. Vuelve a correr el instalador (sección 1, paso 3). Conserva los datos, las claves y la
+   configuración.
+4. Entra a la plataforma y revisa que todo se vea bien. Si algo falló, vuelve a la copia del
+   paso 1 (sección 7).
+
+### 10. Qué se probó y en qué equipo
+
+Pruebas del 13-11-2026, instalando desde cero y cargando las 13 planillas Excel de Casas
+Patronales:
+
+| Equipo | Qué se probó | Resultado |
+| --- | --- | --- |
+| Windows 11 con Docker Desktop | Instalar, entrar con el administrador por defecto, cargar las planillas, hacer una copia, borrar todo y restaurarla | Funcionó |
+| Linux (Alpine, con Docker), simulado dentro del mismo computador | Lo mismo, partiendo sin nada descargado (la instalación tardó unos 3 minutos) | Funcionó |
+| Mac con chip Apple | No se probó en un Mac, porque nadie del equipo tenía uno. Se comprobó que el sistema se puede preparar para ese tipo de computador | Falta probarlo en un Mac |
+
+---
+
 ## Cómo fluyen los datos
 
 ```
@@ -362,6 +544,8 @@ Se leen del `.env` (ver `.env.example`). El despliegue usa su propio `deploy/.en
 | `NUM_PROXIES` | Proxies delante del backend, para el límite de intentos del login: `0` en desarrollo, `1` detrás de nginx |
 | `DATOS_DIR` | Carpeta donde quedan el JSON del frontend, `actualizacion.json` y los Excel subidos (por defecto `data/cliente`) |
 | `CDSE_CLIENT_ID`, `CDSE_CLIENT_SECRET` | Credenciales de Copernicus Data Space para el mapa de calor. Sin ellas, ese paso se omite |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | Servidor de correo para recuperar la clave (E1C-137). Opcionales: sin `EMAIL_HOST`, en desarrollo el correo se escribe en la consola y en el despliegue la opción no aparece |
+| `FRONTEND_URL` | Dirección del frontend, para el enlace del correo de recuperación. Por defecto `http://localhost:5173`; en el despliegue, `https://localhost` |
 
 Opcionales, con valor por defecto en `vigno/settings/base.py`: `UMBRAL_CALOR_C` (35),
 `MINIMO_DIAS_INCIDENCIA` (5), `UMBRAL_LLUVIA_INTENSA_MM` (10) y `FACTOR_MES_INUSUAL` (2).
@@ -410,6 +594,9 @@ modifique la forma de una respuesta necesita aviso al PO del otro equipo antes d
 | `/api/v1/auth/logout` | POST | Cualquier cuenta | Cierra la sesión: el refresco deja de servir |
 | `/api/v1/auth/yo` | GET | Cualquier cuenta | Datos de la cuenta del token |
 | `/api/v1/auth/cambiar-clave` | POST | Cualquier cuenta | Cambia la clave y cierra las demás sesiones |
+| `/api/v1/auth/recuperacion` | GET | Sin token | `{"disponible": true}` si la instalación ofrece recuperar la clave por correo |
+| `/api/v1/auth/recuperar-clave` | POST | Sin token | Pide el enlace por correo; responde siempre 202 |
+| `/api/v1/auth/restablecer-clave` | POST | Sin token | Elige la clave nueva con el `uid` y el `token` del enlace |
 | `/api/v1/datos` | GET | Lectura | JSON completo; si falta, lo exporta desde la base y lo guarda. ETag y 304 si no cambió |
 | `/api/v1/prediccion-ficticia` | GET | Lectura | JSON de E1C-124; 404 con motivo si no existe |
 | `/api/v1/actualizacion` | GET | Lectura | Última ejecución de E1C-129, o `{"generado": null}` si aún no ha corrido |
@@ -430,7 +617,10 @@ modifique la forma de una respuesta necesita aviso al PO del otro equipo antes d
 | `/api/v1/rachas/{temporada}?estacion={codigo}` | GET | Lectura | Rachas de calor de la temporada |
 | `/api/v1/calidad/fallas?estacion={codigo}&temporada={temporada}` | GET | Lectura | Reporte de datos con falla (`&formato=csv` para CSV) |
 | `/api/v1/cargas` | POST | Editor | Sube un Excel, lo valida, lo guarda y recalcula |
+| `/api/v1/cargas` con `variables` | POST | Administrador | Procesa solo las columnas elegidas |
 | `/api/v1/cargas`, `/api/v1/cargas/{id}` | GET | Lector | Historial y detalle de las cargas |
+| `/api/v1/cargas/{id}` | PATCH | Administrador | Cambia las variables excluidas y recalcula |
+| `/api/v1/variables` | GET | Lector | Catálogo de variables, unidades y dependencias de los indicadores |
 | `/api/v1/correcciones` | GET | Lector | Bitácora de correcciones |
 | `/api/v1/correcciones` | POST | Editor | Nueva corrección manual |
 | `/api/v1/correcciones/{id}/revertir` | POST | Editor | Revierte una corrección |
@@ -505,6 +695,59 @@ Seguridad:
 En el código: `apps/cuentas/` (serializers, vistas, roles y permisos); la configuración está
 en `REST_FRAMEWORK` y `SIMPLE_JWT` de `vigno/settings/base.py`.
 
+### Recuperar la clave por correo (E1C-137)
+
+Es opcional: solo funciona si la instalación tiene un servidor de correo. Sin él, el sistema se
+instala y funciona igual, el frontend no muestra "¿Olvidaste tu clave?" y la clave la
+restablece un administrador (`POST /api/v1/usuarios/{id}/restablecer-clave`).
+
+1. `GET /api/v1/auth/recuperacion` responde `{"disponible": true}` o `false`.
+2. `POST /api/v1/auth/recuperar-clave` con `{"email"}` responde siempre 202 con el mismo
+   mensaje, para no revelar qué correos tienen cuenta. Si la cuenta existe y está activa, le
+   llega un correo con `{FRONTEND_URL}/restablecer-clave?uid=...&token=...`. Máximo 3 pedidos
+   por hora por IP y 3 por correo (429 después). Con la recuperación apagada, 503.
+3. `POST /api/v1/auth/restablecer-clave` con `{"uid", "token", "clave_nueva"}` valida la clave
+   con las mismas reglas que el cambio de clave, la guarda, deja `debe_cambiar_clave = false` y
+   cierra todas las sesiones de la cuenta. Responde 204. Un enlace alterado, vencido o ya usado
+   da 400 en `token`.
+
+El enlace sale de `default_token_generator` de Django: vence en 1 hora
+(`PASSWORD_RESET_TIMEOUT`) y deja de servir apenas se cambia la clave o la persona entra. El
+correo lleva el nombre de la organización de la marca (E1C-96), el enlace y cuánto dura. La
+bitácora registra `recuperacion_solicitada` (solo si la cuenta existe, con `correo_enviado`) y
+`clave_restablecida`, nunca el token ni la clave. Si el servidor de correo falla, la respuesta
+sigue siendo 202 y el error queda en el log del backend.
+
+**Activar el correo.** Completar las variables en el `.env` (o en `deploy/.env` para el
+despliegue) y reiniciar el backend. Con Gmail, la cuenta necesita la verificación en dos pasos
+y una [contraseña de aplicación](https://myaccount.google.com/apppasswords) (16 letras, sin
+espacios); la clave normal de la cuenta no sirve.
+
+```env
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=cuenta@gmail.com
+EMAIL_HOST_PASSWORD=abcdefghijklmnop
+DEFAULT_FROM_EMAIL=cuenta@gmail.com
+FRONTEND_URL=http://localhost:5173
+```
+
+En el despliegue, `FRONTEND_URL` es la dirección con que se abre el sistema (por defecto
+`https://localhost`).
+
+**Probar en desarrollo sin servidor de correo.** Sin `EMAIL_HOST`, el backend de desarrollo
+escribe el correo en la consola en vez de enviarlo:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/recuperar-clave \
+  -H "Content-Type: application/json" -d '{"email": "tu@correo.cl"}'
+docker compose logs backend    # ahí aparece el correo, con el enlace
+curl -X POST http://localhost:8000/api/v1/auth/restablecer-clave \
+  -H "Content-Type: application/json" \
+  -d '{"uid": "...", "token": "...", "clave_nueva": "Una-clave-nueva-2026"}'
+```
+
 ### Roles, permisos y bitácora (E1C-94)
 
 Cada cuenta tiene **un solo rol**, que es un grupo de Django. El superusuario cuenta como
@@ -529,7 +772,8 @@ cambio: si el cambio se deshace, el registro también. Registra:
 - carga de Excel por API (`ingestar_excel` por terminal no se registra);
 - corrección y reversión;
 - alta de estaciones por API, y alta, edición y baja de estaciones y usuarios desde el admin;
-- cambio de textos, colores y logo de la marca (E1C-96).
+- cambio de textos, colores y logo de la marca (E1C-96);
+- pedido de recuperación de clave y clave restablecida con el enlace del correo (E1C-137).
 
 Solo se agregan registros: ni el modelo ni el admin permiten editarlos o borrarlos. Una cuenta
 con historial no se puede borrar; para darla de baja se desactiva (`is_active`). Para
@@ -680,16 +924,17 @@ curl -H "Authorization: Bearer $ACCESS" \
   `rechazos` con su motivo, las `celdas_vacias_conservadas` y el `recalculo` (lo que dejó
   `actualizacion.json`).
 - `200` con `"repetida": true`: ese mismo archivo (mismo SHA-256) ya se cargó bien en esa
-  estación; no se procesa de nuevo ni se recalcula.
+  estación con las mismas variables procesadas; no se procesa de nuevo ni se recalcula.
 - `400`: falta el archivo o la estación, la estación no existe, la extensión no es
   `.xls`/`.xlsx` o pesa más de 20 MB.
-- `401`: falta la clave o no es la correcta.
-- `403`: la cuenta no tiene rol editor o administrador.
+- `401`: falta el token o no es válido.
+- `403`: la cuenta no tiene el rol necesario; la selección explícita de variables pide administrador.
 - `422`: el archivo no sirve y no se guardó nada. Pasa si está dañado o protegido, si no
   tiene la hoja `mensual`, si los encabezados no calzan con ningún formato (indica las
   columnas que faltan respecto del más parecido), si más del 20 % de las fechas son
-  inválidas, si temperatura máxima, mínima o media vienen vacías o no numéricas en más
-  del 50 % de las filas, o si no queda ninguna fila válida.
+  inválidas, si una temperatura seleccionada viene vacía o no numérica en más
+  del 50 % de las filas, o si no queda ninguna fila válida. Una temperatura excluida
+  no impide confirmar las otras variables.
 
 Los errores vienen como `{"valido": false, "errores": ["..."]}`, con motivos legibles. Los
 umbrales están en `config/validacion_cargas.json` para ajustarlos sin tocar código. Lo que
@@ -708,6 +953,60 @@ y aparece en el reporte de fallas como siempre. Aplica a la API y a `ingestar_ex
 El archivo subido queda en `DATOS_DIR/cargas/<hash>.<ext>` (dentro de `data/cliente/`,
 ignorado por Git). La carga usa el mismo candado que `actualizar_todo`: si el programador
 está recalculando, la carga espera.
+
+### Elegir columnas de un Excel (E1C-136)
+
+La prevalidación devuelve `columnas`: por variable, el encabezado original, las filas
+con dato, vacías, no numéricas y fuera de rango, el porcentaje válido y los indicadores
+que la usan. También se devuelve cuando el archivo se puede leer pero no pasa los
+umbrales, para poder excluir la columna problemática y validar otra selección.
+
+El administrador puede enviar `variables` al confirmar, como lista JSON en el campo
+multipart (por ejemplo `["humedad_media"]`) o repitiendo el campo por cada variable.
+Si se omite, se procesan todas y sigue permitida la carga por un editor. Una lista
+vacía o una variable desconocida da 400. Las columnas no elegidas no crean mediciones
+ni modifican valores anteriores. El detalle de la carga incluye `variables_procesadas`
+(las que se han incorporado) y `variables_excluidas` (la selección excluida actual).
+
+Para cambiar una carga existente, un administrador envía:
+
+```http
+PATCH /api/v1/cargas/42
+Authorization: Bearer <access>
+Content-Type: application/json
+
+{"variables_excluidas": ["temperatura_media", "temperatura_maxima", "temperatura_minima"]}
+```
+
+La lista sustituye la selección excluida anterior: `[]` vuelve a incluir todo. El cambio
+no borra mediciones; marca las de esa carga y conserva el valor original. Las mediciones
+reemplazadas por otra carga o corregidas a mano no se alteran. Si una columna nunca se
+procesó, se recupera del Excel archivado solo donde no hay otro dato; si falta el archivo,
+la API responde 409. Para cargas antiguas sin procedencia se usa estación y período,
+pero se responde 409 si varias cargas podrían ser el origen de la misma medición.
+
+Cada cambio queda en la auditoría con usuario, IP y selecciones anterior/nueva, y ejecuta
+`actualizar_todo --sin-satelite`. Un editor o lector recibe 403 en el PATCH. Revisar
+`recalculo.ok` antes de dar por actualizado el dashboard; si es false, el cambio quedó
+guardado pero el recálculo falló.
+
+`GET /api/v1/variables`, con token de cualquier rol, entrega nombres, unidades y
+dependencias. Temperatura media permite Winkler; también sirven máxima y mínima juntas.
+Huglin necesita máxima y media o mínima. Los indicadores sin las variables necesarias
+quedan con valor `null` y motivo. Humedad, radiación y viento se muestran en la serie diaria
+sin usarse para calcular índices térmicos: `humedad_media` (%), `radiacion_maxima` (W/m²)
+y `viento_maximo` (m/s). Sus faltantes siguen siendo `null`.
+
+Al actualizar una instalación con datos, aplica las migraciones y vuelve a generar
+los resúmenes para que esos sensores ya cargados aparezcan en el dashboard:
+
+```bash
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py actualizar_todo --sin-satelite
+```
+
+El contrato completo de los campos está en
+[CONTRATO_DATOS.md](docs/contrato/CONTRATO_DATOS.md#selección-de-columnas--e1c-136).
 
 ### Correcciones manuales (E1C-131)
 
@@ -1055,10 +1354,7 @@ Después de cambiar credenciales o variables, recrear backend y tareas:
 `docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --force-recreate backend tareas`.
 No usar `down -v` para una base que se quiera conservar: elimina los volúmenes.
 
-Esta entrega cubre disponibilidad y conexión en vivo del sprint 6. El respaldo
-diario con restauración y el monitoreo con alertas quedan pendientes; los
-healthchecks y los volúmenes persistentes no equivalen a un respaldo ni prueban
-el objetivo mensual de disponibilidad del 99 %.
+El respaldo diario y la restauración (E1C-140) están en [Respaldos y restauración](#7-respaldos-y-restauración).
 
 ---
 
