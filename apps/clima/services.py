@@ -444,6 +444,7 @@ def estaciones(incluir_inactivas: bool = False) -> list[dict]:
                     "resolucion_origen": resolucion,
                     "version_calculo": None,
                 },
+                "tipo": est.tipo,
             }
         )
 

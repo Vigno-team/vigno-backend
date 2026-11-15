@@ -107,7 +107,9 @@ def calcular_analogos(
 def indices_instancia() -> dict:
     """{(estacion, temporada): {"winkler": x, "huglin": y}} con índices confiables."""
     filas = IndiceClimatico.objects.filter(
-        indice__in=["Winkler", "Huglin"], confiable=True
+        indice__in=["Winkler", "Huglin"],
+        confiable=True,
+        estacion__tipo="propia",
     ).select_related("estacion")
     temporadas = {}
     for fila in filas:

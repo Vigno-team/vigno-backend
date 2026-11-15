@@ -8,7 +8,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from apps.clima.indices import calcular_indices_temporada
-from apps.clima.models import Estacion, ResumenDiario
+from apps.clima.models import Estacion, IndiceClimatico, ResumenDiario
 from apps.clima.temporadas import temporada_de
 
 pytestmark = pytest.mark.django_db
@@ -108,3 +108,57 @@ def test_no_reemplaza_el_archivo_sin_sobrescribir(tmp_path):
     with pytest.raises(CommandError):
         call_command("exportar_json", "--salida", str(salida))
     call_command("exportar_json", "--salida", str(salida), "--sobrescribir")
+
+
+def test_estacion_referencia_conserva_resumen_pero_no_publica_indices(client, tmp_path):
+    referencia = Estacion.objects.create(
+        nombre="Estación externa",
+        codigo="externa-test",
+        tipo=Estacion.Tipo.REFERENCIA,
+    )
+
+    cargar_dias(
+        referencia,
+        date(2024, 10, 1),
+        3,
+        tmedia=20,
+        tmax=30,
+        tmin=10,
+    )
+
+    # Simulamos un índice antiguo que quedó almacenado.
+    IndiceClimatico.objects.create(
+        estacion=referencia,
+        temporada="2024-2025",
+        indice="Winkler",
+        valor=1500,
+        confiable=True,
+    )
+
+    _, datos = exportar(tmp_path)
+
+    # La estación aparece correctamente identificada.
+    estacion_publicada = next(e for e in datos["estaciones"] if e["id"] == referencia.codigo)
+    assert estacion_publicada["tipo"] == "referencia"
+
+    # Conserva sus resúmenes diarios.
+    resumen = next(r for r in datos["resumen_diario"] if r["estacion_id"] == referencia.codigo)
+    assert len(resumen["dias"]) == 3
+
+    # No expone índices ni clasificación.
+    ficha = next(f for f in datos["ficha_temporada"] if f["estacion_id"] == referencia.codigo)
+    assert ficha["indices"] is None
+    assert ficha["clasificacion"] is None
+
+    # La API individual respeta la misma regla.
+    respuesta = client.get(
+        "/api/v1/temporadas/2024-2025",
+        {"estacion": referencia.codigo},
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["indices"] is None
+    assert respuesta.json()["clasificacion"] is None
+
+    # El índice antiguo permanece almacenado, pero no se publica.
+    assert IndiceClimatico.objects.filter(estacion=referencia).exists()

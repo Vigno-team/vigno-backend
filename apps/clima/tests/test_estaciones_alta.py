@@ -1,5 +1,7 @@
 """Test para dar de alta una localidad nueva y cargarle su Excel con el formato estándar."""
 
+from datetime import date
+
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -7,10 +9,10 @@ from rest_framework.test import APIClient
 
 from apps.auditoria.models import RegistroAuditoria
 from apps.auditoria.registro import Accion
-from apps.clima import mapeos
+from apps.clima import estaciones, mapeos
 from apps.clima.estaciones import en_territorio
 from apps.clima.management.commands.exportar_json import exportar
-from apps.clima.models import Estacion, MedicionHoraria
+from apps.clima.models import Estacion, IndiceClimatico, MedicionHoraria, ResumenDiario
 from apps.clima.tests.test_ingestar_excel import crear_excel, fila
 from apps.ingesta.models import RegistroCarga
 
@@ -48,6 +50,7 @@ def test_crea_la_estacion_y_responde_201(api):
         "propietario": "Viña Nueva",
         "latitud": -35.9,
         "longitud": -72.3,
+        "tipo": "propia",
     }
     estacion = Estacion.objects.get(nombre="Villa Nueva")
     assert estacion.codigo == "villa-nueva"
@@ -564,3 +567,79 @@ def test_estaciones_inactivas_no_aparecen_en_listado(api):
 
     assert activa.codigo in codigos
     assert "inactiva-listado" not in codigos
+
+
+def test_crear_estacion_de_referencia(api):
+    respuesta = crear(api, tipo="referencia")
+
+    assert respuesta.status_code == 201
+    assert respuesta.json()["tipo"] == "referencia"
+
+    estacion = Estacion.objects.get(codigo="villa-nueva")
+    assert estacion.tipo == Estacion.Tipo.REFERENCIA
+
+    assert en_get(api, estacion.codigo)["tipo"] == "referencia"
+
+    detalle = api.get(f"{URL}/{estacion.codigo}")
+    assert detalle.status_code == 200
+    assert detalle.json()["tipo"] == "referencia"
+
+
+def test_cambiar_estacion_a_referencia(api, monkeypatch):
+    estacion = Estacion.objects.create(
+        nombre="Estación convertible",
+        codigo="convertible-01",
+        latitud=-35.5,
+        longitud=-72.0,
+    )
+
+    ResumenDiario.objects.create(
+        estacion=estacion,
+        fecha=date(2024, 10, 1),
+        temporada="2024-2025",
+        tmedia=20,
+        tmax=30,
+        tmin=10,
+    )
+
+    IndiceClimatico.objects.create(
+        estacion=estacion,
+        temporada="2024-2025",
+        indice="Winkler",
+        valor=1500,
+        confiable=True,
+    )
+
+    # Evita ejecutar todo el pipeline en esta prueba del CRUD.
+    monkeypatch.setattr(
+        estaciones,
+        "recalcular",
+        lambda: {"ok": True},
+    )
+
+    respuesta = api.patch(
+        f"{URL}/{estacion.codigo}",
+        {"tipo": "referencia"},
+        format="json",
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["tipo"] == "referencia"
+
+    estacion.refresh_from_db()
+    assert estacion.tipo == Estacion.Tipo.REFERENCIA
+
+    # Los índices anteriores deben desaparecer.
+    assert not IndiceClimatico.objects.filter(estacion=estacion).exists()
+
+    # Los datos diarios deben conservarse.
+    assert ResumenDiario.objects.filter(estacion=estacion).count() == 1
+
+    # El cambio debe quedar registrado.
+    registro = RegistroAuditoria.objects.get(
+        accion=Accion.ESTACION_EDICION,
+        id_objeto=str(estacion.pk),
+    )
+
+    assert registro.valor_anterior["tipo"] == "propia"
+    assert registro.valor_nuevo["tipo"] == "referencia"

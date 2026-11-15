@@ -5,6 +5,7 @@ import pytest
 from apps.clima.indices import (
     calcular_indice_huglin,
     calcular_indice_winkler,
+    calcular_indices_temporada,
 )
 from apps.clima.metricas import clasificar_winkler, k_huglin
 from apps.clima.models import ConfiguracionCalidad, Estacion, IndiceClimatico, ResumenDiario
@@ -93,3 +94,27 @@ def test_huglin_sin_latitud_no_es_confiable():
     indice = IndiceClimatico.objects.get(estacion=est, indice="Huglin", temporada="2024-2025")
     assert indice.confiable is False
     assert indice.parametros["latitud"] is None
+
+
+@pytest.mark.django_db
+def test_estacion_referencia_no_genera_indices():
+    estacion = Estacion.objects.create(
+        nombre="Estación Externa",
+        codigo="estacion-externa",
+        latitud=-35.5,
+        tipo=Estacion.Tipo.REFERENCIA,
+    )
+
+    ResumenDiario.objects.create(
+        estacion=estacion,
+        fecha=date(2024, 10, 1),
+        temporada="2024-2025",
+        tmedia=20.0,
+        tmax=25.0,
+    )
+
+    calcular_indices_temporada(estacion, "2024-2025")
+
+    assert not IndiceClimatico.objects.filter(estacion=estacion).exists()
+
+    assert ResumenDiario.objects.filter(estacion=estacion).count() == 1

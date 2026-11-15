@@ -10,7 +10,7 @@ from django.core.management import call_command
 from django.db import IntegrityError, transaction
 
 from apps.clima.mapeos import buscar_estacion
-from apps.clima.models import Estacion, MedicionHoraria
+from apps.clima.models import Estacion, IndiceClimatico, MedicionHoraria
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,15 @@ def codigo_libre(nombre: str) -> str:
     return candidato
 
 
-def crear_estacion(*, nombre, latitud, longitud, subzona=None, propietario=None) -> Estacion:
+def crear_estacion(
+    *,
+    nombre,
+    latitud,
+    longitud,
+    subzona=None,
+    propietario=None,
+    tipo=Estacion.Tipo.PROPIA,
+) -> Estacion:
     """Crea la estación con un `codigo` único. Lanza NombreRepetido si el nombre ya existe."""
     for _ in range(INTENTOS_CODIGO):
         existente = buscar_estacion(nombre)
@@ -73,6 +81,7 @@ def crear_estacion(*, nombre, latitud, longitud, subzona=None, propietario=None)
                     longitud=longitud,
                     subzona=subzona or None,
                     propietario=propietario or None,
+                    tipo=tipo,
                 )
         except IntegrityError:
             # Otra petición creó el mismo nombre o el mismo código entre la consulta y el insert:
@@ -117,6 +126,9 @@ def editar_estacion(estacion: Estacion, **cambios) -> Estacion:
     try:
         with transaction.atomic():
             estacion.save(update_fields=list(cambios))
+
+            if estacion.tipo == Estacion.Tipo.REFERENCIA:
+                IndiceClimatico.objects.filter(estacion=estacion).delete()
     except IntegrityError:
         _revisar_repetidos(estacion, cambios)
         raise

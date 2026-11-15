@@ -99,7 +99,12 @@ def _termino(metrica: str, temporada: str, hoy: date) -> bool:
     return METRICAS[metrica][1](temporada)[1] <= hoy
 
 
-def clasificar_temporada(estacion: Estacion, temporada: str, hoy: date | None = None) -> dict:
+def clasificar_temporada(
+    estacion: Estacion, temporada: str, hoy: date | None = None
+) -> dict | None:
+    if estacion.tipo == Estacion.Tipo.REFERENCIA:
+        return None
+
     hoy = hoy or timezone.localdate()
     umbral = ConfiguracionCalidad.obtener_umbral()
 

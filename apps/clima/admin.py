@@ -11,7 +11,8 @@ from .models import ConfiguracionCalidad, Estacion, IndiceClimatico, MedicionHor
 # Visualizar tablas tablas estandarizadas en Admin
 @admin.register(Estacion)
 class EstacionAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "codigo", "subzona", "propietario", "latitud", "longitud")
+    list_display = ("nombre", "codigo", "tipo", "subzona", "propietario", "latitud", "longitud")
+    list_filter = ("tipo",)
     search_fields = ("nombre", "codigo")
 
     # cada alta, edición o baja desde el admin queda en la bitácora. El admin ya
@@ -19,6 +20,8 @@ class EstacionAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         anterior = instantanea_estacion(Estacion.objects.get(pk=obj.pk)) if change else None
         super().save_model(request, obj, form, change)
+        if obj.tipo == Estacion.Tipo.REFERENCIA:
+            IndiceClimatico.objects.filter(estacion=obj).delete()
         registrar(
             Accion.ESTACION_EDICION if change else Accion.ESTACION_ALTA,
             request=request,

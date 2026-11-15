@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from apps.clima import estaciones
 from apps.clima.mapeos import es_nombre_reservado
+from apps.clima.models import Estacion
 
 
 class ConsultaTemporadaSerializer(serializers.Serializer):
@@ -139,7 +140,7 @@ class FichaTemporadaSerializer(serializers.Serializer):
     estacion_id = serializers.CharField()
     subzona = serializers.CharField(allow_null=True)
     periodo = PeriodoSerializer()
-    indices = IndicesSerializer()
+    indices = IndicesSerializer(allow_null=True)
     lluvia_invernal = LluviaInvernalSerializer()
     lluvia_fuera_invierno = LluviaFueraInviernoSerializer()
     calor = CalorSerializer()
@@ -179,6 +180,7 @@ class EstacionResultadoSerializer(serializers.Serializer):
     temporadas_disponibles = serializers.IntegerField()
     calidad_dato = CalidadDatoSerializer()
     activa = serializers.BooleanField(required=False)
+    tipo = serializers.ChoiceField(choices=Estacion.Tipo.choices)
 
 
 class EstacionNuevaSerializer(serializers.Serializer):
@@ -190,6 +192,11 @@ class EstacionNuevaSerializer(serializers.Serializer):
     )
     propietario = serializers.CharField(
         max_length=100, required=False, allow_null=True, allow_blank=True
+    )
+    tipo = serializers.ChoiceField(
+        choices=Estacion.Tipo.choices,
+        required=False,
+        default=Estacion.Tipo.PROPIA,
     )
 
     def validate_nombre(self, value):
@@ -260,6 +267,7 @@ class EstacionCreadaSerializer(serializers.Serializer):
     propietario = serializers.CharField(allow_null=True)
     latitud = serializers.FloatField(allow_null=True)
     longitud = serializers.FloatField(allow_null=True)
+    tipo = serializers.ChoiceField(choices=Estacion.Tipo.choices)
 
 
 class EstacionDetalleSerializer(EstacionCreadaSerializer):

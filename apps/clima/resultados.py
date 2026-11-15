@@ -14,7 +14,7 @@ from apps.clima.dias_criticos import obtener_dias_criticos
 from apps.clima.lluvia import comparar_lluvia_invernal, lluvia_invernal
 from apps.clima.lluvia_fuera_invierno import lluvia_fuera_invierno
 from apps.clima.metricas import calidad_metrica, valor_metrica, version_calculo
-from apps.clima.models import ConfiguracionCalidad, IndiceClimatico, ResumenDiario
+from apps.clima.models import ConfiguracionCalidad, Estacion, IndiceClimatico, ResumenDiario
 from apps.clima.rachas import identificar_rachas
 from apps.clima.services import MOTIVO_EXCLUIDO
 from apps.clima.temporadas import (
@@ -125,6 +125,8 @@ def resultados_rachas(estacion, temporada):
 def _clasificacion(estacion, temporada):
     """Cálida/fría y lluviosa/seca. None solo si no se puede clasificar ningún eje."""
     c = clasificar_temporada(estacion, temporada)
+    if c is None:
+        return None
     if c["termica"] is None and c["hidrica"] is None:
         return None
     bloque = {
@@ -147,12 +149,21 @@ def _clasificacion(estacion, temporada):
 def ficha_temporada(estacion, temporada):
     comprobar_temporada(estacion, temporada)
     umbral = ConfiguracionCalidad.obtener_umbral()
-    indices = {
-        i.indice: i
-        for i in IndiceClimatico.objects.filter(
-            estacion=estacion, temporada=temporada, indice__in=("Winkler", "Huglin")
-        )
-    }
+
+    es_referencia = estacion.tipo == Estacion.Tipo.REFERENCIA
+
+    indices = (
+        {}
+        if es_referencia
+        else {
+            i.indice: i
+            for i in IndiceClimatico.objects.filter(
+                estacion=estacion,
+                temporada=temporada,
+                indice__in=("Winkler", "Huglin"),
+            )
+        }
+    )
     inicio, fin = _periodo_indice(indices.get("Winkler"), temporada, "Winkler")
     lluvia = lluvia_invernal(estacion, temporada)
     historico = comparar_lluvia_invernal(estacion, temporadas=[temporada])
@@ -206,7 +217,9 @@ def ficha_temporada(estacion, temporada):
         "estacion_id": estacion.codigo,
         "subzona": estacion.subzona,
         "periodo": {"inicio": inicio.isoformat(), "fin": fin.isoformat()},
-        "indices": {
+        "indices": None
+        if es_referencia
+        else {
             tipo.lower(): _bloque_indice(estacion, temporada, tipo, indices.get(tipo), umbral)
             for tipo in ("Winkler", "Huglin")
         },

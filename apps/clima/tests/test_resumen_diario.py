@@ -301,3 +301,4 @@ def test_contrato_estaciones(estacion_contrato):
     assert set(data) == set(ejemplo)
     assert set(data["calidad_dato"]) == set(ejemplo["calidad_dato"])
     assert isinstance(data["temporadas_disponibles"], int)
+    assert data["tipo"] == ejemplo["tipo"] == "propia"

@@ -7,6 +7,9 @@ NOMBRES_INDICE = {"winkler": "Winkler", "huglin": "Huglin", "dias_sobre_umbral":
 
 
 def _guardar(estacion: Estacion, temporada: str, metrica: str):
+    if estacion.tipo == Estacion.Tipo.REFERENCIA:
+        IndiceClimatico.objects.filter(estacion=estacion).delete()
+        return None
     resultado = metricas.valor_metrica(estacion, metrica, temporada, para_guardar=True)
     if resultado["valor"] is not None:
         IndiceClimatico.objects.update_or_create(
@@ -36,6 +39,10 @@ def calcular_dias_sobre_umbral(estacion: Estacion, temporada: str) -> int:
 
 
 def calcular_indices_temporada(estacion: Estacion, temporada: str):
+    if estacion.tipo == Estacion.Tipo.REFERENCIA:
+        IndiceClimatico.objects.filter(estacion=estacion).delete()
+        return
+
     calcular_indice_winkler(estacion, temporada)
     calcular_indice_huglin(estacion, temporada)
     calcular_dias_sobre_umbral(estacion, temporada)
