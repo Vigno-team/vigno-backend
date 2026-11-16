@@ -3,6 +3,8 @@ from datetime import date
 
 from apps.clima.models import Estacion, ResumenDiario
 
+MOTIVO_EXCLUIDO = "Variables excluidas por el administrador"
+
 
 def resolucion_desde_origenes(origenes: Iterable[str]) -> str | None:
     encontrados = set(origenes)

@@ -1,30 +1,35 @@
 import pandas as pd
-from django.db.models import Count, Max, Min, Q
 from django.utils import timezone
 
-from apps.clima.models import ConfiguracionCalidad, Estacion, ResumenDiario
+from apps.clima.calidad import MOTIVO_EXCLUIDO
+from apps.clima.models import ConfiguracionCalidad, ResumenDiario
 from apps.clima.rangos import MOTIVO_RANGO, VARIABLES
-from apps.clima.temporadas import rango_temporada, temporada_de
-
-HAY_DATO = (
-    Q(tmax__isnull=False)
-    | Q(tmin__isnull=False)
-    | Q(tmedia__isnull=False)
-    | Q(precipitacion__isnull=False)
-    | Q(humedad_media__isnull=False)
-    | Q(radiacion_maxima__isnull=False)
-    | Q(viento_maximo__isnull=False)
+from apps.clima.resultados import (
+    HAY_DATO as HAY_DATO,
 )
-MOTIVO_EXCLUIDO = "Variables excluidas por el administrador"
-# Una temporada excluida conserva su ficha con índices nulos y su explicación.
-HAY_INFORMACION = HAY_DATO | Q(motivo_nulo__contains=MOTIVO_EXCLUIDO)
+from apps.clima.resultados import (
+    HAY_INFORMACION as HAY_INFORMACION,
+)
+from apps.clima.resultados import (
+    completitud_por_temporada as completitud_por_temporada,
+)
+from apps.clima.resultados import (
+    estaciones as estaciones,
+)
+from apps.clima.resultados import (
+    resumen_diario as resumen_diario,
+)
+from apps.clima.resultados import (
+    temporadas as temporadas,
+)
+from apps.clima.temporadas import temporada_de
+
 VARIABLES_RESUMEN = {
     **VARIABLES,
     "humedad_media": "humedad_media",
     "radiacion_maxima": "radiacion_maxima",
     "viento_maximo": "viento_maximo",
 }
-RESOLUCION = {"D": "diaria", "H": "horaria"}
 
 
 def horas_del_dia(fecha) -> int:
@@ -270,182 +275,3 @@ def derivar_resumenes_diarios(df_ingesta: pd.DataFrame) -> list[ResumenDiario]:
         update_fields=campos_update,
     )
     return registros
-
-
-# Funciones del contrato JSON
-
-
-def resumen_diario(estacion: Estacion, desde: str, hasta: str) -> dict:
-    dias = ResumenDiario.objects.filter(estacion=estacion, fecha__range=[desde, hasta]).order_by(
-        "fecha"
-    )
-    data = {"estacion_id": estacion.codigo, "desde": desde, "hasta": hasta, "dias": []}
-
-    for d in dias:
-        dia_dict = {
-            "fecha": d.fecha.strftime("%Y-%m-%d"),
-            "tmax": d.tmax,
-            "tmin": d.tmin,
-            "tmedia": d.tmedia,
-            "amplitud": d.amplitud_termica,
-            "precipitacion": d.precipitacion,
-            "humedad_media": d.humedad_media,
-            "radiacion_maxima": d.radiacion_maxima,
-            "viento_maximo": d.viento_maximo,
-            "corregido_a_mano": d.corregido_a_mano,
-        }
-        if d.motivo_nulo:
-            dia_dict["motivo_nulo"] = d.motivo_nulo
-        data["dias"].append(dia_dict)
-    return data
-
-
-def completitud_por_temporada(estacion: Estacion | None = None) -> list[dict]:
-    qs = ResumenDiario.objects.filter(estacion__activa=True)
-
-    if estacion is not None:
-        qs = qs.filter(estacion=estacion)
-
-    umbral = ConfiguracionCalidad.obtener_umbral()
-    hoy = timezone.localdate()
-
-    filas = (
-        qs.values("estacion__codigo", "temporada")
-        .annotate(
-            n_tmax=Count("tmax"),
-            n_tmin=Count("tmin"),
-            n_tmedia=Count("tmedia"),
-            n_precipitacion=Count("precipitacion"),
-            n_humedad_media=Count("humedad_media"),
-            n_radiacion_maxima=Count("radiacion_maxima"),
-            n_viento_maximo=Count("viento_maximo"),
-        )
-        .order_by("estacion__codigo", "temporada")
-    )
-
-    resultado = []
-    for f in filas:
-        inicio, fin = rango_temporada(f["temporada"])
-        fin = min(fin, hoy)
-        total = max((fin - inicio).days + 1, 1)
-
-        def pct(n, total=total):
-            return round(min(n / total * 100, 100), 1)
-
-        variables = {
-            "tmax": pct(f["n_tmax"]),
-            "tmin": pct(f["n_tmin"]),
-            "tmedia": pct(f["n_tmedia"]),
-            "precipitacion": pct(f["n_precipitacion"]),
-            "humedad_media": pct(f["n_humedad_media"]),
-            "radiacion_maxima": pct(f["n_radiacion_maxima"]),
-            "viento_maximo": pct(f["n_viento_maximo"]),
-        }
-
-        item = {
-            "estacion_id": f["estacion__codigo"],
-            "temporada": f["temporada"],
-            "variables": variables,
-            "confiable": variables["tmax"] >= umbral and variables["tmin"] >= umbral,
-        }
-
-        if variables["precipitacion"] == 0:
-            item["observacion"] = "sin datos de precipitación en la temporada"
-
-        resultado.append(item)
-
-    return resultado
-
-
-def temporadas() -> list[str]:
-    return list(
-        ResumenDiario.objects.filter(
-            HAY_INFORMACION,
-            estacion__activa=True,
-        )
-        .order_by("temporada")
-        .values_list("temporada", flat=True)
-        .distinct()
-    )
-
-
-def estaciones(incluir_inactivas: bool = False) -> list[dict]:
-    umbral = ConfiguracionCalidad.obtener_umbral()
-    resultado = []
-
-    qs_estaciones = Estacion.objects.order_by("nombre")
-
-    if not incluir_inactivas:
-        qs_estaciones = qs_estaciones.filter(activa=True)
-
-    for est in qs_estaciones:
-        qs = ResumenDiario.objects.filter(estacion=est)
-
-        agg = qs.filter(HAY_INFORMACION).aggregate(
-            inicio=Min("fecha"),
-            fin=Max("fecha"),
-            n_completos=Count(
-                "id",
-                filter=Q(tmax__isnull=False, tmin__isnull=False),
-            ),
-            n_tmax=Count("tmax"),
-            n_tmin=Count("tmin"),
-            n_tmedia=Count("tmedia"),
-            n_precipitacion=Count("precipitacion"),
-            n_humedad_media=Count("humedad_media"),
-            n_radiacion_maxima=Count("radiacion_maxima"),
-            n_viento_maximo=Count("viento_maximo"),
-        )
-
-        variables = [
-            nombre
-            for nombre, n in [
-                ("tmax", agg["n_tmax"]),
-                ("tmin", agg["n_tmin"]),
-                ("tmedia", agg["n_tmedia"]),
-                ("precipitacion", agg["n_precipitacion"]),
-                ("humedad_media", agg["n_humedad_media"]),
-                ("radiacion_maxima", agg["n_radiacion_maxima"]),
-                ("viento_maximo", agg["n_viento_maximo"]),
-            ]
-            if n > 0
-        ]
-
-        completitud = None
-        if agg["inicio"]:
-            dias_rango = (agg["fin"] - agg["inicio"]).days + 1
-            completitud = round(agg["n_completos"] / dias_rango * 100, 1)
-
-        origenes = set(qs.order_by().values_list("origen", flat=True).distinct())
-
-        if len(origenes) == 1:
-            resolucion = RESOLUCION[origenes.pop()]
-        else:
-            resolucion = "mixta" if origenes else None
-
-        n_temporadas = qs.filter(HAY_INFORMACION).order_by().values("temporada").distinct().count()
-
-        resultado.append(
-            {
-                "id": est.codigo,
-                "nombre": est.nombre,
-                "subzona": est.subzona,
-                "propietario": est.propietario,
-                "latitud": est.latitud,
-                "longitud": est.longitud,
-                "variables": variables,
-                "fecha_inicio": (agg["inicio"].isoformat() if agg["inicio"] else None),
-                "fecha_fin": (agg["fin"].isoformat() if agg["fin"] else None),
-                "temporadas_disponibles": n_temporadas,
-                "calidad_dato": {
-                    "completitud_pct": completitud,
-                    "confiable": (completitud is not None and completitud >= umbral),
-                    "umbral_completitud_pct": umbral,
-                    "resolucion_origen": resolucion,
-                    "version_calculo": None,
-                },
-                "tipo": est.tipo,
-            }
-        )
-
-    return resultado
