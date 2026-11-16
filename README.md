@@ -95,6 +95,11 @@ Excel) siguiendo [Configurar una organización nueva](#configurar-una-organizaci
 cambia un administrador, sin reinstalar nada. Detalle técnico en
 [Marca de la instancia](#marca-de-la-instancia-e1c-96).
 
+**Estaciones de referencia:** una estación de un vecino o de una red pública se puede marcar como
+`referencia`. Se sigue viendo en el dashboard, pero no entra en los índices, la clasificación ni
+los años análogos. Detalle técnico en
+[Estaciones propias y de referencia](#estaciones-propias-y-de-referencia).
+
 ### 4. Usuarios y roles
 
 Cada persona entra con su propio correo y clave. Hay tres tipos de cuenta:
@@ -1555,6 +1560,44 @@ imagen de desarrollo), Ruff y formato. En frontend pasan 7 tests unitarios y la
 compilación de producción. El lint general conserva 17 errores y 4 advertencias
 preexistentes de `develop`, comprobados contra esa rama; los módulos nuevos pasan
 lint. El PR de frontend identifica esa deuda sin desactivar reglas.
+
+## Prueba de punta a punta · E1C-139
+
+Prueba del 16-11-2026 con una instalación limpia: base de datos vacía, `main` del backend
+(con E1C-72 y E1C-118) y `develop` del frontend (`0eb0f16`), en Chromium. El backend se levantó
+sin Docker, con PostgreSQL 16, y se cargaron las 13 planillas de Casas Patronales: 12 con
+`ingestar_excel` y una desde la pantalla. La instalación con Docker ya está probada en
+[Qué se probó y en qué equipo](#10-qué-se-probó-y-en-qué-equipo).
+
+| Caso | Cómo se probó | Backend | Frontend (`develop`) |
+| --- | --- | --- | --- |
+| 1. Administrador por defecto | Entrar con `admin@sistema.local` / `admin` | Obliga a cambiar la clave antes de usar el sistema | Funciona: pide la clave nueva y abre el dashboard |
+| 2. Crear un editor y un lector | `POST /api/v1/usuarios`; también desde la pantalla de la rama `feature/SCRUM-53-gestion-usuarios-roles` | Funciona; las cuentas nuevas quedan con cambio de clave pendiente | No tiene la sección Usuarios. En la rama SCRUM-53 sí: se listaron y se crearon cuentas desde la pantalla |
+| 3. Primer ingreso del editor y del lector | Entrar con la clave temporal | Obliga a cambiarla | Funciona |
+| 4. Nombre y logo | `PATCH /api/v1/configuracion` y `PUT /api/v1/configuracion/logo` | Guarda y entrega nombre, colores y logo | No los usa: sigue mostrando el nombre y el logo fijos |
+| 5. Cargar un Excel eligiendo columnas | Gestión de datos: `San Clemente 2026.xlsx`, sin la humedad | Guarda 6 variables y deja la humedad excluida | Funciona: muestra el diagnóstico por columna antes de confirmar |
+| 6. Cambiar las columnas de una carga hecha | «Ver / editar» en `San Clemente 2025.xlsx`: quitar las tres temperaturas y después «Incluir todas» | Winkler 2025-2026 queda sin dato con su motivo y vuelve a 1714,1 al reincluirlas; queda en la bitácora | Funciona |
+| 7. Estación de referencia | `PATCH /api/v1/estaciones/cp-villavicencio-01` con `tipo: referencia` | El Arenal sale como referencia, sin índices ni clasificación; San Clemente no cambia | Muestra «Sin dato» sin la etiqueta de referencia; «Editar estaciones» no tiene el campo |
+| 8. Permisos por rol | Cada cuenta contra usuarios, bitácora, marca, estaciones y datos | Lector: 403 en todo salvo los datos. Editor: 403 en usuarios, bitácora y marca | Si el lector sube un Excel, avisa «Tu cuenta no tiene permiso». El menú no se oculta por rol; en la rama SCRUM-53 sí |
+| 9. Recuperar la clave | Pedir el enlace, usarlo y volver a usarlo | 202 al pedirlo, 204 al usarlo, 400 la segunda vez; entra con la clave nueva | No tiene «¿Olvidaste tu clave?» ni la ruta `/restablecer-clave` |
+| 10. Corrección manual | Enviar la corrección como lo hace `ModalCorreccionFalla` | Sin `X-Api-Key` responde 201 | Falla con `npm run dev`: sigue mandando `X-Api-Key` y el navegador bloquea la petición (CORS) |
+
+### Pendiente en el frontend
+
+El backend no necesita cambios para estos puntos:
+
+1. Fusionar `feature/SCRUM-53-gestion-usuarios-roles` en `develop`: trae la sección Usuarios y el
+   menú según el rol, y funcionó en esta prueba.
+2. Tomar nombre, logo y colores de `GET /api/v1/configuracion`, y una pantalla para que el
+   administrador los cambie (`PATCH /api/v1/configuracion`, `PUT /api/v1/configuracion/logo`).
+3. «¿Olvidaste tu clave?» en el login, solo si `GET /api/v1/auth/recuperacion` dice `disponible`,
+   y la ruta `/restablecer-clave` que abre el enlace del correo.
+4. Mostrar la etiqueta de referencia (`tipo`) y permitir cambiarla en «Editar estaciones».
+5. Quitar `X-Api-Key` y el campo «Clave administrador» de `ModalCorreccionFalla.tsx`.
+6. Deseable: la bitácora para el administrador (`GET /api/v1/auditoria`).
+
+Observación del backend: las cargas hechas con `ingestar_excel` guardan la ruta del archivo tal
+como se escribió en el comando, y el historial de cargas la muestra completa.
 
 ## Seguridad (E1C-134)
 
