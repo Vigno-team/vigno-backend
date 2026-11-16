@@ -1,14 +1,19 @@
-"""Resultados reales de E1C-17, adaptados al contrato del frontend."""
+"""Resultados reales, adaptados al contrato del frontend."""
 
 from datetime import date
 from unicodedata import normalize
 
 from django.conf import settings
-from django.db.models import Count
+from django.db.models import Count, Max, Min, Q
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
-from apps.clima.calidad import construir_calidad_dato, resolucion_estacion
+from apps.clima.calidad import (
+    MOTIVO_EXCLUIDO,
+    construir_calidad_dato,
+    resolucion_desde_origenes,
+    resolucion_estacion,
+)
 from apps.clima.clasificacion import clasificar_temporada
 from apps.clima.dias_criticos import obtener_dias_criticos
 from apps.clima.lluvia import comparar_lluvia_invernal, lluvia_invernal
@@ -16,7 +21,6 @@ from apps.clima.lluvia_fuera_invierno import lluvia_fuera_invierno
 from apps.clima.metricas import calidad_metrica, valor_metrica, version_calculo
 from apps.clima.models import ConfiguracionCalidad, Estacion, IndiceClimatico, ResumenDiario
 from apps.clima.rachas import identificar_rachas
-from apps.clima.services import MOTIVO_EXCLUIDO
 from apps.clima.temporadas import (
     rango_dias_calor,
     rango_huglin,
@@ -26,6 +30,17 @@ from apps.clima.temporadas import (
 )
 
 RANGOS_INDICE = {"Winkler": rango_winkler, "Huglin": rango_huglin}
+HAY_DATO = (
+    Q(tmax__isnull=False)
+    | Q(tmin__isnull=False)
+    | Q(tmedia__isnull=False)
+    | Q(precipitacion__isnull=False)
+    | Q(humedad_media__isnull=False)
+    | Q(radiacion_maxima__isnull=False)
+    | Q(viento_maximo__isnull=False)
+)
+
+HAY_INFORMACION = HAY_DATO | Q(motivo_nulo__contains=MOTIVO_EXCLUIDO)
 
 
 def _periodo_indice(indice, temporada, tipo):
@@ -232,3 +247,178 @@ def ficha_temporada(estacion, temporada):
             estacion=estacion, temporada=temporada, corregido_a_mano=True
         ).count(),
     }
+
+
+# Funciones del contrato JSON
+
+
+def resumen_diario(estacion: Estacion, desde: str, hasta: str) -> dict:
+    dias = ResumenDiario.objects.filter(estacion=estacion, fecha__range=[desde, hasta]).order_by(
+        "fecha"
+    )
+    data = {"estacion_id": estacion.codigo, "desde": desde, "hasta": hasta, "dias": []}
+
+    for d in dias:
+        dia_dict = {
+            "fecha": d.fecha.strftime("%Y-%m-%d"),
+            "tmax": d.tmax,
+            "tmin": d.tmin,
+            "tmedia": d.tmedia,
+            "amplitud": d.amplitud_termica,
+            "precipitacion": d.precipitacion,
+            "humedad_media": d.humedad_media,
+            "radiacion_maxima": d.radiacion_maxima,
+            "viento_maximo": d.viento_maximo,
+            "corregido_a_mano": d.corregido_a_mano,
+        }
+        if d.motivo_nulo:
+            dia_dict["motivo_nulo"] = d.motivo_nulo
+        data["dias"].append(dia_dict)
+    return data
+
+
+def completitud_por_temporada(estacion: Estacion | None = None) -> list[dict]:
+    qs = ResumenDiario.objects.filter(estacion__activa=True)
+
+    if estacion is not None:
+        qs = qs.filter(estacion=estacion)
+
+    umbral = ConfiguracionCalidad.obtener_umbral()
+    hoy = timezone.localdate()
+
+    filas = (
+        qs.values("estacion__codigo", "temporada")
+        .annotate(
+            n_tmax=Count("tmax"),
+            n_tmin=Count("tmin"),
+            n_tmedia=Count("tmedia"),
+            n_precipitacion=Count("precipitacion"),
+            n_humedad_media=Count("humedad_media"),
+            n_radiacion_maxima=Count("radiacion_maxima"),
+            n_viento_maximo=Count("viento_maximo"),
+        )
+        .order_by("estacion__codigo", "temporada")
+    )
+
+    resultado = []
+    for f in filas:
+        inicio, fin = rango_temporada(f["temporada"])
+        fin = min(fin, hoy)
+        total = max((fin - inicio).days + 1, 1)
+
+        def pct(n, total=total):
+            return round(min(n / total * 100, 100), 1)
+
+        variables = {
+            "tmax": pct(f["n_tmax"]),
+            "tmin": pct(f["n_tmin"]),
+            "tmedia": pct(f["n_tmedia"]),
+            "precipitacion": pct(f["n_precipitacion"]),
+            "humedad_media": pct(f["n_humedad_media"]),
+            "radiacion_maxima": pct(f["n_radiacion_maxima"]),
+            "viento_maximo": pct(f["n_viento_maximo"]),
+        }
+
+        item = {
+            "estacion_id": f["estacion__codigo"],
+            "temporada": f["temporada"],
+            "variables": variables,
+            "confiable": variables["tmax"] >= umbral and variables["tmin"] >= umbral,
+        }
+
+        if variables["precipitacion"] == 0:
+            item["observacion"] = "sin datos de precipitación en la temporada"
+
+        resultado.append(item)
+
+    return resultado
+
+
+def temporadas() -> list[str]:
+    return list(
+        ResumenDiario.objects.filter(
+            HAY_INFORMACION,
+            estacion__activa=True,
+        )
+        .order_by("temporada")
+        .values_list("temporada", flat=True)
+        .distinct()
+    )
+
+
+def estaciones(incluir_inactivas: bool = False) -> list[dict]:
+    umbral = ConfiguracionCalidad.obtener_umbral()
+    resultado = []
+
+    qs_estaciones = Estacion.objects.order_by("nombre")
+
+    if not incluir_inactivas:
+        qs_estaciones = qs_estaciones.filter(activa=True)
+
+    for est in qs_estaciones:
+        qs = ResumenDiario.objects.filter(estacion=est)
+
+        agg = qs.filter(HAY_INFORMACION).aggregate(
+            inicio=Min("fecha"),
+            fin=Max("fecha"),
+            n_completos=Count(
+                "id",
+                filter=Q(tmax__isnull=False, tmin__isnull=False),
+            ),
+            n_tmax=Count("tmax"),
+            n_tmin=Count("tmin"),
+            n_tmedia=Count("tmedia"),
+            n_precipitacion=Count("precipitacion"),
+            n_humedad_media=Count("humedad_media"),
+            n_radiacion_maxima=Count("radiacion_maxima"),
+            n_viento_maximo=Count("viento_maximo"),
+        )
+
+        variables = [
+            nombre
+            for nombre, n in [
+                ("tmax", agg["n_tmax"]),
+                ("tmin", agg["n_tmin"]),
+                ("tmedia", agg["n_tmedia"]),
+                ("precipitacion", agg["n_precipitacion"]),
+                ("humedad_media", agg["n_humedad_media"]),
+                ("radiacion_maxima", agg["n_radiacion_maxima"]),
+                ("viento_maximo", agg["n_viento_maximo"]),
+            ]
+            if n > 0
+        ]
+
+        completitud = None
+        if agg["inicio"]:
+            dias_rango = (agg["fin"] - agg["inicio"]).days + 1
+            completitud = round(agg["n_completos"] / dias_rango * 100, 1)
+
+        origenes = qs.order_by().values_list("origen", flat=True).distinct()
+        resolucion = resolucion_desde_origenes(origenes)
+
+        n_temporadas = qs.filter(HAY_INFORMACION).order_by().values("temporada").distinct().count()
+
+        resultado.append(
+            {
+                "id": est.codigo,
+                "nombre": est.nombre,
+                "subzona": est.subzona,
+                "propietario": est.propietario,
+                "latitud": est.latitud,
+                "longitud": est.longitud,
+                "variables": variables,
+                "fecha_inicio": (agg["inicio"].isoformat() if agg["inicio"] else None),
+                "fecha_fin": (agg["fin"].isoformat() if agg["fin"] else None),
+                "temporadas_disponibles": n_temporadas,
+                "calidad_dato": {
+                    "completitud_pct": completitud,
+                    "confiable": (completitud is not None and completitud >= umbral),
+                    "umbral_completitud_pct": umbral,
+                    "resolucion_origen": resolucion,
+                    "version_calculo": None,
+                },
+                "tipo": est.tipo,
+            }
+        )
+
+    return resultado
