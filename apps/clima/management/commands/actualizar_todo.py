@@ -1,6 +1,5 @@
 """E1C-129: recalcula todo y deja listos los datos del frontend en DATOS_DIR."""
 
-import importlib.util
 import json
 import logging
 import time
@@ -21,7 +20,7 @@ from vigno.instancia import archivo_instancia, nombre_salida
 logger = logging.getLogger(__name__)
 
 # Si fallan estos pasos el frontend quedaría con datos viejos o incompletos.
-PASOS_CRITICOS = {"generar_resumenes", "calcular_indices", "clasificar_temporadas", "exportar_json"}
+PASOS_CRITICOS = {"generar_resumenes", "calcular_indices", "exportar_json"}
 # Sentinel-2 pasa cada ~5 días: antes de eso no hay imagen nueva que pedir.
 DIAS_CAPA_VIGENTE = 5
 # Clave del pg_advisory_lock; cualquier entero fijo sirve mientras nadie más lo use.
@@ -42,10 +41,6 @@ def candado():
     finally:
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_advisory_unlock(%s)", [CLAVE_CANDADO])
-
-
-def hay_sklearn() -> bool:
-    return importlib.util.find_spec("sklearn") is not None
 
 
 def estaciones_con_contorno() -> list[str]:
@@ -119,17 +114,9 @@ class Command(BaseCommand):
             )
             return ok
 
-        csv = settings.BASE_DIR / "data" / "referencia" / "cosechas.csv"
-
         paso("generar_resumenes", lambda: call_command("generar_resumenes"))
         paso("calcular_indices", lambda: call_command("calcular_indices"))
-        paso("clasificar_temporadas", lambda: self.clasificar(csv))
         paso("actualizar_mapa_calor", lambda: self.mapa_calor(options))
-
-        evaluacion = csv.with_name("prediccion_cosecha_referencia.json")
-        paso("entrenar_cosecha", lambda: self.entrenar(csv, evaluacion))
-        paso("exportar_prediccion_referencia", lambda: self.exportar_prediccion(evaluacion))
-
         paso(
             "exportar_json",
             lambda: call_command(
@@ -180,27 +167,3 @@ class Command(BaseCommand):
         if errores:
             raise RuntimeError(detalle)
         return detalle or "sin estaciones con contorno"
-
-    def clasificar(self, csv) -> str:
-        # clasifica el histórico de California, no las estaciones: sin el CSV no aplica
-        if not csv.is_file():
-            raise Omitido(f"no existe {csv.relative_to(settings.BASE_DIR)}")
-        call_command("clasificar_temporadas")
-        return ""
-
-    def entrenar(self, csv, evaluacion) -> str:
-        if not csv.is_file():
-            raise Omitido(f"no existe {csv.relative_to(settings.BASE_DIR)}")
-        if not hay_sklearn():
-            raise Omitido("scikit-learn no está instalado (requirements-ml.txt)")
-        if evaluacion.is_file() and evaluacion.stat().st_mtime >= csv.stat().st_mtime:
-            return "la evaluación está al día con cosechas.csv"
-        call_command("entrenar_cosecha")
-        return ""
-
-    def exportar_prediccion(self, evaluacion) -> str:
-        # solo lee la evaluación: no necesita el CSV ni scikit-learn
-        if not evaluacion.is_file():
-            raise Omitido(f"no existe {evaluacion.relative_to(settings.BASE_DIR)}")
-        call_command("exportar_prediccion_referencia")
-        return ""
