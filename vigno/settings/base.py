@@ -209,9 +209,7 @@ CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"
 # --- Contrato de la API (lo consume el equipo de frontend) ---
 SPECTACULAR_SETTINGS = {
     "TITLE": f"{INSTANCIA['organizacion']['nombre_corto']} API",
-    "DESCRIPTION": (
-        f"API de análisis climático y cosecha de {INSTANCIA['organizacion']['nombre']}."
-    ),
+    "DESCRIPTION": f"API de análisis climático de {INSTANCIA['organizacion']['nombre']}.",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
     # El token que se pega en Authorize (/api/docs) no queda guardado en el navegador.
