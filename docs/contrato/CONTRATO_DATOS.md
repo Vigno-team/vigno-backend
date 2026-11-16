@@ -137,7 +137,7 @@ La respuesta de creación es `201`. Las consultas y modificaciones responden `20
 
 Las estaciones se clasifican en dos tipos:
 
-- **`propia`:** participa en los cálculos de índices climáticos, clasificación de temporadas y selección de años análogos de la instancia.
+- **`propia`:** participa en los cálculos de índices climáticos y clasificación de temporadas de la instancia.
 - **`referencia`:** estación externa utilizada para consultar y contrastar datos climáticos. No participa en estos cálculos.
 
 El campo `tipo` es opcional durante la creación. Si no se envía, se utiliza `propia`. Las estaciones existentes también mantienen este valor por defecto.
@@ -494,11 +494,7 @@ Las estaciones de referencia:
 - Se incluyen en el listado de estaciones y en el JSON consolidado `/api/v1/datos`.
 - Conservan sus mediciones, resúmenes diarios y datos de calidad.
 - No generan índices climáticos ni clasificación de temporadas.
-- No participan en la selección de años análogos de la instancia.
-- No aportan índices a las predicciones de la instancia.
 - Se pueden crear y editar desde la API de estaciones y Django Admin.
-
-La predicción demostrativa del dataset histórico independiente de California conserva su funcionamiento.
 
 El frontend debe utilizar el campo `tipo` para identificar visualmente las estaciones de referencia y no interpretar la ausencia de índices como un error de calidad.
 
@@ -563,55 +559,6 @@ Para que el frontend sepa qué ya responde con datos reales (fuera de la API, qu
 | `resumen_diario`            | Implementado                           | Los días que el Excel no trae se omiten en vez de venir con `null` y motivo                                                                                                                                       |
 | `consolidacion`             | Datos guardados, falta armar el bloque | `columnas_descartadas` se guarda como texto                                                                                                                                                                       |
 | `mapa_calor`                | Publicado en el JSON de `exportar_json` | Sin endpoint. La capa se actualiza a mano con `actualizar_mapa_calor`. `ejemplo_mapa_calor.json` es sintético y no se usa como fuente de respuestas |
-
-
-## E1C-124 · JSON de predicción ficticia de California
-
-Este contrato es independiente de la ficha de temporadas de VIGNO. No cambia
-fechas de hemisferio ni agrega estaciones, temporadas, correlaciones, calidad
-o años análogos que el entrenamiento no haya calculado.
-
-```powershell
-docker compose exec backend python manage.py entrenar_cosecha
-docker compose exec backend python manage.py exportar_prediccion_ficticia
-```
-
-Entrada: `data/ficticio/prediccion_cosecha_california.json` de E1C-85.
-Salida: `data/ficticio/prediccion_ficticia.json`, ignorada por Git.
-No requiere scikit-learn para exportar un entrenamiento ya generado.
-Si falta la entrada, el comando termina con:
-`CommandError("Corre primero: python manage.py entrenar_cosecha")`.
-Una entrada inválida o incompleta también produce un error: no se inventan
-valores ni se sustituye por un ejemplo.
-
-| Campo de salida | Tipo | Origen y significado |
-| --- | --- | --- |
-| `generado` | string ISO 8601 con zona | `timezone.now().isoformat()` al exportar. |
-| `datos_ficticios` | boolean | `datos_ficticios` de la entrada; debe ser `true`. |
-| `fuente.cita` | string | `fuente` de la entrada, referencia de Bai et al. |
-| `fuente.url` | string | `dataset_url` de la entrada. |
-| `convencion_fechas` | string | Identifica fechas originales de California, sin desplazamiento. |
-| `modelo.version` | string | `version_modelo` del entrenamiento. |
-| `modelo.variables` | array de strings | `features`, exactamente las usadas por el modelo. |
-| `modelo.importancias` | objeto | `importancias_random_forest`, sin números prefijados. |
-| `modelo.regresion_lineal` | objeto | Intercepto, coeficientes y nota originales. |
-| `modelo.metricas` | objeto | Copia completa de `metricas`; MAE, RMSE y tamaño de muestra por método. |
-| `modelo.comparacion_base` | objeto | Copia de `comparacion_base`: `rf_mejora_mae` y `rf_mejora_rmse`. |
-| `modelo.validacion` | objeto | Años de entrenamiento/prueba, cantidades y exclusiones originales. |
-| `predicciones` | array de objetos | Todas las filas de prueba, sin modificar identidades ni fechas. |
-| `predicciones[].fuente/region/anio/cultivar/color` | string/string/integer/string/string | Identidad original del dataset de California. |
-| `predicciones[].doy_real/doy_estimado/diferencia_dias` | number | DOY y error firmado calculados por E1C-85. |
-| `predicciones[].fecha_real` | string YYYY-MM-DD | Fecha original del año de California. |
-| `predicciones[].prediccion` | objeto | Centro, extremos y dispersión 10–90 de árboles calculados por E1C-85. |
-
-Se conservan también los demás campos que produzca E1C-85 en cada fila,
-por ejemplo las predicciones de regresión lineal y promedio regional.
-Las métricas de Napa corresponden a E1C-87; este exportador no las simula.
-
-La salida se escribe en UTF-8 sin BOM. Los tests usan `tmp_path` y
-`settings.BASE_DIR`; nunca escriben en la carpeta real `data/cliente`.
-No se versiona un JSON con resultados inventados: el ejemplo para el frontend
-se obtiene ejecutando ambos comandos sobre el CSV local.
 
 
 ## Calidad del dato: integración E1C-71, E1C-70, E1C-68 y E1C-130
@@ -705,7 +652,6 @@ Las rutas son públicas y admiten GET y HEAD. Están en `/api/docs/` y `/api/sch
 | Ruta | Respuesta |
 | --- | --- |
 | `/api/v1/datos` | 200 con el contrato completo de `DATOS_DIR/vigno-datos-reales.json`. Si falta el archivo, lo genera con `exportar()` y lo guarda atómicamente. |
-| `/api/v1/prediccion-ficticia` | 200 con el contenido de `data/ficticio/prediccion_ficticia.json` (E1C-124). Si falta, 404 con `{"motivo_nulo": "Aún no se ha entrenado el modelo de California."}`. |
 | `/api/v1/actualizacion` | 200 con `DATOS_DIR/actualizacion.json` (E1C-129), o `{"generado": null}` si no existe. |
 
 `/datos` incluye `ETag` y `Cache-Control: no-cache`. Se devuelve 304 sin cuerpo si
@@ -717,13 +663,13 @@ El frontend debe cargar `/datos` al abrir y consultar `/actualizacion` cada 60 s
 Si cambia su `generado`, vuelve a pedir `/datos` con el ETag recibido anteriormente.
 Ambos campos `generado` pertenecen a sus respectivas exportaciones; no se exige que sus
 timestamps sean iguales. `actualizacion.ok: false` informa un fallo de la última corrida,
-aunque siga disponible el JSON anterior. Ningún GET ejecuta el pipeline o el entrenamiento.
+aunque siga disponible el JSON anterior. Ningún GET ejecuta el pipeline.
 
 `actualizacion.json` conserva `generado`, `ok` y `pasos[]`, cuyos elementos llevan `paso`,
-`ok`, `segundos` y `detalle`. `/actualizacion` y `/prediccion-ficticia` también llevan
+`ok`, `segundos` y `detalle`. `/actualizacion` también lleva
 `Cache-Control: no-cache`. Los archivos inválidos o ilegibles responden 503 con `detalle`,
 `Retry-After: 30` y `Cache-Control: no-store`; no se sustituyen por datos inventados ni se
-presentan como si nunca se hubiera ejecutado el proceso. El 404 de predicción usa `no-store`.
+presentan como si nunca se hubiera ejecutado el proceso.
 
 CORS toma los orígenes permitidos de `CORS_ALLOWED_ORIGINS`, admite `If-None-Match` y
 expone `ETag`. En desarrollo se incluye `http://localhost:5173`.
@@ -762,9 +708,7 @@ provocan un refresco inmediato. Un 304 conserva los datos que ya están en panta
 Si la conexión falla, se muestran un aviso y los últimos datos recibidos.
 
 `generado: null` significa que el programador aún no publicó un estado; no impide
-consultar `/datos`. El 404 de `/prediccion-ficticia` se muestra con su `motivo_nulo`.
-La predicción conserva las etiquetas y fechas de California y siempre se presenta
-como demostración con datos ficticios, separada de las estaciones de VIGNO.
+consultar `/datos`.
 Los archivos compartidos por Drive quedan solo como respaldo, no como fuente de la interfaz.
 
 ### Carga de archivos
@@ -848,12 +792,12 @@ Por eso excluir media no necesariamente elimina Winkler si quedan máxima y mín
 | Días críticos, calor extremo y rachas | Máxima |
 | Amplitud térmica | Máxima y mínima |
 | Lluvia invernal y fuera del invierno | Precipitación |
-| Clasificación, años análogos y predicción | Winkler, Huglin y lluvia invernal |
+| Clasificación | Winkler, Huglin y lluvia invernal |
 | Humedad, radiación y viento | Se muestran; no alimentan esos indicadores |
 
 El frontend conserva el valor numérico de los sensores disponibles y muestra los
 indicadores sin entrada como `null`, con su `motivo_nulo`. No convierte el nulo en cero
-ni infiere una predicción a partir de humedad sola.
+ni infiere un indicador a partir de humedad sola.
 
 ### Autenticación (E1C-64)
 
