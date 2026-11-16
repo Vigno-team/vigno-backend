@@ -36,13 +36,6 @@ data/cliente/
 !data/synthetic/**/*.csv
 data/synthetic/datos_sinteticos.csv
 
-# Modelos entrenados
-*.pkl
-*.joblib
-*.h5
-*.onnx
-apps/ml/artifacts/
-
 # Jupyter
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints/
@@ -69,16 +62,6 @@ Thumbs.db
 config/areas_mapa.dev.json
 config/instancia.json
 !config/instancias/**/instancia.json
-
-# Dataset de referencia (E1C-78): se comparte por Drive hasta confirmar la licencia
-data/referencia/*.xlsx
-data/referencia/*.zip
-
-# Salidas de los comandos del dataset de referencia
-data/referencia/*.json
-# Mantener protegidas las salidas de instalaciones anteriores.
-data/ficticio/*.json
-data/ficticio/*.zip
 
 # Variables locales de despliegue
 deploy/.env

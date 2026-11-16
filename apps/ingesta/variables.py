@@ -11,7 +11,7 @@ VARIABLES = {
 }
 
 # Cada lista interior reúne requisitos simultáneos; las listas exteriores son alternativas.
-# Los últimos tres indicadores dependen de índices, no directamente de una sola columna.
+# La clasificación depende de índices, no directamente de una sola columna.
 DEPENDENCIAS_INDICADORES = {
     "winkler": [["temperatura_media"], ["temperatura_maxima", "temperatura_minima"]],
     "huglin": [
@@ -25,8 +25,6 @@ DEPENDENCIAS_INDICADORES = {
     "lluvia_invernal": [["precipitacion"]],
     "lluvia_fuera_invierno": [["precipitacion"]],
     "clasificacion": [["winkler", "huglin", "lluvia_invernal"]],
-    "anos_analogos": [["winkler", "huglin", "lluvia_invernal"]],
-    "prediccion": [["winkler", "huglin", "lluvia_invernal"]],
 }
 
 

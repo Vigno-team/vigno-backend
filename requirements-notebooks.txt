@@ -1,0 +1,8 @@
+-r requirements.txt
+
+# Dependencias de los notebooks de docs/notebooks.
+# Van aparte para que la imagen de la API se construya rapido.
+
+numpy==2.1.2
+matplotlib==3.9.2
+jupyterlab==4.6.5

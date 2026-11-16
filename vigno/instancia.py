@@ -105,7 +105,6 @@ def validar_configuracion(datos):
             "mes_inicio_anio_agricola",
             "meses_invierno",
             "desfase_anio_invierno",
-            "desfase_analogos_dias",
             "ventanas_indices",
             "etapas_crecimiento",
         ),
@@ -136,11 +135,6 @@ def validar_configuracion(datos):
             "debe ser -1, 0 o 1 respecto al primer año de temporada",
         )
     ventanas = cal["ventanas_indices"]
-    if (
-        type(cal["desfase_analogos_dias"]) is not int
-        or not -365 <= cal["desfase_analogos_dias"] <= 365
-    ):
-        _error("calendario.desfase_analogos_dias", "debe ser un entero entre -365 y 365")
     _objeto(ventanas, "calendario.ventanas_indices", ("winkler", "huglin", "dias_calor"))
     for nombre, ventana in ventanas.items():
         _objeto(ventana, nombre, ("inicio", "fin"))

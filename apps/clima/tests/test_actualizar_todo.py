@@ -3,7 +3,6 @@
 import json
 import os
 import threading
-import time
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -21,10 +20,7 @@ pytestmark = pytest.mark.django_db
 PASOS = [
     "generar_resumenes",
     "calcular_indices",
-    "clasificar_temporadas",
     "actualizar_mapa_calor",
-    "entrenar_cosecha",
-    "exportar_prediccion_referencia",
     "exportar_json",
 ]
 
@@ -34,8 +30,8 @@ class Registro(list):
 
 
 @pytest.fixture
-def entorno(settings, tmp_path, monkeypatch):
-    """Proyecto falso en tmp_path: un predio con contorno, otro sin él, y cosechas.csv."""
+def entorno(settings, tmp_path):
+    """Proyecto falso en tmp_path: un predio con contorno y otro sin él."""
     settings.BASE_DIR = tmp_path
     settings.INSTANCIA["archivos"] = {
         "areas": "config/areas_mapa.json",
@@ -64,15 +60,11 @@ def entorno(settings, tmp_path, monkeypatch):
     )
     Estacion.objects.create(nombre="Con contorno", codigo="con-contorno")
     Estacion.objects.create(nombre="Sin contorno", codigo="sin-contorno")
-
-    (tmp_path / "data" / "referencia").mkdir(parents=True)
-    (tmp_path / "data" / "referencia" / "cosechas.csv").write_text("anio\n1941\n")
-    monkeypatch.setattr(actualizar_todo, "hay_sklearn", lambda: True)
     return tmp_path
 
 
 @pytest.fixture
-def llamadas(monkeypatch, settings):
+def llamadas(monkeypatch):
     """Reemplaza call_command de los pasos; `fallar` define qué pasos lanzan error."""
     registro = Registro()
     registro.fallar = {}
@@ -81,10 +73,6 @@ def llamadas(monkeypatch, settings):
         registro.append((nombre, args, kwargs))
         if nombre in registro.fallar:
             raise registro.fallar[nombre]
-        if nombre == "entrenar_cosecha":
-            # como el real: deja la evaluación que lee exportar_prediccion_referencia
-            ficticio = settings.BASE_DIR / "data" / "referencia"
-            (ficticio / "prediccion_cosecha_referencia.json").write_text("{}")
 
     monkeypatch.setattr(actualizar_todo, "call_command", falso)
     return registro
@@ -106,7 +94,7 @@ def test_corre_los_pasos_en_orden(entorno, llamadas):
     correr()
 
     assert nombres(llamadas) == PASOS
-    _, _, kwargs = llamadas[3]
+    _, _, kwargs = llamadas[2]
     assert kwargs == {"estacion": "con-contorno", "capa": "ndvi"}
     _, args, _ = llamadas[-1]
     assert args == (
@@ -139,7 +127,7 @@ def test_fallo_critico_sigue_y_termina_con_error(entorno, llamadas):
     assert nombres(llamadas) == PASOS
     estado = leer_actualizacion(entorno)
     assert estado["ok"] is False
-    assert [p["ok"] for p in estado["pasos"]] == [True, False, True, True, True, True, True]
+    assert [p["ok"] for p in estado["pasos"]] == [True, False, True, True]
 
 
 def test_formato_de_actualizacion_json(entorno, llamadas):
@@ -161,7 +149,7 @@ def test_sin_satelite(entorno, llamadas):
     correr("--sin-satelite")
 
     assert "actualizar_mapa_calor" not in nombres(llamadas)
-    mapa = leer_actualizacion(entorno)["pasos"][3]
+    mapa = leer_actualizacion(entorno)["pasos"][2]
     assert mapa["ok"] is True
     assert mapa["detalle"] == "omitido: --sin-satelite"
 
@@ -172,7 +160,7 @@ def test_sin_credenciales_no_pide_capas(entorno, llamadas, settings):
     correr()
 
     assert "actualizar_mapa_calor" not in nombres(llamadas)
-    assert leer_actualizacion(entorno)["pasos"][3]["detalle"].startswith("omitido")
+    assert leer_actualizacion(entorno)["pasos"][2]["detalle"].startswith("omitido")
 
 
 def crear_capa(fecha):
@@ -197,7 +185,7 @@ def test_capa_reciente_no_se_vuelve_a_pedir(entorno, llamadas):
     correr()
 
     assert "actualizar_mapa_calor" not in nombres(llamadas)
-    assert "vigentes: con-contorno" in leer_actualizacion(entorno)["pasos"][3]["detalle"]
+    assert "vigentes: con-contorno" in leer_actualizacion(entorno)["pasos"][2]["detalle"]
 
 
 def test_capa_vieja_se_actualiza(entorno, llamadas):
@@ -215,72 +203,6 @@ def test_forzar_satelite(entorno, llamadas):
     correr("--forzar-satelite")
 
     assert "actualizar_mapa_calor" in nombres(llamadas)
-
-
-def test_no_reentrena_si_la_evaluacion_es_mas_nueva(entorno, llamadas):
-    csv = entorno / "data" / "referencia" / "cosechas.csv"
-    evaluacion = csv.with_name("prediccion_cosecha_referencia.json")
-    evaluacion.write_text("{}")
-    os.utime(csv, (time.time() - 60, time.time() - 60))
-
-    correr()
-
-    assert "entrenar_cosecha" not in nombres(llamadas)
-    assert "exportar_prediccion_referencia" in nombres(llamadas)
-
-
-def test_reentrena_si_el_csv_es_mas_nuevo(entorno, llamadas):
-    csv = entorno / "data" / "referencia" / "cosechas.csv"
-    evaluacion = csv.with_name("prediccion_cosecha_referencia.json")
-    evaluacion.write_text("{}")
-    os.utime(evaluacion, (time.time() - 60, time.time() - 60))
-
-    correr()
-
-    assert "entrenar_cosecha" in nombres(llamadas)
-
-
-def test_sin_sklearn_omite_entrenar_pero_exporta_la_evaluacion(entorno, llamadas, monkeypatch):
-    monkeypatch.setattr(actualizar_todo, "hay_sklearn", lambda: False)
-    (entorno / "data" / "referencia" / "cosechas.csv").unlink()
-    (entorno / "data" / "referencia" / "prediccion_cosecha_referencia.json").write_text("{}")
-
-    correr()
-
-    assert "entrenar_cosecha" not in nombres(llamadas)
-    assert "exportar_prediccion_referencia" in nombres(llamadas)
-    assert leer_actualizacion(entorno)["ok"] is True
-
-
-def test_sin_evaluacion_omite_exportar_prediccion(entorno, llamadas, monkeypatch):
-    monkeypatch.setattr(actualizar_todo, "hay_sklearn", lambda: False)
-
-    correr()
-
-    assert "exportar_prediccion_referencia" not in nombres(llamadas)
-    paso = leer_actualizacion(entorno)["pasos"][5]
-    assert paso["ok"] is True
-    assert paso["detalle"].startswith("omitido: no existe")
-
-
-def test_sin_csv_omite_clasificar_temporadas_y_termina_bien(entorno, llamadas):
-    (entorno / "data" / "referencia" / "cosechas.csv").unlink()
-
-    correr()
-
-    assert "clasificar_temporadas" not in nombres(llamadas)
-    estado = leer_actualizacion(entorno)
-    assert estado["ok"] is True
-    assert estado["pasos"][2]["detalle"].startswith("omitido")
-
-
-def test_con_csv_un_fallo_de_clasificar_temporadas_es_critico(entorno, llamadas):
-    llamadas.fallar["clasificar_temporadas"] = CommandError("etiqueta desconocida")
-
-    with pytest.raises(CommandError, match="clasificar_temporadas"):
-        correr()
-
-    assert leer_actualizacion(entorno)["ok"] is False
 
 
 def test_escritura_atomica_reemplaza_el_archivo(tmp_path):

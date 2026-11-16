@@ -1,4 +1,4 @@
-"""E1C-93: archivos agregados del dashboard, publicados por E1C-129 y E1C-124."""
+"""E1C-93: archivos agregados del dashboard, publicados por E1C-129."""
 
 import json
 import logging
@@ -113,32 +113,6 @@ class DatosFrontendView(ResultadosView):
         except (OSError, ValueError, DatabaseError):
             logger.exception("No se pudieron servir los datos del dashboard")
             return _no_disponible("No se pudieron publicar los datos. Ejecuta actualizar_todo.")
-
-
-class PrediccionFicticiaView(ResultadosView):
-    @extend_schema(
-        summary="Predicción del dataset de referencia",
-        operation_id="dashboard_prediccion_ficticia",
-        tags=["Dashboard"],
-        description=(
-            "Devuelve data/referencia/prediccion_referencia.json (E1C-124) sin entrenar ni "
-            "modificar su contenido. Si falta, devuelve 404 con motivo_nulo."
-        ),
-        responses={200: dict, 404: dict, 503: dict},
-    )
-    def get(self, request):
-        try:
-            datos = _leer(settings.BASE_DIR / "data" / "referencia" / "prediccion_referencia.json")
-        except FileNotFoundError:
-            return Response(
-                {"motivo_nulo": "Aún no se ha entrenado el modelo del dataset de referencia."},
-                status=404,
-                headers={"Cache-Control": "no-store"},
-            )
-        except (OSError, ValueError):
-            logger.exception("No se pudo leer la predicción ficticia")
-            return _no_disponible("No se pudo leer la predicción ficticia.")
-        return Response(datos, headers={"Cache-Control": "no-cache"})
 
 
 class ActualizacionView(ResultadosView):
