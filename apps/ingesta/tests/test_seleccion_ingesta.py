@@ -48,7 +48,7 @@ def test_diagnostico_distingue_vacias_no_numericas_y_fuera_de_rango(tmp_path):
         "filas_fuera_de_rango": 1,
         "filas_validas": 1,
         "porcentaje_valido": 16.67,
-        "indicadores": ["winkler", "huglin", "clasificacion", "anos_analogos", "prediccion"],
+        "indicadores": ["winkler", "huglin", "clasificacion"],
     }
 
 
@@ -143,4 +143,4 @@ def test_catalogo_explica_alternativas_y_variables_solo_visuales():
     assert catalogo["humedad_media"]["unidad"] == "%"
     assert catalogo["humedad_media"]["indicadores"] == []
     assert "huglin" not in catalogo["precipitacion"]["indicadores"]
-    assert "prediccion" in catalogo["precipitacion"]["indicadores"]
+    assert "clasificacion" in catalogo["precipitacion"]["indicadores"]
