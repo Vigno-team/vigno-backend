@@ -1,6 +1,6 @@
 FROM python:3.11-slim-bookworm AS base
 
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 MPLCONFIGDIR=/tmp/matplotlib
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 ARG DEBIAN_MIRROR=https://deb.debian.org/debian
 RUN sed -i "s|http://deb.debian.org/debian$|${DEBIAN_MIRROR}|" /etc/apt/sources.list.d/debian.sources \
@@ -14,8 +14,8 @@ ARG PIP_DEFAULT_TIMEOUT=120
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 RUN useradd --create-home --uid 10001 app \
-    && mkdir -p /app/staticfiles /app/media /app/data/cliente /app/data/referencia /app/apps/ml/artifacts \
-    && chown -R app:app /app/staticfiles /app/media /app/data /app/apps/ml/artifacts
+    && mkdir -p /app/staticfiles /app/media /app/data/cliente \
+    && chown -R app:app /app/staticfiles /app/media /app/data
 
 FROM base AS production
 COPY . .
@@ -24,8 +24,6 @@ EXPOSE 8000
 CMD ["python", "deploy/backend.py"]
 
 FROM base AS tareas
-COPY requirements-ml.txt ./
-RUN pip install --no-cache-dir -r requirements-ml.txt
 COPY . .
 USER app
 CMD ["python", "deploy/tareas.py"]
