@@ -94,7 +94,6 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-https://localhost}
     volumes:
       - datos:/app/data/cliente
-      - referencia:/app/data/referencia
       - staticfiles:/app/staticfiles
       - media:/app/media
       - ../config:/app/config:ro
@@ -131,8 +130,6 @@ services:
       OMP_NUM_THREADS: "2"
     volumes:
       - datos:/app/data/cliente
-      - referencia:/app/data/referencia
-      - modelos:/app/apps/ml/artifacts
       - ../config:/app/config:ro
     depends_on:
       backend:
@@ -240,8 +237,6 @@ services:
 volumes:
   postgres_data:
   datos:
-  referencia:
-  modelos:
   staticfiles:
   media:
   respaldos:
