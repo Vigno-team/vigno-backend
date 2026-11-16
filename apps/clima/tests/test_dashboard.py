@@ -147,7 +147,6 @@ def test_error_al_publicar_responde_503_sin_filtrar_detalles(entorno, monkeypatc
     [
         ("datos", "publicados/vigno-datos-reales.json"),
         ("actualizacion", "publicados/actualizacion.json"),
-        ("prediccion-ficticia", "data/referencia/prediccion_referencia.json"),
     ],
 )
 def test_archivo_invalido_no_se_sobrescribe(entorno, settings, endpoint, archivo, contenido):
@@ -158,28 +157,6 @@ def test_archivo_invalido_no_se_sobrescribe(entorno, settings, endpoint, archivo
     assert respuesta.status_code == 503
     assert ruta.read_text(encoding="utf-8") == contenido
     assert respuesta["Cache-Control"] == "no-store"
-
-
-def test_prediccion_ausente_devuelve_motivo_y_no_crea_datos(entorno, settings):
-    respuesta = APIClient().get("/api/v1/prediccion-ficticia")
-    assert respuesta.status_code == 404
-    assert respuesta.json() == {
-        "motivo_nulo": "Aún no se ha entrenado el modelo del dataset de referencia."
-    }
-    assert respuesta["Cache-Control"] == "no-store"
-    assert not (settings.BASE_DIR / "data/referencia").exists()
-
-
-def test_prediccion_devuelve_exactamente_el_archivo_de_e124(entorno, settings):
-    datos = {
-        "datos_ficticios": True,
-        "fuente": "California",
-        "modelo": {"metricas": {}},
-        "predicciones": [],
-    }
-    escribir_json_atomico(settings.BASE_DIR / "data/referencia/prediccion_referencia.json", datos)
-    respuesta = APIClient().get("/api/v1/prediccion-ficticia")
-    assert respuesta.status_code == 200 and respuesta.json() == datos
 
 
 def test_actualizacion_sin_archivo_es_generado_null_y_no_publica(entorno):
@@ -203,7 +180,7 @@ def test_actualizacion_refleja_la_ultima_corrida_incluso_si_fallo(entorno):
         assert respuesta.status_code == 200 and respuesta.json() == datos
 
 
-@pytest.mark.parametrize("endpoint", ["datos", "actualizacion", "prediccion-ficticia"])
+@pytest.mark.parametrize("endpoint", ["datos", "actualizacion"])
 def test_endpoints_publicos_no_permiten_escritura(endpoint, cliente_con_token):
     # Sin token, 401 antes de revisar el método: no se le dice qué existe a quien no entró.
     assert APIClient().post(f"/api/v1/{endpoint}", {}).status_code == 401
@@ -234,9 +211,9 @@ def test_cors_permite_vite_revalidar_y_leer_etag(entorno, settings):
     assert "Access-Control-Allow-Origin" not in denegado
 
 
-def test_tres_endpoints_y_etag_estan_en_openapi_y_docs():
+def test_endpoints_y_etag_estan_en_openapi_y_docs():
     schema = SchemaGenerator().get_schema(public=True)
-    for endpoint in ("datos", "actualizacion", "prediccion-ficticia"):
+    for endpoint in ("datos", "actualizacion"):
         assert "get" in schema["paths"][f"/api/v1/{endpoint}"]
     datos = schema["paths"]["/api/v1/datos"]["get"]
     assert "304" in datos["responses"]
