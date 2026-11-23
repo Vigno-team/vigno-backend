@@ -81,8 +81,7 @@
           30
         ]
       }
-    ],
-    "desfase_analogos_dias": 182
+    ]
   },
   "json_salida": "datos.json",
   "limites_geograficos": {

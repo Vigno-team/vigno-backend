@@ -9,14 +9,13 @@ Convenciones:
   lo hace automaticamente; si no lo tienes instalado, corre `nbstripout <archivo>`
   antes de commitear.
 - Un notebook no es un entregable de produccion. Cuando un experimento funciona,
-  el codigo se migra a una app del backend; el modelo de ventana de cosecha, por
-  ejemplo, vive en `apps/clima/prediccion/`.
+  el codigo se migra a una app del backend.
 - Nunca guardar datos del cliente aqui. Usar `data/synthetic/`.
 
-Para trabajar con notebooks instala las dependencias del track de datos:
+Para trabajar con notebooks instala sus dependencias:
 
 ```bash
-pip install -r requirements-ml.txt
+pip install -r requirements-notebooks.txt
 ```
 
 ## Ejemplo histórico

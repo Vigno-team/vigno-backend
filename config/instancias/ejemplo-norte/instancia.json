@@ -80,8 +80,7 @@
           31
         ]
       }
-    ],
-    "desfase_analogos_dias": 0
+    ]
   },
   "json_salida": "datos-norte.json",
   "limites_geograficos": {

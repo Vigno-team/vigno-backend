@@ -81,8 +81,7 @@
           30
         ]
       }
-    ],
-    "desfase_analogos_dias": 182
+    ]
   },
   "json_salida": "vigno-datos-reales.json",
   "limites_geograficos": {
